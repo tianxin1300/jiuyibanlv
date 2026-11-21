@@ -3394,7 +3394,7 @@ catch (e) {
    tel:{n,num} 服务电话（点击拨打）；book:{n,url} 医院自有预约入口链接（https，仅跳转，不新建号源）
    campus:[{n,addr,tel}] 多院区信息（只展示）
    show:[{t,d,img,price,tag}] 医院项目展示（基础版≤3、升级版≤8；img 只能是本站 img/<代号>/文件名.jpg|png|webp；价格不写则显示“以门诊公示为准”；患者可“加入想问清单”，不是预约） */
-const HOSP = { demo: { hideRef: true, c: '#0f5c55', n: '示例医院（演示）', w: '本工具是医院为 VIP 客户提供的病程资料整理工具，资料只保存在您自己的设备上。',
+const HOSP = { demo: { hideRef: true, ai: 'https://juyiibanlvzhinengai.tianxinyuan881.workers.dev', c: '#0f5c55', n: '示例医院（演示）', w: '本工具是医院为 VIP 客户提供的病程资料整理工具，资料只保存在您自己的设备上。',
         vip: [{ t: '专属服务电话', d: '工作日 8:00–17:00 由 VIP 服务专员接听，协助了解医院的服务安排。' }, { t: '就诊引导', d: '到院后可向导诊台出示本页面，由工作人员引导至 VIP 服务区（示例内容）。' }, { t: '体检预约咨询', d: '体检套餐与时间请联系服务电话咨询（示例内容）。' }],
         ann: [{ t: '国庆假期门诊安排（示例）', d: '10月1日至7日门诊时间调整，请以医院官方通知为准。', date: '2026-09-28' }, { t: '秋季流感疫苗接种提示（示例）', d: '接种时间、对象与禁忌请咨询接种门诊或您的医生。', date: '2026-10-10' }],
         show: [{ t: '儿童口腔检查（示例）', d: '了解牙齿萌出和清洁情况，是否需要其他处理由医生判断。', img: 'img/demo/oral.jpg', tag: '口腔' }, { t: '成人洁牙（示例）', d: '示例项目，仅演示展示方式。' }],
@@ -3405,7 +3405,7 @@ const HOSP = { demo: { hideRef: true, c: '#0f5c55', n: '示例医院（演示）
         campus: [{ n: '本部', addr: '示例路 1 号', tel: '010-00000001' }, { n: '东院', addr: '示例路 99 号', tel: '010-00000002' }],
         l:'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTIiIGZpbGw9IiMwZjVjNTUiLz48cGF0aCBkPSJNMjYgMTRoMTJ2MTJoMTJ2MTJIMzh2MTJIMjZWMzhIMTRWMjZoMTJ6IiBmaWxsPSIjZmZmIi8+PC9zdmc+' } };
 /* 民营医院门诊演示：只开放部分科室，不显示专科病种（dis:[]） */
-HOSP.minying = { hideRef: true, c: '#0f5c55', n: '示例民营医院门诊（演示）', w: '本工具是门诊为 VIP 客户提供的就诊资料整理工具，资料只保存在您自己的设备上。', dept: ['内科', '儿科', '口腔科', '皮肤科', '中医科', '体检中心'], dis: [],
+HOSP.minying = { hideRef: true, ai: 'https://juyiibanlvzhinengai.tianxinyuan881.workers.dev', c: '#0f5c55', n: '示例民营医院门诊（演示）', w: '本工具是门诊为 VIP 客户提供的就诊资料整理工具，资料只保存在您自己的设备上。', dept: ['内科', '儿科', '口腔科', '皮肤科', '中医科', '体检中心'], dis: [],
     vip: [{ t: '专属服务电话', d: '预约、改约请联系门诊服务台（示例内容）。' }], pre: [{ t: '空腹抽血', d: '一般需空腹 8–12 小时，具体以检查通知为准。' }], tel: { n: '门诊服务电话', num: '021-00000000' }, sched: [{ wd: '周一', ap: '上午', dp: '内科', dr: '示例医生甲' }, { wd: '周二', ap: '下午', dp: '口腔科', dr: '示例医生乙' }, { wd: '周三', ap: '上午', dp: '内科', dr: '示例医生甲' }, { wd: '周四', ap: '下午', dp: '儿科', dr: '示例医生丙' }, { wd: '周五', ap: '上午', dp: '中医科', dr: '示例医生丁', nt: '示例内容' }, { wd: '周六', ap: '上午', dp: '内科', dr: '示例医生甲' }], l: HOSP.demo.l };
 /* 医院配置的读取顺序：先找页面内置的演示配置（demo / minying），没有则读取 config/<医院代号>.json（每家一个独立文件，页面源码里看不到别家配置）。
    json 是公开文件，里面不要放敏感内容；核销密码只作轻量核验。读取失败时按没有医院参数处理。
@@ -3422,7 +3422,7 @@ function cfgClean(o) {
     /* 记录上传：up=上传地址（https，本机测试可用 http://localhost…），tk=医院上传口令（64 位小写十六进制），两者都由后台「患者页上传设置」生成 */
     if (typeof o.up === 'string' && o.up.trim().length <= 300 && (/^https:\/\/[A-Za-z0-9.\-]+(:\d{1,5})?(\/[^\s"<>]*)?$/.test(o.up.trim()) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?(\/[^\s"<>]*)?$/.test(o.up.trim()))) c.up = o.up.trim();
     if (typeof o.tk === 'string' && /^[a-f0-9]{64}$/.test(o.tk.trim())) c.tk = o.tk.trim();
-    /* 智能助手：ai=智能问答网关根地址（https，本机测试可用 http://localhost…）；不写则用同源 /api/chat */
+    /* 智能助手：ai=智能问答网关根地址（https，本机测试可用 http://localhost…）；不写则用内置默认网关 */
     if (typeof o.ai === 'string' && o.ai.trim().length <= 300 && (/^https:\/\/[A-Za-z0-9.\-]+(:\d{1,5})?(\/[^\s"<>]*)?$/.test(o.ai.trim()) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?(\/[^\s"<>]*)?$/.test(o.ai.trim()))) c.ai = o.ai.trim();
     c.vip = lst(o.vip, 30, x => ({ t: str(x.t, 40), d: str(x.d, 200) }));
     c.ann = lst(o.ann, 30, x => ({ t: str(x.t, 40), d: str(x.d, 300), date: str(x.date, 10) }));
@@ -3522,8 +3522,9 @@ const chkSet = o => { try { localStorage.setItem(CHKK, JSON.stringify(o)); } cat
 const UP_URL = HP && typeof HP.up === 'string' ? HP.up : '';
 const UP_TK = HP && typeof HP.tk === 'string' ? HP.tk : '';
 const UP_OK = !!(UP_URL && UP_TK && HP_KEY && HK_OK(HP_KEY) && (/^https:\/\//i.test(UP_URL) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?\//i.test(UP_URL)));
-/* 智能助手网关：医院配置里写 ai（网关根地址）则跨域调它的 /api/chat；不写则调用同源 /api/chat */
-const AI_BASE = HP && typeof HP.ai === 'string' ? HP.ai.replace(/\/+$/, '') : '';
+/* 智能助手网关：默认调已部署的后端 Worker（juyibanlvzhinengai）；医院配置里写 ai 则用它跨域调 /api/chat。不再回退同源 */
+const AI_DEFAULT = 'https://juyiibanlvzhinengai.tianxinyuan881.workers.dev';
+const AI_BASE = ((HP && typeof HP.ai === 'string' && HP.ai) || AI_DEFAULT).replace(/\/+$/, '');
 const CTK = 'companion.consent.' + (HP_KEY || 'demo');
 const QK = 'companion.q.' + (HP_KEY || 'demo');
 const PNK = 'companion.pn.' + (HP_KEY || 'demo');

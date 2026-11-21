@@ -65,3 +65,5 @@ python3 -m http.server 8080
 
 - **前端（Cloudflare Pages）**：输出目录设为 `frontend/`，构建命令留空（纯静态）。
 - **后端（Cloudflare Worker）**：见 `wrangler.toml`，绑定 KV（命名空间变量名必须为 `KV`）。
+- 后端 Worker 已连接：`juyibanlvzhinengai`（`https://juyiibanlvzhinengai.tianxinyuan881.workers.dev`），
+  与仓库 `tianxin1300/jiuyibanlv` 的 `main` 分支关联；前端「智能助手」默认调它，不再走同源 `/api/chat`。

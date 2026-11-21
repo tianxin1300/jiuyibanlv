@@ -6,7 +6,7 @@
 #   3) 按需在 [vars] 填写模型密钥等变量（见下）
 #   4) wrangler deploy
 
-name = "jiuyibanlv-ai"
+name = "juyibanlvzhinengai"
 main = "worker.js"
 compatibility_date = "2024-11-01"
 workers_dev = true

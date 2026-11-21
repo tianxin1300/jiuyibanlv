@@ -5,6 +5,7 @@
   "n": "（医院正式名称，最多40字）",
   "w": "（引导语，最多200字）",
   "c": "#0f5c55",
+  "ai": "https://juyiibanlvzhinengai.tianxinyuan881.workers.dev",
   "l": "（Logo：data:image/png;base64,... 或 jpeg/webp，不填则不显示）",
   "tel": {
     "n": "服务台电话",
