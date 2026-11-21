@@ -267,7 +267,7 @@ function workRuntime() {
 // 工作用模型（按干活能力排，免费优先）
 const WORK_MODELS = {
   groq: ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "openai/gpt-oss-20b"], // v12: 只留 Groq 官网能确认的 3 个
-  openrouter: ["nvidia/nemotron-3.5-super-vl:free" /* 之前能用的免费模型，放首位优先用 */, "nvidia/nemotron-3-ultra:free", "google/gemma-3-27b-it:free", "cohere/north-mini-code:free" /* 写代码强 */], // v29：前端下拉直接读这张表（/api/models），以后加模型只改这里。已删 meta-llama/llama-3.3-70b-instruct:free（不再免费）、google/gemma-4-26b-a4b:free（不存在，报 400）
+  openrouter: ["nvidia/nemotron-3-ultra-550b-a55b:free", "nvidia/nemotron-3.5-super-vl:free", "nvidia/nemotron-3.5-lightning:free", "google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free", "inclusionai/ling-3.2-flash:free", "baidu/ernie-5.5-flash-preview:free", "recursive/flint-v1.0:free", "openrouter/free"], // v29：前端下拉直接读这张表（/api/models），以后加模型只改这里。表按用户在 OpenRouter 官网核对后给出的顺序写死：一个不行就试下一个，最后一个 openrouter/free 是路由器（自动挑一个能用的免费模型）兜底
   gemini: ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.0-flash"]
 };
 // 前端带 stream:true → SSE 流式(每 5 秒心跳)；老前端不带 → 一整段 JSON(等待时发空格保活)
