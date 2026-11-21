@@ -267,7 +267,7 @@ function workRuntime() {
 // 工作用模型（按干活能力排，免费优先）
 const WORK_MODELS = {
   groq: ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "openai/gpt-oss-20b"], // v12: 只留 Groq 官网能确认的 3 个
-  openrouter: ["nvidia/nemotron-3.5-super-vl:free" /* 之前能用的免费模型，放首位优先用 */, "nvidia/nemotron-3-ultra:free", "google/gemma-3-27b-it:free", "cohere/north-mini-code:free" /* 写代码强 */, "google/gemma-4-26b-a4b:free" /* 快，随手问 */], // v29：前端下拉直接读这张表（/api/models），以后加模型只改这里。已删掉 meta-llama/llama-3.3-70b-instruct:free（已不再免费）
+  openrouter: ["nvidia/nemotron-3.5-super-vl:free" /* 之前能用的免费模型，放首位优先用 */, "nvidia/nemotron-3-ultra:free", "google/gemma-3-27b-it:free", "cohere/north-mini-code:free" /* 写代码强 */], // v29：前端下拉直接读这张表（/api/models），以后加模型只改这里。已删 meta-llama/llama-3.3-70b-instruct:free（不再免费）、google/gemma-4-26b-a4b:free（不存在，报 400）
   gemini: ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.0-flash"]
 };
 // 前端带 stream:true → SSE 流式(每 5 秒心跳)；老前端不带 → 一整段 JSON(等待时发空格保活)
@@ -3238,10 +3238,10 @@ async function fsOwns(env, msg) {      // 建文档 / 写表 / 建日程等动�
   try { const v = await env.KV.get("fsseen:" + mid); return v == null || v === n; } catch { return true; }
 }
 const fsSleep = (ms) => new Promise((r) => setTimeout(r, ms));
-// v98e-tools：模型轮换 = Zhipu → Groq → OpenRouter → Gemini → 其余有密钥的（Cerebras / DeepSeek / NVIDIA / Poe / Coze / 火山…），不只试 3 个。
-// “错开启动”：Zhipu 先发；5.5 秒没回就再启动 Groq（Zhipu 不停），再 3.5 秒没回启动 OpenRouter……谁先回出有效内容就用谁；前一个失败会立刻启动下一个。总预算 15 秒（后面还要写文档，整条链路 26 秒）。
+// v98e-tools：模型轮换 = Zhipu → Groq → NVIDIA（直连 NVIDIA_KEYS）→ OpenRouter → Gemini → 其余有密钥的（Cerebras / DeepSeek / Poe / Coze / 火山…），不只试 3 个。GROQ 不行就走 NVIDIA 直连。
+// “错开启动”：Zhipu 先发；5.5 秒没回就再启动 Groq（Zhipu 不停），再 3.5 秒没回启动 NVIDIA……谁先回出有效内容就用谁；前一个失败会立刻启动下一个。总预算 15 秒（后面还要写文档，整条链路 26 秒）。
 const FS_CHUNK = 12;      // 写文档分块：每次最多写 12 个块，不再一次 50 块
-const FS_LLM_FIRST = ["Zhipu", "Groq", "OpenRouter", "Gemini"];
+const FS_LLM_FIRST = ["Zhipu", "Groq", "NVIDIA", "OpenRouter", "Gemini"];
 function fsLlmPlan(env) {
   const rest = SRC_ORDER.filter((x) => !FS_LLM_FIRST.includes(x) && !AUTO_SKIP.has(x) && x !== "Claude" && x !== "CFAI");
   return [...FS_LLM_FIRST, ...rest];
@@ -5478,6 +5478,38 @@ async function handle(request, env, ctx) {
         }
         return { hasKey: true, keyCount: keys.length, status: "离线", model: usedModel, ms: Date.now() - t0, error: clip(lastErr) };
       };
+      const probeNvidia = async () => {
+        const keys = getKeys(env.NVIDIA_KEYS); if (!keys.length) return miss("NVIDIA_KEYS");
+        // 直连英伟达（不是走 OpenRouter）：用 EXTRA 里 NVIDIA 的真实 URL + 真实模型表依次试，第一个通的算在线
+        const src = EXTRA.find((x) => x.name === "NVIDIA") || {};
+        const url = src.url || "https://integrate.api.nvidia.com/v1/chat/completions";
+        const models = (Array.isArray(src.models) && src.models.length) ? src.models : ["nvidia/nemotron-3-ultra-550b-a55b"];
+        const t0 = Date.now(), deadline = t0 + 35000;
+        let lastErr = "";
+        for (const model of models) {
+          if (Date.now() > deadline) { lastErr = lastErr || "列表里的模型都超时，没试完"; break; }
+          try {
+            const res = await fetch(url, { method: "POST", signal: T(15000), headers: { Authorization: "Bearer " + keys[0], "Content-Type": "application/json" }, body: JSON.stringify({ model, messages: [{ role: "user", content: "ping" }], max_tokens: 8 }) });
+            const txt = await res.text().catch(() => "");
+            if (res.ok) return { hasKey: true, keyCount: keys.length, status: "在线", model, ms: Date.now() - t0, error: "" };
+            let msg = "HTTP " + res.status + "：" + txt; try { const j = JSON.parse(txt); msg = "HTTP " + res.status + "：" + (j.error && (j.error.message || j.error) || j.message || txt); } catch { }
+            lastErr = model + " → " + msg;
+          } catch (e) { lastErr = model + " → 请求失败：" + (e && e.message || e); }
+        }
+        return { hasKey: true, keyCount: keys.length, status: "离线", ms: Date.now() - t0, error: clip(lastErr) };
+      };
+      const probeZhipu = async () => {
+        const keys = getKeys(env.ZHIPU_KEYS); if (!keys.length) return miss("ZHIPU_KEYS");
+        const t0 = Date.now();
+        try {
+          // 智谱 GLM：关闭思考链（跟真实 fsZhipu 一致），只探连通性
+          const res = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", { method: "POST", signal: T(15000), headers: { Authorization: "Bearer " + keys[0], "Content-Type": "application/json" }, body: JSON.stringify({ model: "glm-4.7-flash", messages: [{ role: "user", content: "ping" }], max_tokens: 8, thinking: { type: "disabled" } }) });
+          const txt = await res.text().catch(() => "");
+          if (res.ok) return { hasKey: true, keyCount: keys.length, status: "在线", ms: Date.now() - t0, error: "" };
+          let msg = "HTTP " + res.status + "：" + txt; try { const j = JSON.parse(txt); msg = "HTTP " + res.status + "：" + ((j.error && (j.error.message || j.error)) || j.message || txt); } catch { }
+          return { hasKey: true, keyCount: keys.length, status: "离线", ms: Date.now() - t0, error: clip(msg) };
+        } catch (e) { return { hasKey: true, keyCount: keys.length, status: "离线", error: clip("请求失败：" + (e && e.message || e)) }; }
+      };
       const probeCoze = async () => {
         const tok = String(env.COZE_API_TOKEN || ""), bot = String(env.COZE_BOT_ID || "");
         if (!tok) return { hasKey: false, hasBot: !!bot, status: "离线", error: "没配 COZE_API_TOKEN" };
@@ -5498,9 +5530,9 @@ async function handle(request, env, ctx) {
           return { hasKey: true, hasBot: true, status: "离线", ms: Date.now() - t0, error: clip("HTTP " + res.status + "：code=" + (j.code == null ? "?" : j.code) + " " + (j.msg || txt)) };
         } catch (e) { return { hasKey: true, hasBot: true, status: "离线", error: clip("请求失败：" + (e && e.message || e)) }; }
       };
-      const [groq, gemini, openrouter, coze] = await Promise.all([probeGroq(), probeGemini(), probeOpenRouter(), probeCoze()]);
-      const out = { ok: true, build: FS_BUILD, note: "只报告钥匙有无与连通性，不返回任何钥匙值", GEMINI: gemini, GROQ: groq, OPENROUTER: openrouter, COZE: coze };
-      if (!groq.hasKey && !gemini.hasKey && !openrouter.hasKey && !coze.hasKey) out.hint = "这台 Worker 没读到任何钥匙变量。请在「同名 Worker」（juyibanlvzhinengai）的设置 → 变量和机密 里确认已保存并在同一个 Worker 上；若用仓库 wrangler.toml 部署，[vars] 为空不会覆盖面板里的加密 Secret，但明文变量可能被重置，建议用加密 Secret 或 wrangler secret put。";
+      const [groq, gemini, openrouter, nvidia, zhipu, coze] = await Promise.all([probeGroq(), probeGemini(), probeOpenRouter(), probeNvidia(), probeZhipu(), probeCoze()]);
+      const out = { ok: true, build: FS_BUILD, note: "只报告钥匙有无与连通性，不返回任何钥匙值", GEMINI: gemini, GROQ: groq, OPENROUTER: openrouter, NVIDIA: nvidia, ZHIPU: zhipu, COZE: coze };
+      if (!groq.hasKey && !gemini.hasKey && !openrouter.hasKey && !nvidia.hasKey && !zhipu.hasKey && !coze.hasKey) out.hint = "这台 Worker 没读到任何钥匙变量。请在「同名 Worker」（juyibanlvzhinengai）的设置 → 变量和机密 里确认已保存并在同一个 Worker 上；若用仓库 wrangler.toml 部署，[vars] 为空不会覆盖面板里的加密 Secret，但明文变量可能被重置，建议用加密 Secret 或 wrangler secret put。";
       return json(out);
     }
 
