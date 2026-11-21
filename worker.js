@@ -5414,6 +5414,64 @@ async function handle(request, env, ctx) {
       return json({ ok: true, verdict });
     }
 
+    // ---- GET /api/probe：就医智能端自检。只报告「有没有配钥匙 / 通不通 / 上游报错原文」，绝不返回钥匙值 ----
+    if (path === "/api/probe" && request.method === "GET") {
+      const clip = (s, n = 300) => String(s == null ? "" : s).replace(/\s+/g, " ").trim().slice(0, n);
+      const miss = (v) => ({ hasKey: false, keyCount: 0, status: "离线", error: "没配 " + v + "（变量名区分大小写；多个用英文逗号分隔）" });
+      const probeGroq = async () => {
+        const keys = getKeys(env.GROQ_KEYS); if (!keys.length) return miss("GROQ_KEYS");
+        const t0 = Date.now();
+        try {
+          const res = await fetch("https://api.groq.com/openai/v1/chat/completions", { method: "POST", signal: T(15000), headers: { Authorization: "Bearer " + keys[0], "Content-Type": "application/json" }, body: JSON.stringify({ model: "openai/gpt-oss-20b", messages: [{ role: "user", content: "ping" }], max_tokens: 8 }) });
+          const txt = await res.text().catch(() => "");
+          if (res.ok) return { hasKey: true, keyCount: keys.length, status: "在线", ms: Date.now() - t0, error: "" };
+          let msg = "HTTP " + res.status + "：" + txt; try { const j = JSON.parse(txt); msg = "HTTP " + res.status + "：" + (j.error && (j.error.message || j.error) || j.message || txt); } catch { }
+          return { hasKey: true, keyCount: keys.length, status: "离线", ms: Date.now() - t0, error: clip(msg) };
+        } catch (e) { return { hasKey: true, keyCount: keys.length, status: "离线", error: clip("请求失败：" + (e && e.message || e)) }; }
+      };
+      const probeOpenRouter = async () => {
+        const keys = getKeys(env.OPENROUTER_KEYS); if (!keys.length) return miss("OPENROUTER_KEYS");
+        const t0 = Date.now();
+        try {
+          const res = await fetch("https://openrouter.ai/api/v1/chat/completions", { method: "POST", signal: T(15000), headers: { Authorization: "Bearer " + keys[0], "Content-Type": "application/json" }, body: JSON.stringify({ model: "meta-llama/llama-3.3-70b-instruct:free", messages: [{ role: "user", content: "ping" }], max_tokens: 8 }) });
+          const txt = await res.text().catch(() => "");
+          if (res.ok) return { hasKey: true, keyCount: keys.length, status: "在线", ms: Date.now() - t0, error: "" };
+          let msg = "HTTP " + res.status + "：" + txt; try { const j = JSON.parse(txt); msg = "HTTP " + res.status + "：" + (j.error && (j.error.message || j.error) || j.message || txt); } catch { }
+          return { hasKey: true, keyCount: keys.length, status: "离线", ms: Date.now() - t0, error: clip(msg) };
+        } catch (e) { return { hasKey: true, keyCount: keys.length, status: "离线", error: clip("请求失败：" + (e && e.message || e)) }; }
+      };
+      const probeGemini = async () => {
+        const keys = getKeys(env.GEMINI_KEYS); if (!keys.length) return miss("GEMINI_KEYS");
+        const t0 = Date.now();
+        try {
+          const gm = await getGeminiModel(keys[0]);
+          const res = await fetch("https://generativelanguage.googleapis.com/" + gm.ver + "/models/" + gm.model + ":generateContent", { method: "POST", signal: T(15000), headers: { "x-goog-api-key": keys[0], "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "ping" }] }], generationConfig: { maxOutputTokens: 8 } }) });
+          const txt = await res.text().catch(() => "");
+          if (res.ok) return { hasKey: true, keyCount: keys.length, status: "在线", model: gm.model, ms: Date.now() - t0, error: "" };
+          let msg = "HTTP " + res.status + "：" + txt; try { const j = JSON.parse(txt); msg = "HTTP " + res.status + "：" + ((j.error && (j.error.message || j.error.status)) || txt); } catch { }
+          return { hasKey: true, keyCount: keys.length, status: "离线", model: gm.model, ms: Date.now() - t0, error: clip(msg) };
+        } catch (e) { return { hasKey: true, keyCount: keys.length, status: "离线", error: clip("请求失败：" + (e && e.message || e)) }; }
+      };
+      const probeCoze = async () => {
+        const tok = String(env.COZE_API_TOKEN || ""), bot = String(env.COZE_BOT_ID || "");
+        if (!tok) return { hasKey: false, hasBot: !!bot, status: "离线", error: "没配 COZE_API_TOKEN" };
+        if (!bot) return { hasKey: true, hasBot: false, status: "离线", error: "没配 COZE_BOT_ID（Coze 必须同时有 Token 和 Bot ID，机器人要先发布成 API）" };
+        const base = String(env.COZE_API_BASE || "https://api.coze.cn").replace(/\/+$/, "");
+        const t0 = Date.now();
+        try {
+          const res = await fetch(base + "/v3/chat", { method: "POST", signal: T(20000), headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" }, body: JSON.stringify({ bot_id: bot, user_id: "openmanus-gateway", stream: false, auto_save_history: false, additional_messages: [{ role: "user", content: "ping", content_type: "text" }] }) });
+          const txt = await res.text().catch(() => "");
+          let j = {}; try { j = JSON.parse(txt); } catch { }
+          if (res.ok && (j.code === 0 || j.code == null)) return { hasKey: true, hasBot: true, status: "在线", ms: Date.now() - t0, error: "" };
+          return { hasKey: true, hasBot: true, status: "离线", ms: Date.now() - t0, error: clip("HTTP " + res.status + "：code=" + (j.code == null ? "?" : j.code) + " " + (j.msg || txt)) };
+        } catch (e) { return { hasKey: true, hasBot: true, status: "离线", error: clip("请求失败：" + (e && e.message || e)) }; }
+      };
+      const [groq, gemini, openrouter, coze] = await Promise.all([probeGroq(), probeGemini(), probeOpenRouter(), probeCoze()]);
+      const out = { ok: true, build: FS_BUILD, note: "只报告钥匙有无与连通性，不返回任何钥匙值", GEMINI: gemini, GROQ: groq, OPENROUTER: openrouter, COZE: coze };
+      if (!groq.hasKey && !gemini.hasKey && !openrouter.hasKey && !coze.hasKey) out.hint = "这台 Worker 没读到任何钥匙变量。请在「同名 Worker」（juyibanlvzhinengai）的设置 → 变量和机密 里确认已保存并在同一个 Worker 上；若用仓库 wrangler.toml 部署，[vars] 为空不会覆盖面板里的加密 Secret，但明文变量可能被重置，建议用加密 Secret 或 wrangler secret put。";
+      return json(out);
+    }
+
     // ---- v99x：/api/chat —— 前端和飞书同一个脑子（同一个 runWorkChat / 同一份 WORK_SYSTEM_PROMPT / 同一张 FS_TOOLS / 同一个模型轮换）----
     if (path === "/api/chat" && request.method === "POST") {
       const b = await request.json().catch(() => ({}));
