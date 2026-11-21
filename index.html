@@ -2,10 +2,10 @@
 <html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>就医伴侣｜个人就诊档案与陪护备忘工具</title>
-<meta name="description" content="仅用于整理就诊资料、备忘事项；不提供诊疗或健康建议，不能替代医生。资料只保存在本机浏览器，不会自动上传。">
+<meta name="description" content="仅用于整理就诊资料、备忘事项；不提供诊疗或健康建议，不能替代医生。就诊资料只保存在本机浏览器；复诊打卡记录是否上传由患者自己选择。">
 <meta property="og:type" content="website">
 <meta property="og:title" content="就医伴侣｜个人就诊档案与陪护备忘工具">
-<meta property="og:description" content="仅用于整理就诊资料、备忘事项；不提供诊疗或健康建议，不能替代医生。资料只保存在本机浏览器，不会自动上传。">
+<meta property="og:description" content="仅用于整理就诊资料、备忘事项；不提供诊疗或健康建议，不能替代医生。就诊资料只保存在本机浏览器；复诊打卡记录是否上传由患者自己选择。">
 <meta name="theme-color" content="#0d2a22">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="就医伴侣">
@@ -187,6 +187,11 @@ button,input,select,textarea{font-family:inherit}
 input,select,textarea{background:rgba(255,255,255,.82)!important;color:var(--ink)!important;-webkit-text-fill-color:var(--ink)}
 input::placeholder,textarea::placeholder{color:#7b8e88;-webkit-text-fill-color:#7b8e88;opacity:1}
 button.ghost{background:rgba(255,255,255,.7)}
+a.lnkb,a.lnkg{display:inline-flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;font:inherit;border-radius:14px;padding:9px 16px;min-height:48px;font-weight:600}
+a.lnkb{background:linear-gradient(135deg,#1c7a6f,#0f4f48);color:#fff}
+a.lnkg{border:1px solid var(--line);background:rgba(255,255,255,.7);color:var(--ink);font-weight:500}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) a.lnkg{background:rgba(255,255,255,.08)}}
+
 .hb .ghost,.acct .ghost{background:rgba(255,255,255,.18)}
 .mod{background:#fff}
 .ic{width:1.15em;height:1.15em;flex:none;display:inline-block;vertical-align:-.2em}
@@ -199,7 +204,7 @@ button.ghost{background:rgba(255,255,255,.7)}
 
 @media print{img{max-width:100%!important;height:auto!important;page-break-inside:avoid;break-inside:avoid}.pvimg img{max-height:120mm;object-fit:contain}}
 /* v6: keep long first-run dialogs usable on short mobile viewports */
-.ov{overflow-y:auto;-webkit-overflow-scrolling:touch}
+.ov{overflow-y:auto;-webkit-overflow-scrolling:touch}.ov[data-rd]{background:#f4f7f7!important;align-items:flex-start;z-index:99}body:has(.ov[data-rd])>:not(.ov):not(script){display:none!important}
 .mod{max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain}
 /* v6: make the existing narrow-screen tab sizing override large-text defaults */
 @media (max-width:360px){:root.big .tab{font-size:15px;min-height:64px}:root.big .tab .ti{font-size:20px}}
@@ -273,10 +278,1272 @@ details.fl{margin-top:10px}details.fl>summary{list-style:none;cursor:pointer;min
 .sm-check .checkline,.checkline{min-height:48px;padding:6px 0}.sm-check .checkline input,.checkline input{width:28px;height:28px;flex:none}
 .ckr{min-height:48px}.ckr input{width:28px;height:28px}
 .ckr label,.checkline{cursor:pointer}
-</style></head><body><main id="app"></main>
+.pk-g{font-size:14px;margin:12px 0 2px;color:var(--mute,#5b6f6a)}details.pk-dp>summary,details.pk-dis>summary{cursor:pointer;margin:12px 0 4px;min-height:44px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#icp{text-align:center;font-size:13px;color:var(--mute,#5b6f6a);padding:4px 16px 96px}#icp a{color:inherit;text-decoration:none}
+</style></head><body><main id="app"></main><footer id="icp" hidden></footer>
+<script>
+var __QR=(function(){var M={},C={};function req(n){n=n.replace('./','');if(C[n])return C[n].exports;var m={exports:{}};C[n]=m;M[n](m,m.exports,req);return m.exports}
+M['QR8bitByte']=function(module,exports,require){
+var QRMode = require('./QRMode');
+
+function QR8bitByte(data) {
+	this.mode = QRMode.MODE_8BIT_BYTE;
+	this.data = data;
+}
+
+QR8bitByte.prototype = {
+
+	getLength : function() {
+		return this.data.length;
+	},
+	
+	write : function(buffer) {
+		for (var i = 0; i < this.data.length; i++) {
+			// not JIS ...
+			buffer.put(this.data.charCodeAt(i), 8);
+		}
+	}
+};
+
+module.exports = QR8bitByte;
+
+};
+M['QRBitBuffer']=function(module,exports,require){
+function QRBitBuffer() {
+	this.buffer = [];
+	this.length = 0;
+}
+
+QRBitBuffer.prototype = {
+
+	get : function(index) {
+		var bufIndex = Math.floor(index / 8);
+		return ( (this.buffer[bufIndex] >>> (7 - index % 8) ) & 1) == 1;
+	},
+	
+	put : function(num, length) {
+		for (var i = 0; i < length; i++) {
+			this.putBit( ( (num >>> (length - i - 1) ) & 1) == 1);
+		}
+	},
+	
+	getLengthInBits : function() {
+		return this.length;
+	},
+	
+	putBit : function(bit) {
+	
+		var bufIndex = Math.floor(this.length / 8);
+		if (this.buffer.length <= bufIndex) {
+			this.buffer.push(0);
+		}
+	
+		if (bit) {
+			this.buffer[bufIndex] |= (0x80 >>> (this.length % 8) );
+		}
+	
+		this.length++;
+	}
+};
+
+module.exports = QRBitBuffer;
+
+};
+M['QRErrorCorrectLevel']=function(module,exports,require){
+module.exports = {
+	L : 1,
+	M : 0,
+	Q : 3,
+	H : 2
+};
+
+
+};
+M['QRMaskPattern']=function(module,exports,require){
+module.exports = {
+	PATTERN000 : 0,
+	PATTERN001 : 1,
+	PATTERN010 : 2,
+	PATTERN011 : 3,
+	PATTERN100 : 4,
+	PATTERN101 : 5,
+	PATTERN110 : 6,
+	PATTERN111 : 7
+};
+
+};
+M['QRMath']=function(module,exports,require){
+var QRMath = {
+
+	glog : function(n) {
+	
+		if (n < 1) {
+			throw new Error("glog(" + n + ")");
+		}
+		
+		return QRMath.LOG_TABLE[n];
+	},
+	
+	gexp : function(n) {
+	
+		while (n < 0) {
+			n += 255;
+		}
+	
+		while (n >= 256) {
+			n -= 255;
+		}
+	
+		return QRMath.EXP_TABLE[n];
+	},
+	
+	EXP_TABLE : new Array(256),
+	
+	LOG_TABLE : new Array(256)
+
+};
+	
+for (var i = 0; i < 8; i++) {
+	QRMath.EXP_TABLE[i] = 1 << i;
+}
+for (var i = 8; i < 256; i++) {
+	QRMath.EXP_TABLE[i] = QRMath.EXP_TABLE[i - 4]
+		^ QRMath.EXP_TABLE[i - 5]
+		^ QRMath.EXP_TABLE[i - 6]
+		^ QRMath.EXP_TABLE[i - 8];
+}
+for (var i = 0; i < 255; i++) {
+	QRMath.LOG_TABLE[QRMath.EXP_TABLE[i] ] = i;
+}
+
+module.exports = QRMath;
+
+};
+M['QRMode']=function(module,exports,require){
+module.exports = {
+    MODE_NUMBER :       1 << 0,
+    MODE_ALPHA_NUM :    1 << 1,
+    MODE_8BIT_BYTE :    1 << 2,
+    MODE_KANJI :        1 << 3
+};
+
+};
+M['QRPolynomial']=function(module,exports,require){
+var QRMath = require('./QRMath');
+
+function QRPolynomial(num, shift) {
+	if (num.length === undefined) {
+		throw new Error(num.length + "/" + shift);
+	}
+
+	var offset = 0;
+
+	while (offset < num.length && num[offset] === 0) {
+		offset++;
+	}
+
+	this.num = new Array(num.length - offset + shift);
+	for (var i = 0; i < num.length - offset; i++) {
+		this.num[i] = num[i + offset];
+	}
+}
+
+QRPolynomial.prototype = {
+
+	get : function(index) {
+		return this.num[index];
+	},
+	
+	getLength : function() {
+		return this.num.length;
+	},
+	
+	multiply : function(e) {
+	
+		var num = new Array(this.getLength() + e.getLength() - 1);
+	
+		for (var i = 0; i < this.getLength(); i++) {
+			for (var j = 0; j < e.getLength(); j++) {
+				num[i + j] ^= QRMath.gexp(QRMath.glog(this.get(i) ) + QRMath.glog(e.get(j) ) );
+			}
+		}
+	
+		return new QRPolynomial(num, 0);
+	},
+	
+	mod : function(e) {
+	
+		if (this.getLength() - e.getLength() < 0) {
+			return this;
+		}
+	
+		var ratio = QRMath.glog(this.get(0) ) - QRMath.glog(e.get(0) );
+	
+		var num = new Array(this.getLength() );
+		
+		for (var i = 0; i < this.getLength(); i++) {
+			num[i] = this.get(i);
+		}
+		
+		for (var x = 0; x < e.getLength(); x++) {
+			num[x] ^= QRMath.gexp(QRMath.glog(e.get(x) ) + ratio);
+		}
+	
+		// recursive call
+		return new QRPolynomial(num, 0).mod(e);
+	}
+};
+
+module.exports = QRPolynomial;
+
+};
+M['QRRSBlock']=function(module,exports,require){
+var QRErrorCorrectLevel = require('./QRErrorCorrectLevel');
+
+function QRRSBlock(totalCount, dataCount) {
+	this.totalCount = totalCount;
+	this.dataCount  = dataCount;
+}
+
+QRRSBlock.RS_BLOCK_TABLE = [
+
+	// L
+	// M
+	// Q
+	// H
+
+	// 1
+	[1, 26, 19],
+	[1, 26, 16],
+	[1, 26, 13],
+	[1, 26, 9],
+	
+	// 2
+	[1, 44, 34],
+	[1, 44, 28],
+	[1, 44, 22],
+	[1, 44, 16],
+
+	// 3
+	[1, 70, 55],
+	[1, 70, 44],
+	[2, 35, 17],
+	[2, 35, 13],
+
+	// 4		
+	[1, 100, 80],
+	[2, 50, 32],
+	[2, 50, 24],
+	[4, 25, 9],
+	
+	// 5
+	[1, 134, 108],
+	[2, 67, 43],
+	[2, 33, 15, 2, 34, 16],
+	[2, 33, 11, 2, 34, 12],
+	
+	// 6
+	[2, 86, 68],
+	[4, 43, 27],
+	[4, 43, 19],
+	[4, 43, 15],
+	
+	// 7		
+	[2, 98, 78],
+	[4, 49, 31],
+	[2, 32, 14, 4, 33, 15],
+	[4, 39, 13, 1, 40, 14],
+	
+	// 8
+	[2, 121, 97],
+	[2, 60, 38, 2, 61, 39],
+	[4, 40, 18, 2, 41, 19],
+	[4, 40, 14, 2, 41, 15],
+	
+	// 9
+	[2, 146, 116],
+	[3, 58, 36, 2, 59, 37],
+	[4, 36, 16, 4, 37, 17],
+	[4, 36, 12, 4, 37, 13],
+	
+	// 10		
+	[2, 86, 68, 2, 87, 69],
+	[4, 69, 43, 1, 70, 44],
+	[6, 43, 19, 2, 44, 20],
+	[6, 43, 15, 2, 44, 16],
+
+	// 11
+	[4, 101, 81],
+	[1, 80, 50, 4, 81, 51],
+	[4, 50, 22, 4, 51, 23],
+	[3, 36, 12, 8, 37, 13],
+
+	// 12
+	[2, 116, 92, 2, 117, 93],
+	[6, 58, 36, 2, 59, 37],
+	[4, 46, 20, 6, 47, 21],
+	[7, 42, 14, 4, 43, 15],
+
+	// 13
+	[4, 133, 107],
+	[8, 59, 37, 1, 60, 38],
+	[8, 44, 20, 4, 45, 21],
+	[12, 33, 11, 4, 34, 12],
+
+	// 14
+	[3, 145, 115, 1, 146, 116],
+	[4, 64, 40, 5, 65, 41],
+	[11, 36, 16, 5, 37, 17],
+	[11, 36, 12, 5, 37, 13],
+
+	// 15
+	[5, 109, 87, 1, 110, 88],
+	[5, 65, 41, 5, 66, 42],
+	[5, 54, 24, 7, 55, 25],
+	[11, 36, 12],
+
+	// 16
+	[5, 122, 98, 1, 123, 99],
+	[7, 73, 45, 3, 74, 46],
+	[15, 43, 19, 2, 44, 20],
+	[3, 45, 15, 13, 46, 16],
+
+	// 17
+	[1, 135, 107, 5, 136, 108],
+	[10, 74, 46, 1, 75, 47],
+	[1, 50, 22, 15, 51, 23],
+	[2, 42, 14, 17, 43, 15],
+
+	// 18
+	[5, 150, 120, 1, 151, 121],
+	[9, 69, 43, 4, 70, 44],
+	[17, 50, 22, 1, 51, 23],
+	[2, 42, 14, 19, 43, 15],
+
+	// 19
+	[3, 141, 113, 4, 142, 114],
+	[3, 70, 44, 11, 71, 45],
+	[17, 47, 21, 4, 48, 22],
+	[9, 39, 13, 16, 40, 14],
+
+	// 20
+	[3, 135, 107, 5, 136, 108],
+	[3, 67, 41, 13, 68, 42],
+	[15, 54, 24, 5, 55, 25],
+	[15, 43, 15, 10, 44, 16],
+
+	// 21
+	[4, 144, 116, 4, 145, 117],
+	[17, 68, 42],
+	[17, 50, 22, 6, 51, 23],
+	[19, 46, 16, 6, 47, 17],
+
+	// 22
+	[2, 139, 111, 7, 140, 112],
+	[17, 74, 46],
+	[7, 54, 24, 16, 55, 25],
+	[34, 37, 13],
+
+	// 23
+	[4, 151, 121, 5, 152, 122],
+	[4, 75, 47, 14, 76, 48],
+	[11, 54, 24, 14, 55, 25],
+	[16, 45, 15, 14, 46, 16],
+
+	// 24
+	[6, 147, 117, 4, 148, 118],
+	[6, 73, 45, 14, 74, 46],
+	[11, 54, 24, 16, 55, 25],
+	[30, 46, 16, 2, 47, 17],
+
+	// 25
+	[8, 132, 106, 4, 133, 107],
+	[8, 75, 47, 13, 76, 48],
+	[7, 54, 24, 22, 55, 25],
+	[22, 45, 15, 13, 46, 16],
+
+	// 26
+	[10, 142, 114, 2, 143, 115],
+	[19, 74, 46, 4, 75, 47],
+	[28, 50, 22, 6, 51, 23],
+	[33, 46, 16, 4, 47, 17],
+
+	// 27
+	[8, 152, 122, 4, 153, 123],
+	[22, 73, 45, 3, 74, 46],
+	[8, 53, 23, 26, 54, 24],
+	[12, 45, 15, 28, 46, 16],
+
+	// 28
+	[3, 147, 117, 10, 148, 118],
+	[3, 73, 45, 23, 74, 46],
+	[4, 54, 24, 31, 55, 25],
+	[11, 45, 15, 31, 46, 16],
+
+	// 29
+	[7, 146, 116, 7, 147, 117],
+	[21, 73, 45, 7, 74, 46],
+	[1, 53, 23, 37, 54, 24],
+	[19, 45, 15, 26, 46, 16],
+
+	// 30
+	[5, 145, 115, 10, 146, 116],
+	[19, 75, 47, 10, 76, 48],
+	[15, 54, 24, 25, 55, 25],
+	[23, 45, 15, 25, 46, 16],
+
+	// 31
+	[13, 145, 115, 3, 146, 116],
+	[2, 74, 46, 29, 75, 47],
+	[42, 54, 24, 1, 55, 25],
+	[23, 45, 15, 28, 46, 16],
+
+	// 32
+	[17, 145, 115],
+	[10, 74, 46, 23, 75, 47],
+	[10, 54, 24, 35, 55, 25],
+	[19, 45, 15, 35, 46, 16],
+
+	// 33
+	[17, 145, 115, 1, 146, 116],
+	[14, 74, 46, 21, 75, 47],
+	[29, 54, 24, 19, 55, 25],
+	[11, 45, 15, 46, 46, 16],
+
+	// 34
+	[13, 145, 115, 6, 146, 116],
+	[14, 74, 46, 23, 75, 47],
+	[44, 54, 24, 7, 55, 25],
+	[59, 46, 16, 1, 47, 17],
+
+	// 35
+	[12, 151, 121, 7, 152, 122],
+	[12, 75, 47, 26, 76, 48],
+	[39, 54, 24, 14, 55, 25],
+	[22, 45, 15, 41, 46, 16],
+
+	// 36
+	[6, 151, 121, 14, 152, 122],
+	[6, 75, 47, 34, 76, 48],
+	[46, 54, 24, 10, 55, 25],
+	[2, 45, 15, 64, 46, 16],
+
+	// 37
+	[17, 152, 122, 4, 153, 123],
+	[29, 74, 46, 14, 75, 47],
+	[49, 54, 24, 10, 55, 25],
+	[24, 45, 15, 46, 46, 16],
+
+	// 38
+	[4, 152, 122, 18, 153, 123],
+	[13, 74, 46, 32, 75, 47],
+	[48, 54, 24, 14, 55, 25],
+	[42, 45, 15, 32, 46, 16],
+
+	// 39
+	[20, 147, 117, 4, 148, 118],
+	[40, 75, 47, 7, 76, 48],
+	[43, 54, 24, 22, 55, 25],
+	[10, 45, 15, 67, 46, 16],
+
+	// 40
+	[19, 148, 118, 6, 149, 119],
+	[18, 75, 47, 31, 76, 48],
+	[34, 54, 24, 34, 55, 25],
+	[20, 45, 15, 61, 46, 16]
+];
+
+QRRSBlock.getRSBlocks = function(typeNumber, errorCorrectLevel) {
+	
+	var rsBlock = QRRSBlock.getRsBlockTable(typeNumber, errorCorrectLevel);
+	
+	if (rsBlock === undefined) {
+		throw new Error("bad rs block @ typeNumber:" + typeNumber + "/errorCorrectLevel:" + errorCorrectLevel);
+	}
+
+	var length = rsBlock.length / 3;
+	
+	var list = [];
+	
+	for (var i = 0; i < length; i++) {
+
+		var count = rsBlock[i * 3 + 0];
+		var totalCount = rsBlock[i * 3 + 1];
+		var dataCount  = rsBlock[i * 3 + 2];
+
+		for (var j = 0; j < count; j++) {
+			list.push(new QRRSBlock(totalCount, dataCount) );	
+		}
+	}
+	
+	return list;
+};
+
+QRRSBlock.getRsBlockTable = function(typeNumber, errorCorrectLevel) {
+
+	switch(errorCorrectLevel) {
+	case QRErrorCorrectLevel.L :
+		return QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 0];
+	case QRErrorCorrectLevel.M :
+		return QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 1];
+	case QRErrorCorrectLevel.Q :
+		return QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 2];
+	case QRErrorCorrectLevel.H :
+		return QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 3];
+	default :
+		return undefined;
+	}
+};
+
+module.exports = QRRSBlock;
+
+};
+M['QRUtil']=function(module,exports,require){
+var QRMode = require('./QRMode');
+var QRPolynomial = require('./QRPolynomial');
+var QRMath = require('./QRMath');
+var QRMaskPattern = require('./QRMaskPattern');
+
+var QRUtil = {
+
+    PATTERN_POSITION_TABLE : [
+        [],
+        [6, 18],
+        [6, 22],
+        [6, 26],
+        [6, 30],
+        [6, 34],
+        [6, 22, 38],
+        [6, 24, 42],
+        [6, 26, 46],
+        [6, 28, 50],
+        [6, 30, 54],        
+        [6, 32, 58],
+        [6, 34, 62],
+        [6, 26, 46, 66],
+        [6, 26, 48, 70],
+        [6, 26, 50, 74],
+        [6, 30, 54, 78],
+        [6, 30, 56, 82],
+        [6, 30, 58, 86],
+        [6, 34, 62, 90],
+        [6, 28, 50, 72, 94],
+        [6, 26, 50, 74, 98],
+        [6, 30, 54, 78, 102],
+        [6, 28, 54, 80, 106],
+        [6, 32, 58, 84, 110],
+        [6, 30, 58, 86, 114],
+        [6, 34, 62, 90, 118],
+        [6, 26, 50, 74, 98, 122],
+        [6, 30, 54, 78, 102, 126],
+        [6, 26, 52, 78, 104, 130],
+        [6, 30, 56, 82, 108, 134],
+        [6, 34, 60, 86, 112, 138],
+        [6, 30, 58, 86, 114, 142],
+        [6, 34, 62, 90, 118, 146],
+        [6, 30, 54, 78, 102, 126, 150],
+        [6, 24, 50, 76, 102, 128, 154],
+        [6, 28, 54, 80, 106, 132, 158],
+        [6, 32, 58, 84, 110, 136, 162],
+        [6, 26, 54, 82, 110, 138, 166],
+        [6, 30, 58, 86, 114, 142, 170]
+    ],
+
+    G15 : (1 << 10) | (1 << 8) | (1 << 5) | (1 << 4) | (1 << 2) | (1 << 1) | (1 << 0),
+    G18 : (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | (1 << 8) | (1 << 5) | (1 << 2) | (1 << 0),
+    G15_MASK : (1 << 14) | (1 << 12) | (1 << 10)    | (1 << 4) | (1 << 1),
+
+    getBCHTypeInfo : function(data) {
+        var d = data << 10;
+        while (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G15) >= 0) {
+            d ^= (QRUtil.G15 << (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G15) ) );    
+        }
+        return ( (data << 10) | d) ^ QRUtil.G15_MASK;
+    },
+
+    getBCHTypeNumber : function(data) {
+        var d = data << 12;
+        while (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G18) >= 0) {
+            d ^= (QRUtil.G18 << (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G18) ) );    
+        }
+        return (data << 12) | d;
+    },
+
+    getBCHDigit : function(data) {
+
+        var digit = 0;
+
+        while (data !== 0) {
+            digit++;
+            data >>>= 1;
+        }
+
+        return digit;
+    },
+
+    getPatternPosition : function(typeNumber) {
+        return QRUtil.PATTERN_POSITION_TABLE[typeNumber - 1];
+    },
+
+    getMask : function(maskPattern, i, j) {
+        
+        switch (maskPattern) {
+            
+        case QRMaskPattern.PATTERN000 : return (i + j) % 2 === 0;
+        case QRMaskPattern.PATTERN001 : return i % 2 === 0;
+        case QRMaskPattern.PATTERN010 : return j % 3 === 0;
+        case QRMaskPattern.PATTERN011 : return (i + j) % 3 === 0;
+        case QRMaskPattern.PATTERN100 : return (Math.floor(i / 2) + Math.floor(j / 3) ) % 2 === 0;
+        case QRMaskPattern.PATTERN101 : return (i * j) % 2 + (i * j) % 3 === 0;
+        case QRMaskPattern.PATTERN110 : return ( (i * j) % 2 + (i * j) % 3) % 2 === 0;
+        case QRMaskPattern.PATTERN111 : return ( (i * j) % 3 + (i + j) % 2) % 2 === 0;
+
+        default :
+            throw new Error("bad maskPattern:" + maskPattern);
+        }
+    },
+
+    getErrorCorrectPolynomial : function(errorCorrectLength) {
+
+        var a = new QRPolynomial([1], 0);
+
+        for (var i = 0; i < errorCorrectLength; i++) {
+            a = a.multiply(new QRPolynomial([1, QRMath.gexp(i)], 0) );
+        }
+
+        return a;
+    },
+
+    getLengthInBits : function(mode, type) {
+
+        if (1 <= type && type < 10) {
+
+            // 1 - 9
+
+            switch(mode) {
+            case QRMode.MODE_NUMBER     : return 10;
+            case QRMode.MODE_ALPHA_NUM  : return 9;
+            case QRMode.MODE_8BIT_BYTE  : return 8;
+            case QRMode.MODE_KANJI      : return 8;
+            default :
+                throw new Error("mode:" + mode);
+            }
+
+        } else if (type < 27) {
+
+            // 10 - 26
+
+            switch(mode) {
+            case QRMode.MODE_NUMBER     : return 12;
+            case QRMode.MODE_ALPHA_NUM  : return 11;
+            case QRMode.MODE_8BIT_BYTE  : return 16;
+            case QRMode.MODE_KANJI      : return 10;
+            default :
+                throw new Error("mode:" + mode);
+            }
+
+        } else if (type < 41) {
+
+            // 27 - 40
+
+            switch(mode) {
+            case QRMode.MODE_NUMBER     : return 14;
+            case QRMode.MODE_ALPHA_NUM  : return 13;
+            case QRMode.MODE_8BIT_BYTE  : return 16;
+            case QRMode.MODE_KANJI      : return 12;
+            default :
+                throw new Error("mode:" + mode);
+            }
+
+        } else {
+            throw new Error("type:" + type);
+        }
+    },
+
+    getLostPoint : function(qrCode) {
+        
+        var moduleCount = qrCode.getModuleCount();
+        var lostPoint = 0;
+        var row = 0; 
+        var col = 0;
+
+        
+        // LEVEL1
+        
+        for (row = 0; row < moduleCount; row++) {
+
+            for (col = 0; col < moduleCount; col++) {
+
+                var sameCount = 0;
+                var dark = qrCode.isDark(row, col);
+
+                for (var r = -1; r <= 1; r++) {
+
+                    if (row + r < 0 || moduleCount <= row + r) {
+                        continue;
+                    }
+
+                    for (var c = -1; c <= 1; c++) {
+
+                        if (col + c < 0 || moduleCount <= col + c) {
+                            continue;
+                        }
+
+                        if (r === 0 && c === 0) {
+                            continue;
+                        }
+
+                        if (dark === qrCode.isDark(row + r, col + c) ) {
+                            sameCount++;
+                        }
+                    }
+                }
+
+                if (sameCount > 5) {
+                    lostPoint += (3 + sameCount - 5);
+                }
+            }
+        }
+
+        // LEVEL2
+
+        for (row = 0; row < moduleCount - 1; row++) {
+            for (col = 0; col < moduleCount - 1; col++) {
+                var count = 0;
+                if (qrCode.isDark(row,     col    ) ) count++;
+                if (qrCode.isDark(row + 1, col    ) ) count++;
+                if (qrCode.isDark(row,     col + 1) ) count++;
+                if (qrCode.isDark(row + 1, col + 1) ) count++;
+                if (count === 0 || count === 4) {
+                    lostPoint += 3;
+                }
+            }
+        }
+
+        // LEVEL3
+
+        for (row = 0; row < moduleCount; row++) {
+            for (col = 0; col < moduleCount - 6; col++) {
+                if (qrCode.isDark(row, col) && 
+                        !qrCode.isDark(row, col + 1) && 
+                         qrCode.isDark(row, col + 2) && 
+                         qrCode.isDark(row, col + 3) && 
+                         qrCode.isDark(row, col + 4) && 
+                        !qrCode.isDark(row, col + 5) && 
+                         qrCode.isDark(row, col + 6) ) {
+                    lostPoint += 40;
+                }
+            }
+        }
+
+        for (col = 0; col < moduleCount; col++) {
+            for (row = 0; row < moduleCount - 6; row++) {
+                if (qrCode.isDark(row, col) &&
+                        !qrCode.isDark(row + 1, col) &&
+                         qrCode.isDark(row + 2, col) &&
+                         qrCode.isDark(row + 3, col) &&
+                         qrCode.isDark(row + 4, col) &&
+                        !qrCode.isDark(row + 5, col) &&
+                         qrCode.isDark(row + 6, col) ) {
+                    lostPoint += 40;
+                }
+            }
+        }
+
+        // LEVEL4
+        
+        var darkCount = 0;
+
+        for (col = 0; col < moduleCount; col++) {
+            for (row = 0; row < moduleCount; row++) {
+                if (qrCode.isDark(row, col) ) {
+                    darkCount++;
+                }
+            }
+        }
+        
+        var ratio = Math.abs(100 * darkCount / moduleCount / moduleCount - 50) / 5;
+        lostPoint += ratio * 10;
+
+        return lostPoint;       
+    }
+
+};
+
+module.exports = QRUtil;
+
+};
+M['index']=function(module,exports,require){
+//---------------------------------------------------------------------
+// QRCode for JavaScript
+//
+// Copyright (c) 2009 Kazuhiko Arase
+//
+// URL: http://www.d-project.com/
+//
+// Licensed under the MIT license:
+//   http://www.opensource.org/licenses/mit-license.php
+//
+// The word "QR Code" is registered trademark of 
+// DENSO WAVE INCORPORATED
+//   http://www.denso-wave.com/qrcode/faqpatent-e.html
+//
+//---------------------------------------------------------------------
+// Modified to work in node for this project (and some refactoring)
+//---------------------------------------------------------------------
+
+var QR8bitByte = require('./QR8bitByte');
+var QRUtil = require('./QRUtil');
+var QRPolynomial = require('./QRPolynomial');
+var QRRSBlock = require('./QRRSBlock');
+var QRBitBuffer = require('./QRBitBuffer');
+
+function QRCode(typeNumber, errorCorrectLevel) {
+	this.typeNumber = typeNumber;
+	this.errorCorrectLevel = errorCorrectLevel;
+	this.modules = null;
+	this.moduleCount = 0;
+	this.dataCache = null;
+	this.dataList = [];
+}
+
+QRCode.prototype = {
+	
+	addData : function(data) {
+		var newData = new QR8bitByte(data);
+		this.dataList.push(newData);
+		this.dataCache = null;
+	},
+	
+	isDark : function(row, col) {
+		if (row < 0 || this.moduleCount <= row || col < 0 || this.moduleCount <= col) {
+			throw new Error(row + "," + col);
+		}
+		return this.modules[row][col];
+	},
+
+	getModuleCount : function() {
+		return this.moduleCount;
+	},
+	
+	make : function() {
+		// Calculate automatically typeNumber if provided is < 1
+		if (this.typeNumber < 1 ){
+			var typeNumber = 1;
+			for (typeNumber = 1; typeNumber < 40; typeNumber++) {
+				var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, this.errorCorrectLevel);
+
+				var buffer = new QRBitBuffer();
+				var totalDataCount = 0;
+				for (var i = 0; i < rsBlocks.length; i++) {
+					totalDataCount += rsBlocks[i].dataCount;
+				}
+
+				for (var x = 0; x < this.dataList.length; x++) {
+					var data = this.dataList[x];
+					buffer.put(data.mode, 4);
+					buffer.put(data.getLength(), QRUtil.getLengthInBits(data.mode, typeNumber) );
+					data.write(buffer);
+				}
+				if (buffer.getLengthInBits() <= totalDataCount * 8)
+					break;
+			}
+			this.typeNumber = typeNumber;
+		}
+		this.makeImpl(false, this.getBestMaskPattern() );
+	},
+	
+	makeImpl : function(test, maskPattern) {
+		
+		this.moduleCount = this.typeNumber * 4 + 17;
+		this.modules = new Array(this.moduleCount);
+		
+		for (var row = 0; row < this.moduleCount; row++) {
+			
+			this.modules[row] = new Array(this.moduleCount);
+			
+			for (var col = 0; col < this.moduleCount; col++) {
+				this.modules[row][col] = null;//(col + row) % 3;
+			}
+		}
+	
+		this.setupPositionProbePattern(0, 0);
+		this.setupPositionProbePattern(this.moduleCount - 7, 0);
+		this.setupPositionProbePattern(0, this.moduleCount - 7);
+		this.setupPositionAdjustPattern();
+		this.setupTimingPattern();
+		this.setupTypeInfo(test, maskPattern);
+		
+		if (this.typeNumber >= 7) {
+			this.setupTypeNumber(test);
+		}
+	
+		if (this.dataCache === null) {
+			this.dataCache = QRCode.createData(this.typeNumber, this.errorCorrectLevel, this.dataList);
+		}
+	
+		this.mapData(this.dataCache, maskPattern);
+	},
+
+	setupPositionProbePattern : function(row, col)  {
+		
+		for (var r = -1; r <= 7; r++) {
+			
+			if (row + r <= -1 || this.moduleCount <= row + r) continue;
+			
+			for (var c = -1; c <= 7; c++) {
+				
+				if (col + c <= -1 || this.moduleCount <= col + c) continue;
+				
+				if ( (0 <= r && r <= 6 && (c === 0 || c === 6) ) || 
+                     (0 <= c && c <= 6 && (r === 0 || r === 6) ) || 
+                     (2 <= r && r <= 4 && 2 <= c && c <= 4) ) {
+					this.modules[row + r][col + c] = true;
+				} else {
+					this.modules[row + r][col + c] = false;
+				}
+			}		
+		}		
+	},
+	
+	getBestMaskPattern : function() {
+	
+		var minLostPoint = 0;
+		var pattern = 0;
+	
+		for (var i = 0; i < 8; i++) {
+			
+			this.makeImpl(true, i);
+	
+			var lostPoint = QRUtil.getLostPoint(this);
+	
+			if (i === 0 || minLostPoint >  lostPoint) {
+				minLostPoint = lostPoint;
+				pattern = i;
+			}
+		}
+	
+		return pattern;
+	},
+	
+	createMovieClip : function(target_mc, instance_name, depth) {
+	
+		var qr_mc = target_mc.createEmptyMovieClip(instance_name, depth);
+		var cs = 1;
+	
+		this.make();
+
+		for (var row = 0; row < this.modules.length; row++) {
+			
+			var y = row * cs;
+			
+			for (var col = 0; col < this.modules[row].length; col++) {
+	
+				var x = col * cs;
+				var dark = this.modules[row][col];
+			
+				if (dark) {
+					qr_mc.beginFill(0, 100);
+					qr_mc.moveTo(x, y);
+					qr_mc.lineTo(x + cs, y);
+					qr_mc.lineTo(x + cs, y + cs);
+					qr_mc.lineTo(x, y + cs);
+					qr_mc.endFill();
+				}
+			}
+		}
+		
+		return qr_mc;
+	},
+
+	setupTimingPattern : function() {
+		
+		for (var r = 8; r < this.moduleCount - 8; r++) {
+			if (this.modules[r][6] !== null) {
+				continue;
+			}
+			this.modules[r][6] = (r % 2 === 0);
+		}
+	
+		for (var c = 8; c < this.moduleCount - 8; c++) {
+			if (this.modules[6][c] !== null) {
+				continue;
+			}
+			this.modules[6][c] = (c % 2 === 0);
+		}
+	},
+	
+	setupPositionAdjustPattern : function() {
+	
+		var pos = QRUtil.getPatternPosition(this.typeNumber);
+		
+		for (var i = 0; i < pos.length; i++) {
+		
+			for (var j = 0; j < pos.length; j++) {
+			
+				var row = pos[i];
+				var col = pos[j];
+				
+				if (this.modules[row][col] !== null) {
+					continue;
+				}
+				
+				for (var r = -2; r <= 2; r++) {
+				
+					for (var c = -2; c <= 2; c++) {
+					
+						if (Math.abs(r) === 2 || 
+                            Math.abs(c) === 2 ||
+                            (r === 0 && c === 0) ) {
+							this.modules[row + r][col + c] = true;
+						} else {
+							this.modules[row + r][col + c] = false;
+						}
+					}
+				}
+			}
+		}
+	},
+	
+	setupTypeNumber : function(test) {
+	
+		var bits = QRUtil.getBCHTypeNumber(this.typeNumber);
+        var mod;
+	
+		for (var i = 0; i < 18; i++) {
+			mod = (!test && ( (bits >> i) & 1) === 1);
+			this.modules[Math.floor(i / 3)][i % 3 + this.moduleCount - 8 - 3] = mod;
+		}
+	
+		for (var x = 0; x < 18; x++) {
+			mod = (!test && ( (bits >> x) & 1) === 1);
+			this.modules[x % 3 + this.moduleCount - 8 - 3][Math.floor(x / 3)] = mod;
+		}
+	},
+	
+	setupTypeInfo : function(test, maskPattern) {
+	
+		var data = (this.errorCorrectLevel << 3) | maskPattern;
+		var bits = QRUtil.getBCHTypeInfo(data);
+        var mod;
+	
+		// vertical		
+		for (var v = 0; v < 15; v++) {
+	
+			mod = (!test && ( (bits >> v) & 1) === 1);
+	
+			if (v < 6) {
+				this.modules[v][8] = mod;
+			} else if (v < 8) {
+				this.modules[v + 1][8] = mod;
+			} else {
+				this.modules[this.moduleCount - 15 + v][8] = mod;
+			}
+		}
+	
+		// horizontal
+		for (var h = 0; h < 15; h++) {
+	
+			mod = (!test && ( (bits >> h) & 1) === 1);
+			
+			if (h < 8) {
+				this.modules[8][this.moduleCount - h - 1] = mod;
+			} else if (h < 9) {
+				this.modules[8][15 - h - 1 + 1] = mod;
+			} else {
+				this.modules[8][15 - h - 1] = mod;
+			}
+		}
+	
+		// fixed module
+		this.modules[this.moduleCount - 8][8] = (!test);
+	
+	},
+	
+	mapData : function(data, maskPattern) {
+		
+		var inc = -1;
+		var row = this.moduleCount - 1;
+		var bitIndex = 7;
+		var byteIndex = 0;
+		
+		for (var col = this.moduleCount - 1; col > 0; col -= 2) {
+	
+			if (col === 6) col--;
+	
+			while (true) {
+	
+				for (var c = 0; c < 2; c++) {
+					
+					if (this.modules[row][col - c] === null) {
+						
+						var dark = false;
+	
+						if (byteIndex < data.length) {
+							dark = ( ( (data[byteIndex] >>> bitIndex) & 1) === 1);
+						}
+	
+						var mask = QRUtil.getMask(maskPattern, row, col - c);
+	
+						if (mask) {
+							dark = !dark;
+						}
+						
+						this.modules[row][col - c] = dark;
+						bitIndex--;
+	
+						if (bitIndex === -1) {
+							byteIndex++;
+							bitIndex = 7;
+						}
+					}
+				}
+								
+				row += inc;
+	
+				if (row < 0 || this.moduleCount <= row) {
+					row -= inc;
+					inc = -inc;
+					break;
+				}
+			}
+		}
+		
+	}
+
+};
+
+QRCode.PAD0 = 0xEC;
+QRCode.PAD1 = 0x11;
+
+QRCode.createData = function(typeNumber, errorCorrectLevel, dataList) {
+	
+	var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, errorCorrectLevel);
+	
+	var buffer = new QRBitBuffer();
+	
+	for (var i = 0; i < dataList.length; i++) {
+		var data = dataList[i];
+		buffer.put(data.mode, 4);
+		buffer.put(data.getLength(), QRUtil.getLengthInBits(data.mode, typeNumber) );
+		data.write(buffer);
+	}
+
+	// calc num max data.
+	var totalDataCount = 0;
+	for (var x = 0; x < rsBlocks.length; x++) {
+		totalDataCount += rsBlocks[x].dataCount;
+	}
+
+	if (buffer.getLengthInBits() > totalDataCount * 8) {
+		throw new Error("code length overflow. (" + 
+            buffer.getLengthInBits() + 
+            ">" +  
+            totalDataCount * 8 + 
+            ")");
+	}
+
+	// end code
+	if (buffer.getLengthInBits() + 4 <= totalDataCount * 8) {
+		buffer.put(0, 4);
+	}
+
+	// padding
+	while (buffer.getLengthInBits() % 8 !== 0) {
+		buffer.putBit(false);
+	}
+
+	// padding
+	while (true) {
+		
+		if (buffer.getLengthInBits() >= totalDataCount * 8) {
+			break;
+		}
+		buffer.put(QRCode.PAD0, 8);
+		
+		if (buffer.getLengthInBits() >= totalDataCount * 8) {
+			break;
+		}
+		buffer.put(QRCode.PAD1, 8);
+	}
+
+	return QRCode.createBytes(buffer, rsBlocks);
+};
+
+QRCode.createBytes = function(buffer, rsBlocks) {
+
+	var offset = 0;
+	
+	var maxDcCount = 0;
+	var maxEcCount = 0;
+	
+	var dcdata = new Array(rsBlocks.length);
+	var ecdata = new Array(rsBlocks.length);
+	
+	for (var r = 0; r < rsBlocks.length; r++) {
+
+		var dcCount = rsBlocks[r].dataCount;
+		var ecCount = rsBlocks[r].totalCount - dcCount;
+
+		maxDcCount = Math.max(maxDcCount, dcCount);
+		maxEcCount = Math.max(maxEcCount, ecCount);
+		
+		dcdata[r] = new Array(dcCount);
+		
+		for (var i = 0; i < dcdata[r].length; i++) {
+			dcdata[r][i] = 0xff & buffer.buffer[i + offset];
+		}
+		offset += dcCount;
+		
+		var rsPoly = QRUtil.getErrorCorrectPolynomial(ecCount);
+		var rawPoly = new QRPolynomial(dcdata[r], rsPoly.getLength() - 1);
+
+		var modPoly = rawPoly.mod(rsPoly);
+		ecdata[r] = new Array(rsPoly.getLength() - 1);
+		for (var x = 0; x < ecdata[r].length; x++) {
+            var modIndex = x + modPoly.getLength() - ecdata[r].length;
+			ecdata[r][x] = (modIndex >= 0)? modPoly.get(modIndex) : 0;
+		}
+
+	}
+	
+	var totalCodeCount = 0;
+	for (var y = 0; y < rsBlocks.length; y++) {
+		totalCodeCount += rsBlocks[y].totalCount;
+	}
+
+	var data = new Array(totalCodeCount);
+	var index = 0;
+
+	for (var z = 0; z < maxDcCount; z++) {
+		for (var s = 0; s < rsBlocks.length; s++) {
+			if (z < dcdata[s].length) {
+				data[index++] = dcdata[s][z];
+			}
+		}
+	}
+
+	for (var xx = 0; xx < maxEcCount; xx++) {
+		for (var t = 0; t < rsBlocks.length; t++) {
+			if (xx < ecdata[t].length) {
+				data[index++] = ecdata[t][xx];
+			}
+		}
+	}
+
+	return data;
+
+};
+
+module.exports = QRCode;
+
+};
+return {QRCode:req('index'),Level:req('QRErrorCorrectLevel')}})();
+
+</script>
 <script>const COL = { tumor: '#7c3a8c', breast: '#be3a6e', lymphoma: '#6d3a8c', myeloma: '#8a3a6d', leukemia: '#a3304f', auto: '#2f7d6d', ckd: '#3a6ea5', colorectal: '#8b5a2b', lung: '#4a5d7e', hyper: '#2D6B8F', diabetes: '#1d5fb8', cardio: '#a83f3f', thyroid: '#8a6d1d', gout: '#5a6b2f', rare: '#0f766e', other: '#5d6b73' };
 const T = [{ k: 'type', l: '类型', o: ['手术', '化疗', '免疫', '靶向', '内分泌治疗', '放疗', '其他'] }];
-const TGT = { k: 'targets', t: 'list', l: '自定义指标目标', add: '添加指标', cols: [{ k: 'name', l: '指标名称', ph: '如 体重' }, { k: 'val', l: '目标值', ph: '如 ≤65 kg' }] };
+const TGT = { k: 'targets', t: 'list', l: '想长期关注的指标（可不填）', add: '添加指标', cols: [{ k: 'name', l: '指标名称', ph: '如 体重' }, { k: 'val', l: '目标值', ph: '如 ≤65 kg' }] };
 const BASE = [{ k: 'diag', t: 'date', l: '诊断时间' }, { k: 'hosp', t: 'text', l: '就诊医院' }, { k: 'dept', t: 'text', l: '主治科室' }];
 const D = {
     tumor: { n: '肿瘤', d: '乳腺癌、结直肠癌、肺癌、淋巴瘤、白血病等，含病理、分期、治疗方案', f: [...BASE, { k: 'path', t: 'area', l: '病理结论' }, { k: 'stage', t: 'text', l: '分期', ph: '如 T2N1M0 / III期' }, { k: 'tx', t: 'multi', l: '治疗方案', o: ['手术', '化疗', '免疫', '靶向'] }, TGT] },
@@ -297,11 +1564,29 @@ D.leukemia = { n: '白血病', d: '', f: [...BASE, { k: 'ltype', t: 'sel', l: '�
 D.auto = { n: '自身免疫病', d: '红斑狼疮、类风湿关节炎等，含抗体、受累脏器、用药', f: [...BASE, { k: 'which', t: 'sel', l: '具体疾病', o: ['系统性红斑狼疮', '类风湿关节炎', '干燥综合征', '强直性脊柱炎', '血管炎', '重症肌无力', '其他'] }, { k: 'ab', t: 'area', l: '自身抗体结果', ph: '如 ANA、抗dsDNA、RF、抗CCP 等' }, { k: 'organ', t: 'area', l: '受累脏器记录' }, { k: 'hist', t: 'list', l: '治疗用药记录', add: '添加用药记录', cols: [{ k: 'type', l: '药物类别', sel: ['糖皮质激素', '免疫抑制剂', '生物制剂', '羟氯喹', '其他'] }, { k: 'date', l: '开始日期', date: 1 }, { k: 'note', l: '药名、剂量、调整情况' }] }, TGT] };
 D.ckd = { n: '慢性肾病', d: '肌酐、eGFR、尿蛋白、透析与用药', f: [...BASE, { k: 'cause', t: 'text', l: '原发病 / 病因', ph: '按医生所告知填写' }, { k: 'cstage', t: 'sel', l: 'CKD 分期', o: ['1期', '2期', '3期', '4期', '5期', '暂不明确'] }, { k: 'rrt', t: 'sel', l: '肾脏替代治疗', o: ['未透析', '血液透析', '腹膜透析', '肾移植后'] }, { k: 'hist', t: 'list', l: '用药与治疗记录', add: '添加记录', cols: [{ k: 'type', l: '类别', sel: ['降压药', '降尿蛋白药', '免疫抑制 / 激素', '促红素 / 铁剂', '降磷 / 钙剂', '透析相关', '其他'] }, { k: 'date', l: '开始日期', date: 1 }, { k: 'note', l: '药名、剂量、调整情况' }] }, TGT] };
 D.other = { n: '其他', d: '以上没有列出的疾病：自己填写病名，记录情况、指标和用药', f: [...BASE, { k: 'oname', t: 'text', l: '疾病名称', ph: '按医生所告知填写，如 哮喘、肝病' }, { k: 'onote', t: 'area', l: '病情和治疗情况', ph: '如 诊断经过、手术或用药情况' }, TGT] };
+/* 科室档案：通用字段 + 各科室一两项自填栏目；医院可用 dept / dis 配置只开放自己的科室和专科病种 */
+const DX = [{ k: 'dx', t: 'text', l: '主要诊断 / 就诊原因', ph: '按医生所告知填写' }, { k: 'dnote', t: 'area', l: '病情和治疗情况', ph: '如 诊断经过、检查、用药或手术情况' }];
+const DEPTS = [
+    ['dp_im', '内科', '呼吸、消化、内分泌等内科就诊', '#2f6f8f', []],
+    ['dp_su', '外科', '手术前后、伤口、复查', '#7a4a2b', [{ k: 'surg', t: 'area', l: '手术与术后情况', ph: '如 手术日期、术式、术后恢复' }]],
+    ['dp_gy', '妇产科', '妇科、产科、孕产记录', '#b8457a', [{k: 'gtype', t: 'multi', l: '主要情况', o: ['常规体检 / 筛查', '月经异常', '盆腔炎症', '子宫肌瘤', '卵巢囊肿', '乳腺相关', '备孕', '产后复查', '更年期', '其他']}, {k: 'lmp', t: 'date', l: '末次月经日期'}, {k: 'cyc', t: 'text', l: '月经周期', ph: '如 28–30 天'}, {k: 'preg', t: 'area', l: '孕产史', ph: '如 孕几次、产几次、分娩方式；没有就写“无”'}, {k: 'gscr', t: 'area', l: '近期筛查结果', ph: '如 HPV、宫颈细胞学、妇科超声、乳腺超声：日期与结论'}, {k: 'hist', t: 'list', l: '检查与治疗记录', add: '添加记录', cols: [{k: 'type', l: '项目', sel: ['妇科检查', '超声', '宫颈筛查', '化验', '药物治疗', '手术', '其他']}, {k: 'date', l: '日期', date: 1}, {k: 'note', l: '结果 / 备注', ph: '按报告填写'}]}]],
+    ['dp_pd', '儿科', '儿童就诊、疫苗与成长记录', '#2a8f7a', [{k: 'bdate', t: 'date', l: '出生日期'}, {k: 'pfoc', t: 'multi', l: '关注方向', o: ['生长发育', '反复呼吸道感染', '过敏性疾病', '消化 / 营养', '睡眠', '视力 / 口腔', '其他']}, {k: 'vac', t: 'area', l: '疫苗接种情况', ph: '如 已按免疫规划接种；自费疫苗名称与日期'}, {k: 'pdev', t: 'area', l: '生长发育评估记录', ph: '如 日期、评估结论、医生建议'}, {k: 'hist', t: 'list', l: '就诊与随访记录', add: '添加记录', cols: [{k: 'type', l: '项目', sel: ['常规体检', '生长发育评估', '疫苗接种', '发热 / 感染就诊', '过敏相关', '其他']}, {k: 'date', l: '日期', date: 1}, {k: 'note', l: '结果 / 备注', ph: '按医生所告知填写'}]}]],
+    ['dp_or', '骨科 / 康复', '骨关节、术后康复', '#5f6b8a', [{ k: 'ortho', t: 'area', l: '部位与治疗、康复情况', ph: '如 受伤部位、手术日期、康复计划' }]],
+    ['dp_dt', '口腔科', '牙齿治疗、种植、正畸', '#3a8f9f', [{k: 'dtx', t: 'multi', l: '目前在做的项目', o: ['洁牙 / 牙周', '补牙 / 根管', '拔牙', '正畸', '种植', '修复（牙冠 / 义齿）', '儿童口腔', '其他']}, {k: 'teeth', t: 'area', l: '重点牙位和情况', ph: '如 36 号牙根管治疗，2026-09-10 完成'}, {k: 'dplan', t: 'area', l: '治疗计划和下次要做的步骤', ph: '按医生所告知填写'}, {k: 'hist', t: 'list', l: '治疗记录', add: '添加治疗记录', cols: [{k: 'type', l: '项目', sel: ['洁牙', '补牙', '根管', '拔牙', '正畸调整', '种植', '修复', '其他']}, {k: 'date', l: '日期', date: 1}, {k: 'note', l: '牙位 / 材料 / 备注', ph: '如 36、树脂充填'}]}]],
+    ['dp_sk', '皮肤科', '皮肤问题、用药记录', '#a56a3a', [{ k: 'skin', t: 'area', l: '皮损部位与用药', ph: '如 部位、范围、外用药' }]],
+    ['dp_op', '眼科', '视力、眼压、眼部治疗', '#3a6fa5', [{k: 'etype', t: 'multi', l: '主要情况', o: ['近视 / 远视 / 散光', '干眼', '白内障', '青光眼', '眼底病变', '斜视 / 弱视', '结膜炎 / 角膜炎', '其他']}, {k: 'rx', t: 'area', l: '最近一次验光 / 度数', ph: '如 右 -3.00 / -0.50×180，左 -2.75'}, {k: 'esurg', t: 'area', l: '手术、激光或注射治疗情况', ph: '如 日期、哪只眼、做了什么'}, {k: 'hist', t: 'list', l: '检查与治疗记录', add: '添加记录', cols: [{k: 'type', l: '项目', sel: ['验光配镜', '眼压检查', '眼底检查', '激光', '手术', '注射', '其他']}, {k: 'date', l: '日期', date: 1}, {k: 'note', l: '结果 / 备注', ph: '按报告填写'}]}]],
+    ['dp_en', '耳鼻喉科', '耳鼻喉就诊与治疗', '#6a7f3a', [{ k: 'ent', t: 'area', l: '部位与治疗情况', ph: '如 症状部位、检查和治疗' }]],
+    ['dp_tc', '中医科', '中医诊疗、调理记录', '#8a6a2b', [{k: 'tmain', t: 'area', l: '主要不适 / 调理目标', ph: '按自己的感受填写'}, {k: 'tcon', t: 'text', l: '体质判断（医生告知）', ph: '按医生所告知填写，没有就空着'}, {k: 'hist', t: 'list', l: '调理方案记录（照医生原话）', add: '添加方案记录', cols: [{k: 'type', l: '类型', sel: ['中药汤剂', '中成药', '针灸', '推拿', '拔罐 / 艾灸', '食疗', '其他']}, {k: 'date', l: '开始日期', date: 1}, {k: 'note', l: '方药 / 部位 / 频次', ph: '按医生原话记录，不要自己调整'}]}]],
+    ['dp_ck', '体检中心', '年度体检与异常项跟踪', '#2f7d5d', [{k: 'ckorg', t: 'text', l: '体检机构 / 套餐'}, {k: 'ckdate', t: 'date', l: '最近一次体检日期'}, {k: 'ckabn', t: 'area', l: '本次异常项和医生建议', ph: '照体检报告原文抄录'}, {k: 'ckf', t: 'list', l: '需要复查的项目', add: '添加复查项目', cols: [{k: 'type', l: '项目', ph: '如 甲状腺超声'}, {k: 'date', l: '复查日期', date: 1}, {k: 'note', l: '备注', ph: '如 医生建议半年后'}]}, {k: 'fam', t: 'area', l: '家族病史（如有）', ph: '如 父亲高血压；没有就写“无”'}]]
+];
+DEPTS.forEach(x => { D[x[0]] = { n: x[1], d: x[2], dept: 1, f: [...BASE, ...DX, ...x[4], TGT] }; COL[x[0]] = x[3]; });
+const deptOk = k => { const a = typeof HP !== 'undefined' && HP && Array.isArray(HP.dept) ? HP.dept : null; return !a || a.includes(D[k].n) || a.includes(k); };
+const disOk = k => { const a = typeof HP !== 'undefined' && HP && Array.isArray(HP.dis) ? HP.dis : null; return !a || a.includes(k); };
 const ALG = { k: 'allergy', t: 'area', l: '过敏史 / 药物不良反应', ph: '如 青霉素过敏（皮疹）；没有就写“无”' };
 const HIS = { k: 'hist0', t: 'area', l: '合并症 / 既往病史 / 做过的手术', ph: '如 高血压10年、糖尿病、2019年胆囊切除；没有就写“无”' };
 const FLG = { k: 'flags', t: 'multi', l: '需要医生知道的情况', o: ['正在用抗凝药或抗血小板药', '体内有支架、起搏器或金属植入物', '怀孕或哺乳期', '心脏功能不好', '肾功能不好或在透析', '有出血或手术后伤口未愈'] };
 Object.keys(D).forEach(k => { const f = D[k].f; if (f.some(x => x.k === 'allergy')) return; f.splice(Math.min(3, f.length), 0, ALG, FLG, HIS); });
-let S = { profiles: [], cur: null, view: 'list', draft: {}, tab: "info", range: "all", q: "", kf: "", edit: null, mxe: null }, mem = null;
+let S = { sbr: true, profiles: [], cur: null, view: 'list', draft: {}, tab: "info", range: "all", q: "", kf: "", edit: null, mxe: null }, mem = null;
 let LOCK = 0, BADOK = false, DIRTY = 0;
 function load() {
     try {
@@ -360,6 +1645,7 @@ function storeFail() { STO = false; if (!SFW) {
     alert('保存失败：浏览器无法写入本机存储（可能是空间不足、无痕模式或被禁用）。请立即导出备份，并换用 Safari / Chrome 的正常模式。');
 } }
 function failToast() { const t = document.createElement('div'); t.className = 'toast'; t.style.background = '#b42318'; t.textContent = '保存失败，请立即导出备份'; document.body.appendChild(t); setTimeout(() => t.remove(), 4000); }
+function toastMsg(m) { const t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); t.textContent = m; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
 function save() {
     if (LOCK) {
         DIRTY = 0;
@@ -392,6 +1678,7 @@ const esc = s => String(s !== null && s !== void 0 ? s : '').replace(/[&<>"']/g,
 const cur = () => S.profiles.find(p => p.id === S.cur);
 const label = p => p.member + ' · ' + dn(p) + (p.disease === 'rare' ? (p.age === 'child' ? '(儿童)' : '(成人)') : '');
 function chips() { return `<div class="chips">${S.profiles.map(p => `<button class="chip" aria-pressed="${S.view === 'list' && p.id === S.cur}" data-act="pick" data-id="${p.id}" style="--c:${COL[p.disease]}">${esc(label(p))}</button>`).join('')}<button class="chip add" data-act="new">＋ 新建档案</button></div>`; }
+const secs = p => { const F = D[p.disease].f, lo = S.lo || {}, K1 = ['diag', 'hosp', 'dept', 'dx', 'dnote'], K2 = ['allergy', 'flags', 'hist0'], g = (ks, n) => F.filter(f => n ? !K1.includes(f.k) && !K2.includes(f.k) : ks.includes(f.k)).map(f => field(f, p)).join(''), sec = (k, t, h, open) => h ? `<details class="fl sec" data-fk="${k}"${open ? ' open' : ''}><summary><b>${t}</b></summary>${h}</details>` : ''; return sec('sec_base', '基础信息与诊断', g(K1), !!lo.sec_base) + sec('sec_alg', '过敏与既往史', g(K2), !!lo.sec_alg) + sec('sec_main', '科室专项与记录', g(0, 1), lo.sec_main !== false); };
 function field(f, p) {
     const v = p.data[f.k];
     if (f.kid && p.age !== 'child')
@@ -417,25 +1704,32 @@ let RD = '';
 function view() {
     RD = today();
     const a = document.getElementById('app');
-    let h = `<h1>${lgImg(30)}就医伴侣${HP ? '<small style="font-size:14px;color:var(--mute);font-weight:400"> · ' + esc(HP.n) + '</small>' : ''}</h1>` + banners() ;
+    if (CFG_LOAD) { a.innerHTML = '<div class="card"><h2>正在加载医院服务…</h2><p class="sub">网络较慢时可能需要几秒钟。您的个人资料保存在本机，不受影响。</p><button class="ghost" onclick="CFG_LOAD=false;S.skipCfg=1;view()">先使用我的个人档案</button></div>'; return; }
+    if (CFG_ERR && !S.skipCfg) { a.innerHTML = '<div class="card"><h2>这个入口暂时无法打开</h2><p class="sub">' + (CFG_EXP ? '这个演示链接已到期（演示有效期已过）。' : '没有读取到这个入口的配置（入口代号：' + esc(HP_KEY) + '）。可能是演示链接已到期、链接不完整，或网络不稳定。') + '请联系提供这个链接的人获取新的链接。您的个人资料没有受影响。</p><button class="btn" onclick="S.skipCfg=1;view()">先使用我的个人档案</button></div>'; return; }
+    let h = `<h1>${lgImg(30)}就医伴侣${HP ? '<small style="font-size:14px;color:var(--mute);font-weight:400"> · ' + esc(HP.n) + '</small>' : ''}</h1>` + '<p class="note" style="margin:0 0 12px;line-height:1.55"><b>本工具用于患者个人整理就诊资料，不是医院电子病历系统。</b><br>患者自行填写的资料不会自动发送给医院或医生。</p>' + banners() ;
     if (S.view === 'bk')
         h += backBar() + bkView();
     else if (S.view === 'home' && S.profiles.length)
         h += homeView();
     else if (S.view === 'new') {
         const d = S.draft;
-        h += backBar() + `<div class="card"><h2>新建档案</h2><label>成员称呼</label><input id="mn" placeholder="如 妈妈、小宇、我自己" value="${esc(d.member || '')}">
-<label>下次复诊日期（可不填，之后也能补充）</label><input id="nvd_new" type="date" value="${esc(d.nvd || '')}"><label>选择病种</label><div class="opts">${Object.keys(D).filter(k => !TM[k]).map(k => `<button class="opt" style="--c:${COL[k]}" aria-pressed="${d.disease === k}" data-act="dis" data-d="${k}">${D[k].n}<small>${D[k].d}</small></button>`).join('')}</div>
+        h += backBar() + `<div class="card"><h2>新建档案</h2><label>成员称呼（必填）</label><input id="mn" placeholder="如 妈妈、小宇、我自己" value="${esc(d.member || '')}">
+<label><b style="background:#fff4e5;color:#8a4b00;border-radius:6px;padding:1px 7px;margin-right:4px">不是预约</b>下次复诊日期（可不填，之后也能补充；仅作个人提醒，不代表已预约或医院已登记）</label><input id="nvd_new" type="date" value="${esc(d.nvd || '')}">${(() => { const ks = Object.keys(D).filter(k => !TM[k]), dp = ks.filter(k => D[k].dept && deptOk(k)), ds = ks.filter(k => !D[k].dept && disOk(k)); const btn = k => `<button class="opt" style="--c:${COL[k]}" aria-pressed="${d.disease === k}" data-act="dis" data-d="${k}">${D[k].n}<small>${D[k].d}</small></button>`;
+        const GRP = [['肿瘤与血液', ['tumor']], ['心血管与代谢', ['hyper', 'diabetes', 'cardio', 'thyroid', 'gout']], ['肾病与免疫', ['ckd', 'auto']], ['罕见病', ['rare']]], used = [];
+        let dsHtml = GRP.map(g => { const L = g[1].filter(k => ds.includes(k)); L.forEach(k => used.push(k)); return L.length ? '<h3 class="pk-g">' + g[0] + '</h3><div class="opts">' + L.map(btn).join('') + '</div>' : ''; }).join('');
+        const rest = ds.filter(k => !used.includes(k)); if (rest.length) dsHtml += '<h3 class="pk-g">其他</h3><div class="opts">' + rest.map(btn).join('') + '</div>';
+        const selDis = ds.includes(d.disease), selDept = dp.includes(d.disease);
+        return (selDept || selDis ? '<p class="sub" style="margin:10px 0 0">已选择：<b>' + esc(D[d.disease].n) + '</b></p>' : '') + (dp.length ? '<details class="pk-dp"' + (selDis ? '' : ' open') + '><summary><b>选择就诊科室</b> <span class="sub">· ' + dp.length + ' 个科室，先选科室最简单</span></summary><div class="opts">' + dp.map(btn).join('') + '</div></details>' : '') + (ds.length ? '<details class="pk-dis"' + ((S.disOpen || selDis || !dp.length) ? ' open' : '') + '><summary><b>' + (dp.length ? '或选择专科病种' : '选择病种') + '</b> <span class="sub">· ' + ds.length + ' 种，已有明确诊断时再用</span></summary>' + dsHtml + '</details>' : ''); })()}
 ${d.disease === 'other' ? `<label>疾病名称（必填）</label><input id="oname_new" maxlength="40" placeholder="按医生所告知填写，如 哮喘、肝病" value="${esc(d.oname || '')}">` : ''}
-${d.disease === 'tumor' ? `<label>肿瘤类型</label><div style="display:flex;flex-wrap:wrap;gap:8px">${SUBS.map(s => `<button class="chip" aria-pressed="${d.sub === s}" data-act="sub" data-s="${s}">${s}</button>`).join('')}</div>` : ''}<p class="sub" style="margin-top:10px">即将支持：慢性肝病、心血管慢病</p>${d.disease === 'rare' ? `<label>患者类型</label><div class="checks"><label><input type="radio" name="ag" value="child" ${d.age === 'child' ? 'checked' : ''}>儿童</label><label><input type="radio" name="ag" value="adult" ${d.age === 'adult' ? 'checked' : ''}>成人</label></div>` : ''}
-<div class="bar"><button class="ghost" data-act="cancel">取消</button><button class="btn" data-act="create">创建档案</button></div></div>`;
+${d.disease === 'tumor' ? `<label>肿瘤类型</label><div style="display:flex;flex-wrap:wrap;gap:8px">${SUBS.map(s => `<button class="chip" aria-pressed="${d.sub === s}" data-act="sub" data-s="${s}">${s}</button>`).join('')}</div>` : ''}${d.disease === 'rare' ? `<label>患者类型</label><div class="checks"><label><input type="radio" name="ag" value="child" ${d.age === 'child' ? 'checked' : ''}>儿童</label><label><input type="radio" name="ag" value="adult" ${d.age === 'adult' ? 'checked' : ''}>成人</label></div>` : ''}
+<p class="sub">这里只是个人备忘，不会替您挂号、预约或通知医院。</p><div class="bar"><button class="ghost" data-act="cancel">取消</button><button class="btn" data-act="create">创建档案</button></div></div>`;
     }
     else {
         const p = cur();
         if (!p)
-            h += posCard() + `<div class="card empty"><h2>还没有档案</h2><p class="sub">选一个病种，建立第一份档案。</p><button class="btn" data-act="new">新建档案</button> <button class="ghost" data-act="demo">查看示例</button> <button class="ghost" data-act="bk">从备份恢复</button></div>` + hubData();
+            h += `<div class="card empty"><h2>还没有档案</h2><p class="sub">选择就诊科室或专科病种，建立第一份档案。先选科室即可，病种可按需要选择。</p><button class="btn" data-act="new">新建档案</button> <button class="ghost" data-act="demo">查看示例</button> <button class="ghost" data-act="bk">从备份恢复</button>${HP ? '' : ' <button class="ghost" data-act="prevhosp">预览医院版（演示）</button>'}</div>` + hospCard() + jnyCard() + actCard() + posCard() + hubData();
         else
-            h += `<div class="pnav" style="--c:${COL[p.disease]}"><div class="phd"><button class="back" data-act="home" aria-label="返回全部档案">‹ 返回</button><b class="pname">${esc(label(p))}</b></div>` + tabs() + `</div>` + (S.tab === "tl" ? tlView(p) : S.tab === "mx" ? mxView(p) : S.tab === "sm" ? smView(p) : visitFlowCard(p, flowVisit(p)) + `<div class="card hd" style="--c:${COL[p.disease]}"><h2>${esc(label(p))}</h2><label>下次复诊日期（可不填）</label><div class="row"><input type="date" data-k="nvd" value="${esc(p.data.nvd || '')}" aria-label="下次复诊日期"><button class="ghost" data-act="tics" data-pid="${p.id}" data-v="1">下载日历提醒文件</button></div><p class="sub">填了日期，复诊前 7 天首页会提醒，并带你去准备清单和摘要。</p><label>成员称呼</label><input data-mem="1" value="${esc(p.member)}">${D[p.disease].f.map(f => field(f, p)).join('')}${medsView(p)}<div class="bar"><span class="saved" id="sv">修改会自动保存在本机</span>${more('<button class="ghost del" data-act="del">删除档案</button>')}</div></div>`);
+            h += `<div class="pnav" style="--c:${COL[p.disease]}"><div class="phd"><button class="back" data-act="home" aria-label="返回全部档案">‹ 返回</button><b class="pname">${esc(label(p))}</b></div>` + tabs() + `</div>` + (S.tab === "tl" ? tlView(p) : S.tab === "mx" ? mxView(p) : S.tab === "sm" ? smView(p) : visitFlowCard(p, flowVisit(p)) + `<div class="card hd" style="--c:${COL[p.disease]}"><h2>档案信息</h2><label>下次复诊日期（可不填）</label><div class="row"><input type="date" data-k="nvd" value="${esc(p.data.nvd || '')}" aria-label="下次复诊日期"><button class="ghost" data-act="tics" data-pid="${p.id}" data-v="1">下载日历提醒文件</button></div><p class="sub">填了日期，复诊前 14 天内首页会出现复诊准备卡，并带你去准备清单和摘要。</p><label>成员称呼</label><input data-mem="1" value="${esc(p.member)}">${secs(p)}${medsView(p)}<div class="bar"><span class="saved" id="sv">修改会自动保存在本机</span>${more('<button class="ghost del" data-act="del">删除档案</button>')}</div></div>`);
     }
     h += foot();
     a.innerHTML = h;
@@ -462,7 +1756,17 @@ const iget = async (k) => { const d = await idb(); return new Promise((s, j) => 
 const idel = k => idb().then(d => d.transaction('i', 'readwrite').objectStore('i').delete(k)).catch(() => { });
 const idelw = async (k) => { const d = await idb(); return new Promise((s, j) => { const t = d.transaction('i', 'readwrite'); t.objectStore('i').delete(k); t.oncomplete = s; t.onerror = () => j(t.error); t.onabort = () => j(t.error); }); };
 const tabs = () => `<nav class="tabs" aria-label="档案栏目">${[['info', '档案', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3h6v3H9zM8.5 11h7M8.5 15h5"/></svg>'], ['tl', '时间线', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>'], ['mx', '指标', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16h16"/><path d="M7 15l4-4 3 3 5-6"/></svg>'], ['sm', '复诊摘要', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>']].map(t => `<button class="tab" aria-pressed="${S.tab === t[0]}" data-act="tab" data-t="${t[0]}"><span class="ti" aria-hidden="true">${t[2]}</span><span class="tl">${t[1]}</span></button>`).join('')}</nav>`;
-const foot = () => `<div class="foot2"><details><summary><svg class="ic il" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M7 12h10"/></svg>紧急情况请拨 <b>120</b> · 免责声明</summary><p>身体出现紧急情况，请立即就医或拨打急救电话（国内 120）。本工具不是医疗设备，不能替代医生面诊。</p><p>所有数值与资料均为用户自行录入，仅作就诊参考，不能用于诊断。</p><p>本工具不属于医疗器械；资料仅供复诊、多学科会诊给医师参考，不可自行调整治疗方案。</p><p><button class="ghost" data-act="priv">查看隐私说明</button> <button class="ghost" data-act="notice">打印用户须知</button></p></details></div>`;
+const APP_VER = '2026.11.06';
+const CC_SYM = ['发烧 / 怕冷', '咳嗽 / 咳痰', '头痛 / 头晕', '心慌 / 心悸', '肚子痛 / 胃不舒服', '拉肚子 / 便秘 / 恶心呕吐', '尿频 / 尿痛 / 血尿', '血压 / 血糖问题', '失眠 / 情绪差 / 记性差', '伤口 / 肿块', '腰腿痛 / 关节痛 / 脖子痛', '摔伤 / 扭伤', '牙痛 / 牙龈出血 / 口腔溃疡', '皮疹 / 瘙痒', '看东西模糊 / 眼红 / 眼痛', '耳鸣 / 听力下降 / 鼻塞 / 咽痛', '月经问题 / 备孕', '孩子不舒服', '常规体检 / 带着已有的检查报告', '想看中医 / 调理身体'];
+const CC_DUR = ['今天刚出现', '两三天内', '一周左右', '一个月内', '几个月了', '半年以上', '长期反复'];
+const CC_SEV = ['轻微，不影响生活', '有点难受，能忍', '比较难受，影响睡觉/吃饭', '很难受'];
+function ccView(p) {
+    const cc = p.data.cc || {}, sy = cc.sym || [];
+    const chips = (list, on, act) => list.map(v => `<button class="chip" aria-pressed="${on(v)}" data-act="${act}" data-v="${esc(v)}">${esc(v)}</button>`).join('');
+    const box = h => `<div style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 12px">${h}</div>`;
+    return `<details class="card ccd"${S.ccClosed ? '' : ' open'}><summary><b>这次不舒服的情况（主诉整理）</b></summary><p class="sub">点选或自己写，会整理进下面的复诊摘要。只整理您自己说的内容，不判断病情、不推荐科室、不解读检查报告。</p><p class="note" style="border-color:#c0392b"><b>如有胸痛、呼吸困难、意识不清、大出血等紧急情况，请立即拨打 120 或前往急诊，不要在这里整理。</b></p><label style="margin-top:0">哪里不舒服？（可多选）</label>${box(chips(CC_SYM, v => sy.includes(v), 'ccsym'))}<label>其他情况，用自己的话写</label><input data-k="ccx" value="${esc(p.data.ccx || '')}" placeholder="没找到合适的选项，可以直接写"><label>持续多久了？</label>${box(chips(CC_DUR, v => cc.dur === v, 'ccdur'))}<label>感觉有多难受？</label>${box(chips(CC_SEV, v => cc.sev === v, 'ccsev'))}<label>补充情况（可不填）</label><textarea data-k="ccn" placeholder="如：有慢性病、正在吃的药、药物过敏，做过哪些相关检查">${esc(p.data.ccn || '')}</textarea><div class="bar"><button class="ghost" data-act="ccref">更新下面的摘要预览</button> <button class="ghost" data-act="ccclr">清空这一块</button></div></details>`;
+}
+const foot = () => `<div class="foot2"><details><summary><svg class="ic il" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M7 12h10"/></svg>紧急情况请拨 <b>120</b> · 免责声明</summary><p>身体出现紧急情况，请立即就医或拨打急救电话（国内 120）。本工具不是医疗设备，不能替代医生面诊。</p><p>所有数值与资料均为用户自行录入，仅作就诊参考，不能用于诊断。</p><p>本工具不属于医疗器械；资料仅供复诊、多学科会诊给医师参考，不可自行调整治疗方案。</p><p><button class="ghost" data-act="priv">查看隐私说明</button> <button class="ghost" data-act="notice">打印用户须知</button></p><p class="sub">版本 ${APP_VER}${HP ? ' · ' + esc(HP.n) : ''}。医院更新页面后，重新打开原链接即可用上新版，已有资料不受影响；如果还是旧样子，请关闭页面后再打开。</p></details></div>`;
 function afterRender() { document.querySelectorAll('img[data-img]').forEach(async (i) => { try {
     const b = await iget(i.dataset.img);
     if (b)
@@ -493,7 +1797,7 @@ function validBk(q) {
         return false;
     if (q.ck !== undefined && !(q.ck && Array.isArray(q.ck.items) && q.ck.items.length <= 100 && q.ck.items.every(x => x && okId(x.id) && typeof x.t === 'string' && x.t.length <= 100)))
         return false;
-    if (q.meds !== undefined && !(Array.isArray(q.meds) && q.meds.length <= 50 && q.meds.every(x => x && okId(x.id) && typeof x.name === 'string' && x.name.length <= 60 && Number.isInteger(x.per) && x.per >= 1 && x.per <= 6 && (x.dose === undefined || (typeof x.dose === 'string' && x.dose.length <= 40)) && (x.freq === undefined || MFREQ[x.freq]) && (x.start === undefined || x.start === '' || /^\d{4}-\d{2}-\d{2}$/.test(x.start)) && (x.note === undefined || (typeof x.note === 'string' && x.note.length <= 60)) && (x.stopped === undefined || typeof x.stopped === 'boolean') && (x.stopAt === undefined || /^\d{4}-\d{2}-\d{2}$/.test(x.stopAt)))))
+    if (q.meds !== undefined && !(Array.isArray(q.meds) && q.meds.length <= 50 && q.meds.every(x => x && okId(x.id) && typeof x.name === 'string' && x.name.length <= 60 && Number.isInteger(x.per) && x.per >= 1 && x.per <= 6 && (x.dose === undefined || (typeof x.dose === 'string' && x.dose.length <= 40)) && (x.freq === undefined || MFREQ[x.freq]) && (x.start === undefined || x.start === '' || /^\d{4}-\d{2}-\d{2}$/.test(x.start)) && (x.note === undefined || (typeof x.note === 'string' && x.note.length <= 60)) && (x.stopped === undefined || typeof x.stopped === 'boolean') && (x.stopAt === undefined || /^\d{4}-\d{2}-\d{2}$/.test(x.stopAt)) && (x.stopWhy === undefined || (typeof x.stopWhy === 'string' && x.stopWhy.length <= 80)) && (x.log === undefined || (Array.isArray(x.log) && x.log.length <= 50 && x.log.every(t => typeof t === 'string' && t.length <= 120))))))
         return false;
     return true;
 }
@@ -505,6 +1809,39 @@ const s2b = s => { const b = atob(s), u = new Uint8Array(b.length); for (let i =
 async function dkey(pw, salt) { const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']); return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 250000, hash: 'SHA-256' }, k, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']); }
 async function encStr(txt, pw) { const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12)), c = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await dkey(pw, salt), new TextEncoder().encode(txt)); return JSON.stringify({ app: 'companion', enc: 1, kdf: 'PBKDF2-SHA256-250000', salt: b2s(salt), iv: b2s(iv), data: b2s(new Uint8Array(c)) }); }
 async function decStr(o, pw) { const p = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: s2b(o.iv) }, await dkey(pw, s2b(o.salt)), s2b(o.data)); return new TextDecoder().decode(p); }
+const HK_OK = c => /^[A-Za-z0-9_-]{1,30}$/.test(c) && c !== 'preview' && c !== 'demo';
+function collectHosp() { const h = {}; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i) || '', m = /^companion\.(act|chk|jny)\.([A-Za-z0-9_-]{1,30})$/.exec(k); if (!m || !HK_OK(m[2])) continue; let v; try { v = JSON.parse(localStorage.getItem(k)); } catch (e) { continue; } if (!v || typeof v !== 'object') continue; (h[m[2]] = h[m[2]] || {})[m[1]] = v; } } catch (e) { } return h; }
+function hospStat(h) { let v = 0, u = 0, n = 0; Object.keys(h || {}).forEach(c => { const b = h[c] || {}; Object.keys(b.act || {}).forEach(id => (Array.isArray(b.act[id]) ? b.act[id] : []).forEach(x => { if (x && !x.n) { v++; if (x.used) u++; } })); n += Math.max(0, +((b.chk || {}).n) || 0); }); return { codes: Object.keys(h || {}).length, v, u, n }; }
+const cleanV = v => { if (!v || typeof v !== 'object' || !/^[0-9A-Z]{6}$/.test(v.sn || '')) return null; const s = (x, n) => typeof x === 'string' ? x.slice(0, n) : '', dt = x => /^\d{4}-\d{2}-\d{2}$/.test(x || '') ? x : ''; return { sn: v.sn, d: dt(v.d), at: s(v.at, 30), r: s(v.r, 60), g: s(v.g, 20), desc: s(v.desc, 300), n: v.n ? 1 : 0, exp: dt(v.exp), used: v.used ? 1 : 0, ut: s(v.ut, 30), ...(v.bk ? { bk: 1 } : {}) }; };
+function mergeHosp(code, blk) {
+    const K = k => 'companion.' + k + '.' + code, rd = k => { try { return JSON.parse(localStorage.getItem(K(k)) || '{}') || {}; } catch (e) { return {}; } }, st = { nv: 0, nu: 0 };
+    if (!HK_OK(code) || !blk || typeof blk !== 'object') return st;
+    const isCur = code === HP_KEY;
+    let allV = [];
+    if (blk.act && typeof blk.act === 'object') {
+        const cur = rd('act');
+        Object.keys(blk.act).slice(0, 40).forEach(id => {
+            if (!/^[\w-]{1,30}$/.test(id) || !Array.isArray(blk.act[id])) return;
+            const arr = Array.isArray(cur[id]) ? cur[id].filter(x => x && x.sn) : [], idx = new Map(arr.map((v, i) => [v.sn, i]));
+            blk.act[id].slice(0, 60).forEach(b => { const c = cleanV(b); if (!c) return; if (idx.has(c.sn)) { const e = arr[idx.get(c.sn)]; if (c.used && !e.used) { e.used = 1; e.ut = c.ut || e.ut || ''; st.nu++; } } else { c.bk = 1; arr.push(c); idx.set(c.sn, arr.length - 1); st.nv++; } });
+            arr.sort((a, b) => (a.at || '').localeCompare(b.at || ''));
+            while (arr.length > 30) { let i = arr.findIndex(v => v.n || v.used || (v.exp && v.exp < today())); if (i < 0) i = 0; arr.splice(i, 1); }
+            cur[id] = arr; allV = allV.concat(arr.map(v => [id, v]));
+        });
+        try { localStorage.setItem(K('act'), JSON.stringify(cur)); } catch (e) { }
+    }
+    const a = rd('chk'), b = blk.chk && typeof blk.chk === 'object' ? blk.chk : {}, uni = (x, y, n, f) => [...new Set([...(Array.isArray(x) ? x : []), ...(Array.isArray(y) ? y : [])].filter(f))].slice(-n);
+    const got = uni(a.got, b.got, 200, z => typeof z === 'string' && z.length < 80), jd = uni(a.jd, b.jd, 400, z => /^\d{4}-\d{2}-\d{2}$/.test(z));
+    const n = Math.max(0, +a.n || 0, +b.n || 0, got.length + jd.length);
+    let u = Math.max(0, +a.u || 0, +b.u || 0);
+    if (isCur) { const ls = actList(); let dv = 0; allV.forEach(([id, v]) => { const x = ls.find(q => q.id === id); if (x && x.need && x.per !== 'free' && !v.n) dv += x.need; }); u = Math.max(u, dv); }
+    const d = [a.d, b.d].filter(z => /^\d{4}-\d{2}-\d{2}$/.test(z || '')).sort().pop() || '';
+    try { localStorage.setItem(K('chk'), JSON.stringify({ n, u: Math.min(u, n), d, got, jd })); } catch (e) { }
+    const ja = rd('jny'), jb = blk.jny && typeof blk.jny === 'object' ? blk.jny : {};
+    Object.keys(jb).slice(0, 40).forEach(k => { if (!/^[\w-]{1,30}$/.test(k) || !Array.isArray(jb[k])) return; ja[k] = [...new Set([...(Array.isArray(ja[k]) ? ja[k] : []), ...jb[k].filter(z => Number.isInteger(z) && z >= 0 && z < 50)])].sort((x, y) => x - y); });
+    try { localStorage.setItem(K('jny'), JSON.stringify(ja)); } catch (e) { }
+    return st;
+}
 async function exportBackup() { try {
     await exportBackup_();
 }
@@ -545,7 +1882,7 @@ async function exportBackup_() {
             miss++;
         }
     }
-    const payload = { profiles: S.profiles, images: ims }, file = JSON.stringify({ app: 'companion', v: 1, at: new Date().toISOString(), sum: await sha(JSON.stringify(payload)), payload }), name = '就医伴侣_备份_' + today().replace(/-/g, '') + (pw ? '_加密' : '') + '.json', out = pw ? await encStr(file, pw) : file, blob = new Blob([out], { type: 'application/json' });
+    const hosp = collectHosp(), hs = hospStat(hosp), payload = Object.assign({ profiles: S.profiles, images: ims }, hs.codes ? { hosp } : {}), file = JSON.stringify({ app: 'companion', v: 1, appVer: APP_VER, at: new Date().toISOString(), sum: await sha(JSON.stringify(payload)), payload }), name = '就医伴侣_备份_' + today().replace(/-/g, '') + (pw ? '_加密' : '') + '.json', out = pw ? await encStr(file, pw) : file, blob = new Blob([out], { type: 'application/json' });
     try {
         const dl = typeof claude !== 'undefined' ? await claude.use('downloads') : null;
         if (dl)
@@ -560,7 +1897,7 @@ async function exportBackup_() {
             A.bk = today();
             saveA();
         }
-        m.textContent = (pw ? '【已加密】' : '【未加密，请妥善保管文件】') + '备份已导出：' + S.profiles.length + ' 份档案，' + Object.keys(ims).length + ' 张图片' + (miss ? '。▲ 备份不完整：有 ' + miss + ' 张图片读取失败、未包含，本次不计入“已备份”，请重试' : '。请把文件保存在手机以外的地方。');
+        m.textContent = (pw ? '【已加密】' : '【未加密，请妥善保管文件】') + '备份已导出：' + S.profiles.length + ' 份档案，' + Object.keys(ims).length + ' 张图片' + (hs.codes ? '，' + hs.v + ' 张医院活动凭证、' + hs.n + ' 次整理打卡' : '') + (miss ? '。▲ 备份不完整：有 ' + miss + ' 张图片读取失败、未包含，本次不计入“已备份”，请重试' : '。请把文件保存在手机以外的地方。');
     }
     catch (e) {
         m.textContent = e && e.code === 'declined' ? '已取消导出。' : '导出失败，请重试。';
@@ -600,11 +1937,15 @@ async function importBackup(f) {
         const pr = o.payload.profiles;
         if (pr.length > 300 || !pr.every(validBk))
             throw 3;
+        const hb = o.payload.hosp && typeof o.payload.hosp === 'object' && !Array.isArray(o.payload.hosp) ? o.payload.hosp : null;
+        if (hb && Object.keys(hb).length > 30)
+            throw 3;
+        const hst = hospStat(hb || {});
         const have = o.payload.images || {}, miss = new Set();
         pr.forEach(q => (q.tl || []).forEach(r => (r.imgs || []).forEach(k => { if (!have[k])
             miss.add(k); })));
         const rows = pr.map(q => { const ex = S.profiles.some(x => x.id === q.id), mc = (q.mx || []).reduce((n, m) => n + m.pts.length, 0), ic = (q.tl || []).reduce((n, r) => n + (r.imgs || []).length, 0); return '<li><b>' + esc(q.member + ' · ' + dn(q)) + '</b>：' + (q.tl || []).length + ' 条记录，' + mc + ' 个指标数值，' + ic + ' 张图片；' + (ex ? '<span class="bad">覆盖本机同一份档案</span>' : '新增') + '</li>'; }).join('');
-        if (!await askModal('<h2>恢复预览</h2><p class="sub">备份时间：' + esc((o.at || '').slice(0, 10)) + '</p><ul>' + rows + '</ul><p class="sub">本机上不在备份里的档案不受影响。</p>' + (miss.size ? '<p class="bad">有 ' + miss.size + ' 张图片在备份文件里缺失，恢复后这些图片无法显示。</p>' : '')))
+        if (!await askModal('<h2>恢复预览</h2><p class="sub">备份时间：' + esc((o.at || '').slice(0, 10)) + '</p><ul>' + rows + '</ul><p class="sub">本机上不在备份里的档案不受影响。</p>' + (hst.codes ? '<p class="sub" style="background:#fff4e5;color:#8a4b00;border-radius:8px;padding:8px 10px"><b>医院活动数据：</b>将合并 ' + hst.v + ' 张凭证（其中已核销 ' + hst.u + ' 张）、' + hst.n + ' 次整理打卡。合并不会删除本机已有的凭证，已核销的不会变回未核销。<br><b>恢复不会注销旧手机上的数据：两台手机都能看到同一张凭证，兑换以医院登记表为准。</b>备份可能不是最新的，恢复后请以现场登记表核对。</p>' : '') + (miss.size ? '<p class="bad">有 ' + miss.size + ' 张图片在备份文件里缺失，恢复后这些图片无法显示。</p>' : '')))
             return;
         if (Object.keys(have).length > 1000)
             throw 8;
@@ -645,6 +1986,8 @@ async function importBackup(f) {
             S.profiles = nx;
             if (!save())
                 throw 5;
+            if (hb)
+                Object.keys(hb).forEach(c => { try { mergeHosp(c, hb[c]); } catch (e3) { } });
         }
         catch (er) {
             LOCK = wasLock;
@@ -685,13 +2028,13 @@ async function importBackup(f) {
             S.cur = S.profiles[0] ? S.profiles[0].id : null;
         S.view = 'list';
         view();
-        alert('已恢复 ' + pr.length + ' 份档案，' + dec.length + ' 张图片' + (bad ? '；其中 ' + bad + ' 张核对失败，请重新导出备份检查' : '，核对无误') + '。');
+        alert('已恢复 ' + pr.length + ' 份档案，' + dec.length + ' 张图片' + (hst.codes ? '，并合并了医院活动凭证和打卡（两台手机都能看到同一张凭证，兑换以医院登记表为准）' : '') + (bad ? '；其中 ' + bad + ' 张核对失败，请重新导出备份检查' : '，核对无误') + '。');
     }
     catch (e) {
         m.textContent = e === 2 ? '备份文件校验失败，文件可能已损坏或被修改。' : e === 3 ? '备份文件内容不符合格式，已拒绝恢复。' : e === 9 ? '恢复失败，而且撤销没有完全成功，本机原有数据的完整性未确认。请保留备份文件，先不要清除或再次恢复，并立即导出当前数据。' : e === 8 ? '备份里图片过多或单张过大（上限 1000 张、每张约 20 MB），已拒绝恢复。' : e === 6 ? '密码不对，或备份文件已损坏。注意：忘记密码无法找回。' : e === 7 ? '这个备份已加密，请先在上方「备份密码」里填写密码。' : e === 4 ? '备份里的图片数据损坏，已拒绝恢复，本机数据未改动。' : e === 5 ? '恢复过程中写入失败（可能空间不足），已撤销，本机原有数据未改动。' : '这不是有效的备份文件。';
     }
 }
-const bkView = () => `<div class="card hd"><h2>数据备份与恢复</h2><p class="sub">备份包含全部档案、时间线、指标和图片。换设备、清理浏览器之前，请先导出。</p><div class="backup-risk"><b>先看清楚再操作</b><ul><li>资料只保存在当前浏览器，清理数据、无痕模式或换设备可能丢失。</li><li>不填写密码导出的文件是明文病历；建议设置独立的备份密码。</li><li>备份文件请保存到手机以外的可信位置，不要发到群聊或公共网盘。</li></ul></div><p>${A.bk ? '上次备份：' + A.bk : '<b>还没有备份过。</b>'}</p>${S.quota && S.quota.quota ? `<p class="sub">本机已用空间约 ${(S.quota.usage / 1048576).toFixed(1)} MB（浏览器给的上限约 ${(S.quota.quota / 1048576).toFixed(0)} MB，仅供参考）</p>` : ''}<label>备份密码（强烈建议设置）</label><input type="password" id="bkpw" autocomplete="new-password" placeholder="至少 8 位；导出时填写则加密，恢复加密备份时也填这里"><label>再输一次（仅设置密码时填）</label><input type="password" id="bkpw2" autocomplete="new-password" placeholder="再输入一遍相同的密码"><p class="sub" style="color:var(--warn,#b42318)"><b>不填密码导出的备份是明文文件</b>，任何人拿到都能看到病历内容。请妥善保管，不要发到群里或公共网盘。</p><p class="sub">填了密码，备份文件里的档案和图片会加密。<b>忘记密码无法找回</b>，请自己牢记；不填则导出未加密文件。</p><div class="bar"><button class="btn" data-act="bkexp">导出完整备份</button></div><label>从备份文件恢复</label><input type="file" id="bkf" accept=".json,application/json"><div class="bar"><button class="ghost" data-act="bkimp">选择文件后恢复</button></div><p class="sub" id="bkm"></p></div><div class="card"><h2>清除本机数据</h2><p class="sub">删除这台设备浏览器里的全部档案、记录、指标和图片，不影响你已导出的备份文件。清除前请先导出备份。</p><div class="bar"><button class="ghost del" data-act="wipe">清除全部数据</button></div></div><div class="bar"><button class="ghost" data-act="back">返回档案</button></div>`;
+const bkView = () => `<div class="card hd"><h2>数据备份与恢复</h2><p class="sub">备份包含全部档案、时间线、指标和图片。换设备、清理浏览器之前，请先导出。</p><div class="backup-risk"><b>先看清楚再操作</b><ul><li>资料只保存在当前浏览器，清理数据、无痕模式或换设备可能丢失。</li><li>不填写密码导出的文件是明文病历；建议设置独立的备份密码。</li><li>备份文件请保存到手机以外的可信位置，不要发到群聊或公共网盘。备份文件含您的就诊资料，请妥善保管，不要发送给无关人员。</li><li>备份也会带上您在各医院入口里抽到的凭证和整理打卡。恢复时是“合并”：旧手机不会失效，两台手机都能看到同一张凭证，兑换以医院登记表为准。</li></ul></div><p>${A.bk ? '上次备份：' + A.bk : '<b>还没有备份过。</b>'}</p>${S.quota && S.quota.quota ? `<p class="sub">本机已用空间约 ${(S.quota.usage / 1048576).toFixed(1)} MB（浏览器给的上限约 ${(S.quota.quota / 1048576).toFixed(0)} MB，仅供参考）</p>` : ''}<label>备份密码（强烈建议设置）</label><input type="password" id="bkpw" autocomplete="new-password" placeholder="至少 8 位；导出时填写则加密，恢复加密备份时也填这里"><label>再输一次（仅设置密码时填）</label><input type="password" id="bkpw2" autocomplete="new-password" placeholder="再输入一遍相同的密码"><p class="sub" style="color:var(--warn,#b42318)"><b>不填密码导出的备份是明文文件</b>，任何人拿到都能看到病历内容。请妥善保管，不要发到群里或公共网盘。</p><p class="sub">填了密码，备份文件里的档案和图片会加密。<b>忘记密码无法找回</b>，请自己牢记；不填则导出未加密文件。</p><div class="bar"><button class="btn" data-act="bkexp">导出完整备份</button></div><label>从备份文件恢复</label><input type="file" id="bkf" accept=".json,application/json"><div class="bar"><button class="ghost" data-act="bkimp">选择文件后恢复</button></div><p class="sub" id="bkm"></p></div><div class="card"><h2>清除本机数据</h2><p class="sub">删除这台设备浏览器里的全部档案、记录、指标和图片，不影响你已导出的备份文件。清除前请先导出备份。</p><div class="bar"><button class="ghost del" data-act="wipe">清除全部数据</button></div></div><div class="bar"><button class="ghost" data-act="back">返回档案</button></div>`;
 const kindList = p => [...new Set([...KINDS, ...(p.tl || []).map(r => r.kind)])];
 const tlFilter = (p, n) => n ? `<div class="row"><input id="tq" type="search" placeholder="搜索内容、医院、日期" value="${esc(S.q || '')}" aria-label="搜索"><select id="tkf" aria-label="按类型筛选"><option value="">全部类型</option>${kindList(p).map(k => `<option ${S.kf === k ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select></div>` : '';
 const editForm = (r, p) => `<div class="card hd"><h2>编辑记录</h2><label>记录类型</label><select id="ek">${kindList(p).map(k => `<option ${k === r.kind ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select><label>日期</label><input id="ed" type="date" value="${esc(r.date)}"><label>具体时间（可不填）</label><input id="eti" type="time" value="${esc(r.time || '')}"><label>医院 / 科室</label><input id="eh" value="${esc(r.hosp || '')}"><label>内容摘要</label><textarea id="et">${esc(r.text || '')}</textarea>${(r.fields || []).map((x, i) => `<label>${esc(x.n)}</label><input data-ef="${i}" value="${esc(x.v)}">`).join('')}${(r.imgs || []).length ? '<p class="sub">图片保持不变；如需更换图片，请删除这条记录后重新添加。</p>' : ''}<div class="bar"><button class="ghost" data-act="tlcancel">取消</button><button class="btn" data-act="tlupd" data-id="${r.id}">保存修改</button></div></div>`;
@@ -723,9 +2066,9 @@ function smData(p, rgo) {
     const od = p.orders || [], fo = o => o.cat + ' · ' + o.text + (o.due ? '（需在 ' + o.due + ' 前完成）' : '') + '（记录于 ' + o.date + '）', op = od.filter(o => !o.done).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')), dd = od.filter(o => o.done && inr(o.doneAt || o.date));
     const ordSec = [];
     if (op.length)
-        ordSec.push({ h: '医生交代的待办事项', lines: op.map(fo) });
+        ordSec.push({ h: '患者转述的医嘱（请与病历核对）', lines: op.map(fo) });
     if (dd.length)
-        ordSec.push({ h: '近期已完成的医嘱', lines: dd.map(fo) });
+        ordSec.push({ h: '近期已完成的医嘱（患者记录）', lines: dd.map(fo) });
     const tl = (p.tl || []).filter(r => inr(r.date)).sort((a, b) => b.date.localeCompare(a.date));
     const line = r => [r.date + (r.time ? ' ' + r.time : ''), r.kind + (r.tpl ? '·' + r.tpl : ''), r.hosp, r.text, ...(r.fields || []).map(x => x.n + '：' + x.v)].filter(Boolean).join(' · ') + ((r.imgs || []).length ? '（附图' + r.imgs.length + '张）' : '');
     const grp = (a, h) => { if (a.length)
@@ -747,6 +2090,12 @@ function smData(p, rgo) {
     grp(kd(['症状变化', '不良反应']), '近期症状与不良反应');
     ordSec.forEach(x => sec.push(x));
     const q = (d.ask || '').trim(), top = [];
+    { const cc = d.cc || {}, ccl = [], sy = [...(Array.isArray(cc.sym) ? cc.sym.filter(v => CC_SYM.includes(v)) : []), String(d.ccx || '').trim()].filter(Boolean);
+      if (sy.length) ccl.push('不舒服的情况：' + sy.join('、'));
+      if (CC_DUR.includes(cc.dur)) ccl.push('持续时间：' + cc.dur);
+      if (CC_SEV.includes(cc.sev)) ccl.push('程度（自己的感受）：' + cc.sev);
+      const cn = String(d.ccn || '').trim(); if (cn) ccl.push('补充：' + cn.replace(/\s*\n\s*/g, '；'));
+      if (ccl.length) top.push({ h: '这次想说的不适情况（患者自述）', lines: ccl }); }
     if (q)
         top.push({ h: '这次想问医生的问题', lines: q.split('\n').map(s => s.trim()).filter(Boolean) });
     const lastV = (p.tl || []).filter(r => r.kind === '就诊记录').sort((a, b) => b.date.localeCompare(a.date))[0];
@@ -755,16 +2104,23 @@ function smData(p, rgo) {
         top.push({ h: '上次就诊以来（患者自填）', lines: ['上次就诊：' + lastV.date + (lastV.hosp ? ' · ' + lastV.hosp : '')].concat(since.length ? since.slice(0, 6).map(line).concat(since.length > 6 ? ['另有 ' + (since.length - 6) + ' 条较早记录，见下方或时间线'] : []) : ['此后没有新记录']) });
     }
     sec.splice(1, 0, ...top);
-    const title = p.member + ' · ' + dn(p) + (p.disease === 'rare' ? (p.age === 'child' ? '（儿童）' : '（成人）') : '') + ' 复诊摘要', meta = '生成于 ' + today() + ' · 记录范围：' + ({ '3m': '近3个月', '6m': '近半年', all: '全部' }[rg]), note = '请先核对内容是否完整、准确，再带给医生。本摘要由用户自行录入的资料整理而成，仅供复诊参考，不含诊断或解读。标 ▲ 的指标，表示最新值超出页面中所设或通用的参考范围，仅作提示。';
+    let title = p.member + ' · ' + dn(p) + (p.disease === 'rare' ? (p.age === 'child' ? '（儿童）' : '（成人）') : '') + ' 复诊摘要', meta = '生成于 ' + today() + ' · 记录范围：' + ({ '3m': '近3个月', '6m': '近半年', all: '全部' }[rg]), note = '请先核对内容是否完整、准确，再带给医生。本摘要由用户自行录入的资料整理而成，仅供复诊参考，不含诊断或解读。标 ▲ 的指标，表示最新值超出页面中所设或通用的参考范围，仅作提示。';
+    if (S.sbr) {
+        const keep = ['关键提示', '这次想说的不适情况', '这次想问医生的问题', '上次就诊以来', '目前在用的药', '患者转述的医嘱', '指标变化', '近期症状与不良反应'];
+        const ns = sec.filter(x => keep.some(k => x.h.startsWith(k))).map(x => ({ h: x.h, lines: x.lines.slice(0, 6).concat(x.lines.length > 6 ? ['另有 ' + (x.lines.length - 6) + ' 条，见详细版'] : []) }));
+        sec.length = 0; ns.forEach(x => sec.push(x));
+        meta += ' · 一页精简版';
+    }
+    meta += ' · 以下内容由患者自行录入，未经医院核验';
     return { title, meta, note, sec, tl, md: '# ' + title + '\n> ' + meta + '\n\n' + sec.map(x => '## ' + x.h + '\n' + x.lines.map(l => '- ' + l).join('\n')).join('\n\n') + '\n\n> ' + note };
 }
 const CKT = { op: ['门诊', ['身份证', '医保卡 / 就诊卡', '既往病历和出院小结', '近期检查和化验单', '影像报告或片子', '正在用的药物清单（含剂量）', '复诊摘要（打印或手机里）', '这次想问医生的问题', '笔和本子', '手机和充电宝']], in: ['住院', ['身份证', '医保卡', '入院通知或住院证', '既往病历和出院小结', '检查单和影像资料', '正在用的药物清单（含剂量）', '洗漱用品', '换洗衣物和拖鞋', '水杯和餐具', '手机、充电器和充电宝', '家属联系方式']], re: ['复查', ['身份证', '医保卡 / 就诊卡', '复查预约单', '上次复诊记录', '上次检查结果', '正在用的药物清单（含剂量）', '确认医院通知的检查前准备要求', '这次想问医生的问题', '复诊摘要（打印或手机里）']] };
 function ckView(p) {
     const c = p.ck;
     if (!c || !Array.isArray(c.items))
-        return `<details class="card ckd"${S.ckOpen ? ' open' : ''}><summary><b>就诊准备清单</b></summary><p class="sub">出门前对照勾选，避免忘带东西。选一个模板开始，之后可以自己增删。</p><div class="row">${Object.keys(CKT).map(k => `<button class="ghost" data-act="ckstart" data-t="${k}">${CKT[k][0]}</button>`).join('')}</div></details>`;
+        return `<details class="card ckd"${S.ckOpen ? ' open' : ''}><summary><b>个人复诊准备清单</b></summary><p class="sub">出门前对照勾选，避免忘带东西。选一个模板开始，之后可以自己增删。</p><div class="row">${Object.keys(CKT).map(k => `<button class="ghost" data-act="ckstart" data-t="${k}">${CKT[k][0]}</button>`).join('')}</div></details>`;
     const n = c.items.filter(x => x.done).length;
-    return `<details class="card ckd"${S.ckOpen ? ' open' : ''}><summary><b>就诊准备清单 · ${esc((CKT[c.type] || ['自定义'])[0])}（${n}/${c.items.length}）</b></summary>${c.items.map((x, i) => `<div class="ckr${x.done ? ' done' : ''}"><label><input type="checkbox" data-act="cktog" data-i="${i}" ${x.done ? 'checked' : ''}><span>${esc(x.t)}</span></label><button class="ghost" data-act="ckdel" data-i="${i}" aria-label="删除 ${esc(x.t)}">删除</button></div>`).join('')}<div class="row" style="margin-top:12px"><input id="ck_new" placeholder="添加一项，如 雨伞" maxlength="40"><button class="ghost" data-act="ckadd" style="flex:none">添加</button></div><div class="bar"><button class="ghost" data-act="ckclr">清空勾选</button><span>${Object.keys(CKT).map(k => `<button class="ghost" data-act="ckstart" data-t="${k}">换成${CKT[k][0]}</button>`).join(' ')}</span></div></details>`;
+    return `<details class="card ckd"${S.ckOpen ? ' open' : ''}><summary><b>个人复诊准备清单 · ${esc((CKT[c.type] || ['自定义'])[0])}（${n}/${c.items.length}）</b></summary>${c.items.map((x, i) => `<div class="ckr${x.done ? ' done' : ''}"><label><input type="checkbox" data-act="cktog" data-i="${i}" ${x.done ? 'checked' : ''}><span>${esc(x.t)}</span></label><button class="ghost" data-act="ckdel" data-i="${i}" aria-label="删除 ${esc(x.t)}">删除</button></div>`).join('')}<div class="row" style="margin-top:12px"><input id="ck_new" placeholder="添加一项，如 雨伞" maxlength="40"><button class="ghost" data-act="ckadd" style="flex:none">添加</button></div><div class="bar"><button class="ghost" data-act="ckclr">清空勾选</button><span>${Object.keys(CKT).map(k => `<button class="ghost" data-act="ckstart" data-t="${k}">换成${CKT[k][0]}</button>`).join(' ')}</span></div></details>`;
 }
 function pzView(p) {
     const z = p.pz || {}, v = k => esc(z[k] || '');
@@ -821,7 +2177,7 @@ function pzOut(p) {
 function smView(p) { return ckView(p) + pzView(p) + smView0(p); }
 function smView0(p) {
     const s = smData(p);
-    return `<div class="seg">${[['3m', '近3个月'], ['6m', '近半年'], ['all', '全部']].map(r => `<button class="chip" aria-pressed="${(S.sr || '3m') === r[0]}" data-act="sr" data-r="${r[0]}">${r[1]}</button>`).join('')}</div><div class="card"><label style="margin-top:0">这次想问医生的问题（每行一个）</label><textarea data-k="ask" placeholder="如：&#10;下次复查什么时候做？&#10;这个药有哪些副作用需要注意？">${esc(p.data.ask || '')}</textarea></div><details class="card sm smd"${S.smClosed ? '' : ' open'}><summary><b>${esc(s.title)}</b></summary><p class="sub">${esc(s.meta)}</p>${s.sec.length ? s.sec.map(x => `<h3>${esc(x.h)}</h3><ul>${x.lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>`).join('') : '<p class="sub">还没有可汇总的资料。先在「档案」「时间线」「指标趋势」里录入。</p>'}<p class="sub" style="font-size:14px;line-height:1.5">${esc(s.note)}</p></details><details class="card sm-check" open><summary><b>导出前核对</b></summary><p class="sub">逐项确认内容后，再复制、分享或导出。核对记录只保存在本机。</p>${[['date','日期和医院正确'],['med','药名和剂量正确'],['result','检查结果没有明显遗漏'],['order','医生交代事项已检查'],['ask','想问医生的问题已整理']].map(([k,t]) => `<label class="checkline"><input type="checkbox" data-act="smcheck" data-k="${k}" ${(p.data.smChecks || {})[k] ? 'checked' : ''}><span>${t}</span></label>`).join('')}<div class="bar"><button class="btn" data-act="smcopy">复制文字摘要</button> <button class="ghost" data-act="smshare">发给家人</button> <button class="ghost" data-act="smpdf">导出 PDF（含图片）</button> <button class="ghost" data-act="smconfirm">我已核对，可以导出</button></div></details><p class="sub" style="color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.5)">如果要把摘要粘贴到第三方 AI 应用，请先去掉姓名、身份证号等个人信息。</p>`;
+    return `<div class="seg">${[['0', '详细'], ['1', '一页精简']].map(r => `<button class="chip" aria-pressed="${(!!S.sbr) === (r[0] === '1')}" data-act="smbr" data-v="${r[0]}">${r[1]}</button>`).join('')}</div><div class="seg">${[['3m', '近3个月'], ['6m', '近半年'], ['all', '全部']].map(r => `<button class="chip" aria-pressed="${(S.sr || '3m') === r[0]}" data-act="sr" data-r="${r[0]}">${r[1]}</button>`).join('')}</div>${ccView(p)}<div class="card"><label style="margin-top:0">这次想问医生的问题（每行一个）</label><textarea data-k="ask" placeholder="如：&#10;下次复查什么时候做？&#10;这个药有哪些副作用需要注意？">${esc(p.data.ask || '')}</textarea></div><details class="card sm smd"${S.smClosed ? '' : ' open'}><summary><b>${esc(s.title)}</b></summary><p class="sub">${esc(s.meta)}</p>${s.sec.length ? s.sec.map(x => `<h3>${esc(x.h)}</h3><ul>${x.lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>`).join('') : '<p class="sub">还没有可汇总的资料。先在「档案」「时间线」「指标趋势」里录入。</p>'}<p class="sub" style="font-size:14px;line-height:1.5">${esc(s.note)}</p></details><details class="card sm-check" open><summary><b>导出前核对</b></summary><p class="sub">逐项确认内容后，再复制、分享或导出。核对记录只保存在本机。</p>${[['date','日期和医院正确'],['med','药名和剂量正确'],['result','检查结果没有明显遗漏'],['order','医生交代事项已检查'],['ask','想问医生的问题已整理']].map(([k,t]) => `<label class="checkline"><input type="checkbox" data-act="smcheck" data-k="${k}" ${(p.data.smChecks || {})[k] ? 'checked' : ''}><span>${t}</span></label>`).join('')}<div class="bar"><button class="btn" data-act="smcopy">复制文字摘要</button> <button class="ghost" data-act="smshare">发给家人</button> <button class="ghost" data-act="smpdf">导出 PDF（含图片）</button> <button class="ghost" data-act="smconfirm">我已核对，可以导出</button></div></details><p class="sub" style="color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.5)">如果要把摘要粘贴到第三方 AI 应用，请先去掉姓名、身份证号等个人信息。</p>`;
 }
 const ptRow = (m, x) => S.mxe === m.id + '|' + x.id ? `<div class="item"><div class="row"><input id="pe_d" type="date" value="${esc(x.date)}" aria-label="日期"><input id="pe_v" type="number" step="any" inputmode="decimal" value="${x.v}" aria-label="数值"></div><input id="pe_n" placeholder="备注（可不填）" value="${esc(x.note || '')}" style="margin-top:8px"><div class="row" style="margin-top:8px"><input id="pe_rl" type="number" step="any" inputmode="decimal" placeholder="化验单下限" value="${hasL(x) ? x.rl : ''}" aria-label="化验单参考下限"><input id="pe_rh" type="number" step="any" inputmode="decimal" placeholder="化验单上限" value="${hasL(x) ? x.rh : ''}" aria-label="化验单参考上限"></div><input id="pe_o" placeholder="检测机构（可不填）" value="${esc(x.org || '')}" style="margin-top:8px"><div class="bar"><button class="ghost" data-act="mxecancel" data-id="${m.id}">取消</button><button class="btn" data-act="mxesave" data-id="${m.id}" data-pd="${x.id}">保存</button></div></div>` : `<div class="item row2"><span>${esc(x.date)}${x.time ? ' ' + esc(x.time) : ''} · <b class="${inRP(m, x) ? '' : 'bad'}">${x.v}</b>${hasL(x) ? ' · 化验单参考 ' + (x.rl === '' ? '—' : x.rl) + '~' + (x.rh === '' ? '—' : x.rh) : ''}${x.org ? ' · ' + esc(x.org) : ''}${x.note ? ' · ' + esc(x.note) : ''}</span><span><button class="ghost" data-act="mxedit" data-id="${m.id}" data-pd="${x.id}">编辑</button> <button class="ghost" data-act="mxdel" data-id="${m.id}" data-pd="${x.id}">删除</button></span></div>`;
 const askModal = h => new Promise(res => { const o = document.createElement('div'); o.className = 'ov'; o.innerHTML = '<div class="mod">' + h + '<div class="bar"><button class="ghost" id="ao_n">取消</button><button class="btn" id="ao_y">确认恢复</button></div></div>'; document.body.appendChild(o); o.querySelector('#ao_n').onclick = () => { o.remove(); res(false); }; o.querySelector('#ao_y').onclick = () => { o.remove(); res(true); }; });
@@ -869,12 +2225,13 @@ async function openPdf(p, rg) {
         alert('当前浏览器不支持打印，请截图保存');
     } };
 }
-const OCAT = ['用药', '复查随访', '饮食活动', '伤口护理', '需要警惕的情况', '其他'];
+const OCAT = ['用药', '复查随访', '体检', '疫苗', '饮食活动', '伤口护理', '需要警惕的情况', '其他'];
+const isSched = c => c === '体检' || c === '疫苗';
 const more = (h, t) => `<details class="more"><summary>${t || '更多'}</summary><div class="menu">${h}</div></details>`;
 function ordView(p) {
     const od = p.orders || [], t0 = today(), op = od.filter(o => !o.done).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')), dn = od.filter(o => o.done).sort((a, b) => (b.doneAt || '').localeCompare(a.doneAt || ''));
     const row = o => `<div class="item"><div class="tlh"><b>${esc(o.cat)}</b>${o.due ? `<span class="tag ${!o.done && o.due < t0 ? 'bad' : ''}">需在 ${esc(o.due)} 前完成</span>` : ''}</div><div class="tlt">${esc(o.text)}</div><div class="sub">记录于 ${esc(o.date)}${o.done ? ' · 已完成 ' + esc(o.doneAt || '') : ''}</div><div class="row"><button class="${o.done ? 'ghost' : 'btn'}" data-act="${o.done ? 'orundo' : 'ordone'}" data-id="${o.id}">${o.done ? '改回待办' : '标记已完成'}</button>${more((o.due && !o.done ? `<button class="ghost" data-act="tics" data-pid="${p.id}" data-id="${o.id}">下载日历提醒文件</button>` : '') + `<button class="ghost del" data-act="ordel" data-id="${o.id}">删除</button>`)}</div></div>`;
-    return `<div class="card hd"><h2>医生嘱咐${op.length ? '（待办 ' + op.length + '）' : ''}</h2><p class="sub">按医生原话记录，只作备忘，不会推送提醒。</p>${op.map(row).join('') || '<p class="sub">暂无待办的医嘱。</p>'}<details><summary>添加医嘱</summary><label>类别</label><select id="oc">${OCAT.map(c => `<option>${c}</option>`).join('')}</select><label>医生说的内容</label><textarea id="ot" placeholder="如：两周后复查血常规"></textarea><label>需要完成的日期（可不填）</label><input id="od" type="date"><div class="bar"><button class="btn" data-act="oradd">保存医嘱</button></div></details>${dn.length ? `<details><summary>已完成（${dn.length}）</summary>${dn.map(row).join('')}</details>` : ''}</div>`;
+    return `<div class="card hd"><h2>医生嘱咐与日程${op.length ? '（待办 ' + op.length + '）' : ''}</h2><p class="sub">医嘱按医生原话记录；体检、疫苗等日程按您自己的安排记录。只作备忘，不会推送提醒。</p>${op.map(row).join('') || '<p class="sub">暂无待办的医嘱。</p>'}<details><summary>添加医嘱</summary><label>类别</label><select id="oc">${OCAT.map(c => `<option>${c}</option>`).join('')}</select><label>内容（医嘱请照医生原话；体检、疫苗写您的安排）</label><textarea id="ot" placeholder="如：两周后复查血常规；10月体检；流感疫苗"></textarea><label>需要完成的日期（可不填）</label><input id="od" type="date"><div class="bar"><button class="btn" data-act="oradd">保存医嘱</button></div></details>${dn.length ? `<details><summary>已完成（${dn.length}）</summary>${dn.map(row).join('')}</details>` : ''}</div>`;
 }
 const UNDO_MS = 8000;
 let UNDO = null;
@@ -929,8 +2286,8 @@ function doDelete(p) {
     t.querySelector('#tu').onclick = () => { clearTimeout(e.timer); S.profiles.splice(Math.min(idx, S.profiles.length), 0, p); S.cur = p.id; UNDO = null; t.remove(); save(); view(); };
 }
 const backBar = () => S.profiles.length ? `<div class="bar" style="margin:0 0 12px;justify-content:flex-start"><button class="ghost" data-act="home">‹ 全部档案</button></div>` : '';
-const hubData = () => `<details class="home-tools"><summary>更多工具与设置</summary><div class="qk"><button data-act="bk"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg></span>备份</button><button data-act="notice"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V4h10v5"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><path d="M7 14h10v6H7z"/></svg></span>须知</button><button data-act="priv"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>隐私</button><button data-act="big" aria-pressed="${document.documentElement.classList.contains('big')}"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7V5h10v2M9 5v14M7 19h4M14 12v-1h6v1M17 11v8M15.5 19h3"/></svg></span>${document.documentElement.classList.contains('big') ? '大字' : '标准字'}</button></div></details>`;
-const posCard = () => `<p class="note"><svg class="ic il" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/></svg>只整理资料，不替代医生 · 资料只存本机${HP ? ' · ' + esc(HP.n) : ''}</p>`;
+const hubData = () => `<details class="home-tools"><summary>更多工具与设置</summary><div class="qk"><button data-act="bk"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg></span>备份</button><button data-act="notice"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V4h10v5"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><path d="M7 14h10v6H7z"/></svg></span>须知</button><button data-act="priv"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>隐私</button>${UP_OK ? '<button data-act="consent"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V9M7 14l5-5 5 5"/><path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2"/></svg></span>上传记录</button>' : ''}<button data-act="big" aria-pressed="${document.documentElement.classList.contains('big')}"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7V5h10v2M9 5v14M7 19h4M14 12v-1h6v1M17 11v8M15.5 19h3"/></svg></span>${document.documentElement.classList.contains('big') ? '大字' : '标准字'}</button></div></details>`;
+const posCard = () => `<p class="note"><svg class="ic il" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/></svg>只整理资料，不替代医生 · 资料只存本机${UP_OK ? ' · 打卡记录按您的选择上传' : ''}${HP ? ' · ' + esc(HP.n) : ''}</p>`;
 
 /* ===== 今日待办：只根据您自己记录的内容，在本机计算 ===== */
 const SNZ_K = 'companion.snz';
@@ -959,7 +2316,8 @@ function weekCard() {
     return `<details class="card wk"${S.wkOpen ? ' open' : ''}><summary><b>本周回顾</b>（近 7 天）</summary><p class="sub">只统计您自己记录的内容，不做判断。</p>${rows.join('')}</details>`;
 }
 function visitFlowCard(p, nv) {
-    if (!nv || daysTo(nv) > 14) return '';
+    if (!nv) return '';
+    if (daysTo(nv) > 14) return '<div class="card flow"><div class="tlh"><h2 style="margin:0">复诊准备</h2><span class="tag">还有 ' + daysTo(nv) + ' 天 · ' + esc(nv) + '</span></div><p class="sub">距复诊还有 ' + daysTo(nv) + ' 天。复诊前 14 天会在这里自动出现“复诊准备”的几步，到时回来看就行。</p></div>';
     const d = daysTo(nv), c = p.ck && Array.isArray(p.ck.items) ? p.ck : null;
     const ckDone = c ? c.items.filter(x => x.done).length : 0;
     const prepared = !!c;
@@ -969,8 +2327,8 @@ function visitFlowCard(p, nv) {
     const day = d === 0 ? '今天' : d < 0 ? '已过期 ' + (-d) + ' 天' : d + ' 天后';
     const status = visitDone ? '用户确认已完成' : summaryDone ? '等待复诊' : calendarDone ? '日历文件已下载' : prepared ? '准备中' : '已设置日期';
     const step = (n, title, desc, done, action, label) => `<div class="flow-step${done ? ' flow-done' : ''}"><span class="flow-num">${done ? '✓' : n}</span><div class="flow-main"><b>${title}</b><small>${done ? '已完成本步骤' : desc}</small></div>${!done && action ? `<button class="${n === 4 ? 'ghost' : 'btn'}" data-act="${action}" data-pid="${p.id}">${label}</button>` : ''}</div>`;
-    const follow = visitDone ? `<div class="post-visit"><b>复诊后，补记下一步</b><p class="sub">把医生新交代的内容记下来；填写下一次复诊日期后，会自动建立下一轮复诊准备。没有新增内容也可以直接结束。</p><textarea id="vf_text" placeholder="如：两周后复查血常规；继续按医生交代用药">${esc(p.data.visitFollowupText || '')}</textarea><div class="row"><input id="vf_date" type="date" value="${esc(p.data.visitFollowupDate || '')}" aria-label="下一次复诊日期"><button class="btn" data-act="vfollowup" data-pid="${p.id}">保存复诊后记录</button></div><button class="ghost" data-act="vfollowup" data-pid="${p.id}" data-skip="1" style="margin-top:8px">没有新增内容，结束本次</button></div>` : '';
-    return `<div class="card flow"><div class="tlh"><h2 style="margin:0">${visitDone ? '复诊完成，补记下一步' : '复诊准备'}</h2><span class="tag ${d < 0 ? 'bad' : ''}">${esc(status)} · ${day} · ${esc(nv)}</span></div><p class="sub">${esc(label(p))} · 只根据你自己填写的日期和资料生成，不会判断病情。</p>${step(1, '准备就诊清单', prepared ? '清单已建立，当前勾选 ' + ckDone + '/' + c.items.length + ' 项' : '选择“复查”模板，系统会建立一份可编辑清单。', prepared, 'vprepare', prepared ? '查看清单' : '去准备')}${step(2, '准备日历提醒文件', calendarDone ? '文件已下载；是否导入系统日历需由你确认。' : '下载文件后，请在系统日历中打开并确认导入。', calendarDone, 'vcalendar', '下载文件')}${step(3, '核对复诊摘要', summaryDone ? '摘要已标记为本次复诊材料。' : '打开摘要，核对范围、未完成事项和想问医生的问题。', summaryDone, 'vsummary', '去核对')}${step(4, '确认本次复诊完成', visitDone ? '你已确认完成；不代表医院系统已完成记录。' : '看完医生后由你确认；不代表医院系统已完成记录。', visitDone, 'vdone', '我已完成')}${follow}</div>`;
+    const follow = visitDone ? `<div class="post-visit"><b>复诊后，补记下一步</b><p class="sub">把医生新交代的内容记下来；填写下一次复诊日期后，会自动建立下一轮复诊准备。没有新增内容也可以直接结束。</p><textarea id="vf_text" placeholder="如：两周后复查血常规；继续按医生交代用药">${esc(p.data.visitFollowupText || '')}</textarea><div class="row"><input id="vf_date" type="date" value="${esc(p.data.visitFollowupDate || '')}" aria-label="下一次复诊日期"><button class="btn" data-act="vfollowup" data-pid="${p.id}">保存复诊后记录</button></div><p class="sub">只有复诊日期当天或之后保存，才会计入整理打卡；日期填错请先修改日期。</p><button class="ghost" data-act="vfollowup" data-pid="${p.id}" data-skip="1" style="margin-top:8px">没有新增内容，仅结束本次（不记整理打卡）</button></div>` : '';
+    return `<div class="card flow"><div class="tlh"><h2 style="margin:0">${visitDone ? '复诊完成，补记下一步' : '复诊准备'}</h2><span class="tag ${d < 0 ? 'bad' : ''}">${esc(status)} · ${day} · ${esc(nv)}</span></div><p class="sub">${esc(label(p))} · 只根据你自己填写的日期和资料生成，不会判断病情。复诊日期只是个人提醒，不是预约。</p>${step(1, '准备个人复诊清单', prepared ? '清单已建立，当前勾选 ' + ckDone + '/' + c.items.length + ' 项' : '选择“复查”模板，系统会建立一份可编辑清单。', prepared, 'vprepare', prepared ? '查看清单' : '去准备')}${step(2, '准备日历提醒文件', calendarDone ? '文件已下载；是否导入系统日历需由你确认。' : '下载文件后，请在系统日历中打开并确认导入。', calendarDone, 'vcalendar', '下载文件')}${step(3, '核对复诊摘要', summaryDone ? '摘要已标记为本次复诊材料。' : '打开摘要，核对范围、未完成事项和想问医生的问题。', summaryDone, 'vsummary', '去核对')}${step(4, '确认本次复诊完成', visitDone ? '你已确认完成；不代表医院系统已完成记录。' : '看完医生后由你确认；不代表医院系统已完成记录。', visitDone, 'vdone', '我已自行确认看完')}${(!visitDone && jnyList().length) ? `<div class="row" style="margin-top:10px"><button class="ghost" data-act="jgo">去做医院就诊流程（可获得整理打卡）</button></div>` : ''}${follow}</div>`;
 }
 function todayItems() {
     const out = [], sz = snzGet(), t0 = today();
@@ -1008,10 +2366,11 @@ function otherVisitList(primary) {
     }).join('');
     return rows ? `<details class="card other-visits"><summary><b>其他档案</b>（${S.profiles.length - (primary ? 1 : 0)}）</summary><p class="sub">首页只突出最早的一次复诊，其他档案保留为状态列表。</p><div class="visit-list">${rows}</div></details>` : '';
 }
+const jnyHint = pr => { if (!pr || !jnyList().length) return ''; const d = daysTo(pr.nv); if (d === null || d < 0 || d > 7) return ''; return '<div class="card"><b>复诊快到了：可先做一下医院就诊流程清单</b><p class="sub">医院提供的流程只保存在本机；完成一条完整流程后，符合活动规则时可获得整理打卡。</p><div class="row"><button class="btn" data-act="jgo">去做医院就诊流程</button></div></div>'; };
 function todayCard() {
     const L = todayItems();
     const primary = primaryVisit();
-    const flow = primary ? visitFlowCard(primary.p, primary.nv) : '';
+    const flow = primary ? visitFlowCard(primary.p, primary.nv) + jnyHint(primary) : '';
     const others = otherVisitList(primary);
     if (!L.length && flow) return flow + others;
     if (!L.length) return S.profiles.length ? flow + others + `<div class="card today"><b>今天没有其他待处理事项</b><p class="sub">复诊任务会单独显示在上方；这里的其他事项只根据你明确填写的医嘱和当前用药生成。</p></div>` : '';
@@ -1025,10 +2384,10 @@ function icsFor(p, o) {
     const st = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
     const al = (tr, d) => ['BEGIN:VALARM', 'TRIGGER:' + tr, 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(d), 'END:VALARM'];
     const txt = o.cat + '：' + o.text;
-    return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//jiuyiban//CN', 'BEGIN:VEVENT', 'UID:' + o.id + '@jiuyiban', 'DTSTAMP:' + st, 'DTSTART;VALUE=DATE:' + ymd(o.due), 'DTEND;VALUE=DATE:' + n2, 'SUMMARY:' + icsEsc('医嘱到期：' + txt), 'DESCRIPTION:' + icsEsc('按医生原话记录，仅作备忘。' + label(p)), ...al('-PT15H', '明天到期：' + txt), ...al('PT9H', '今天到期：' + txt), 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+    return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//jiuyiban//CN', 'BEGIN:VEVENT', 'UID:' + o.id + '@jiuyiban', 'DTSTAMP:' + st, 'DTSTART;VALUE=DATE:' + ymd(o.due), 'DTEND;VALUE=DATE:' + n2, 'SUMMARY:' + icsEsc((isSched(o.cat) ? '日程：' : '医嘱到期：') + txt), 'DESCRIPTION:' + icsEsc((isSched(o.cat) ? '本人记录的日程，仅作备忘。' : '按医生原话记录，仅作备忘。') + label(p)), ...al('-PT15H', '明天到期：' + txt), ...al('PT9H', '今天到期：' + txt), 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
 }
 
-const homeView = () => todayCard() + weekCard() + posCard() + `<h2 class="gt">我的档案（${S.profiles.length}）</h2><div class="opts">${S.profiles.map(p => { const n = (p.tl || []).length, od = (p.orders || []).filter(o => !o.done).length, last = (p.tl || []).map(r => r.date).sort().pop(); return `<button class="opt" style="--c:${COL[p.disease]}" data-act="pick" data-id="${p.id}"><b>${esc(label(p))}</b><small>${n} 条记录${od ? ' · 待办 ' + od : ''}${last ? ' · ' + esc(last.slice(5)) : ''}</small></button>`; }).join('')}</div><div class="row hb"><button class="btn" data-act="new">＋ 新建档案</button></div><details class="home-more"><summary>需要演示资料？加载一个示例档案</summary><div class="row" style="justify-content:center;margin-top:8px"><button class="ghost" data-act="demo">加载示例档案</button></div></details>` + hubData();
+const homeView = () => todayCard() + weekCard() + `<h2 class="gt">我的档案（${S.profiles.length}）</h2><div class="opts">${S.profiles.map(p => { const n = (p.tl || []).length, od = (p.orders || []).filter(o => !o.done).length, last = (p.tl || []).map(r => r.date).sort().pop(); return `<button class="opt" style="--c:${COL[p.disease]}" data-act="pick" data-id="${p.id}"><b>${esc(label(p))}</b><small>${n} 条记录${od ? ' · 待办 ' + od : ''}${last ? ' · ' + esc(last.slice(5)) : ''}</small></button>`; }).join('')}</div><div class="row hb"><button class="btn" data-act="new">＋ 新建档案</button></div>${(() => { const q = S.profiles.slice().sort((a, b) => ((b.tl || []).map(r => r.date).sort().pop() || '').localeCompare((a.tl || []).map(r => r.date).sort().pop() || ''))[0]; return q ? `<div class="row hb"><button class="ghost" data-act="qadd" data-id="${q.id}">继续记录：${esc(label(q))}</button></div>` : ''; })()}<details class="home-more"><summary>需要演示资料？加载一个示例档案</summary><div class="row" style="justify-content:center;margin-top:8px"><button class="ghost" data-act="demo">加载示例档案</button>${HP ? '' : '<button class="ghost" data-act="prevhosp">预览医院版（演示）</button>'}</div></details>` + hospCard() + jnyCard() + actCard() + posCard() + hubData();
 function bkToast() { if (A.bk && Date.now() - new Date(A.bk).getTime() < 7 * 864e5)
     return; const t = document.createElement('div'); t.className = 'toast'; t.innerHTML = '已保存到本机（未加密，也不等于已备份） <button>去备份</button>'; document.body.appendChild(t); const x = setTimeout(() => t.remove(), 5000); t.querySelector('button').onclick = () => { clearTimeout(x); t.remove(); S.view = 'bk'; view(); scrollTo(0, 0); }; }
 function inAppModal() {
@@ -1112,11 +2471,11 @@ function tplMgr(p) {
 const PLAUS = { '空腹血糖': [1, 40], '餐后2h血糖': [1, 40], 'HbA1c': [3, 20], '血肌酐': [20, 2000], '血尿酸': [50, 1500], 'LDL-C': [0.2, 15], '心率': [20, 250], '体重': [2, 300], '血红蛋白': [20, 220], '血小板': [1, 2000], '白细胞': [0.1, 500], '血钾': [1.5, 9], '血钙': [1, 5], 'eGFR': [1, 200], 'TSH': [0.001, 200] };
 const MFREQ = { day: '每天', week: '每周一次', alt: '隔天一次', prn: '需要时才吃', course: '按疗程' };
 const medDaily = m => !m.stopped && (!m.freq || m.freq === 'day');
-const medTxt = m => (m.dose ? m.dose + ' · ' : '') + ((!m.freq || m.freq === 'day') ? '每天 ' + m.per + ' 次' : MFREQ[m.freq]) + (m.note ? '（' + m.note + '）' : '') + (m.start ? ' · ' + m.start + ' 开始' : '') + (m.stopped ? ' · 已停用' + (m.stopAt ? '（' + m.stopAt + '）' : '') : '');
+const medTxt = m => (m.dose ? m.dose + ' · ' : '') + ((!m.freq || m.freq === 'day') ? '每天 ' + m.per + ' 次' : MFREQ[m.freq]) + (m.note ? '（' + m.note + '）' : '') + (m.start ? ' · ' + m.start + ' 开始' : '') + (m.stopped ? ' · 已停用' + (m.stopAt ? '（' + m.stopAt + '）' : '') + (m.stopWhy ? '，原因：' + m.stopWhy : '') : '') + ((m.log || []).length ? ' · 调整：' + m.log.slice(-3).join('；') : '');
 const medCnt = (p, m) => (p.tl || []).filter(r => r.kind === '用药' && r.date === today() && r.text === '已服药：' + m.name).length;
 function medsView(p) {
     const L = p.meds || [], A_ = L.filter(m => !m.stopped), Z_ = L.filter(m => m.stopped);
-    const row = m => `<div class="item"${m.stopped ? ' style="opacity:.65"' : ''}><div class="tlh"><b>${esc(m.name)}</b>${m.stopped ? '<span class="tag">已停用</span>' : ''}</div><div class="sub">${esc(medTxt(m).replace(' · 已停用', ''))}</div><div class="row"><button class="ghost" data-act="mdstop" data-id="${m.id}">${m.stopped ? '恢复使用' : '标记停用'}</button><button class="ghost del" data-act="mddel" data-id="${m.id}">删除</button></div></div>`;
+    const row = m => `<div class="item"${m.stopped ? ' style="opacity:.65"' : ''}><div class="tlh"><b>${esc(m.name)}</b>${m.stopped ? '<span class="tag">已停用</span>' : ''}</div><div class="sub">${esc(medTxt(m).replace(' · 已停用', ''))}</div><div class="row">${m.stopped ? '' : `<button class="ghost" data-act="mddose" data-id="${m.id}">调整剂量</button>`}<button class="ghost" data-act="mdstop" data-id="${m.id}">${m.stopped ? '恢复使用' : '标记停用'}</button><button class="ghost del" data-act="mddel" data-id="${m.id}">删除</button></div></div>`;
     return `<details class="fl" data-fk="meds"${(S.lo || {}).meds ? ' open' : ''}><summary><b>我的药</b>（${L.length ? A_.length + ' 种在用' + (Z_.length ? '，' + Z_.length + ' 种已停' : '') : '还没添加，先加常吃的药'}）</summary><p class="sub">照医生的处方填写药名、剂量和用法。只有选“每天”的药，首页才会提示今天还差几次；每周、隔天、需要时吃的药，只记录、不提醒。只记录，不提供用药建议。</p>${A_.map(row).join('')}${Z_.length ? `<details class="more"><summary>已停用的药（${Z_.length}）</summary>${Z_.map(row).join('')}</details>` : ''}<label>药名</label><input id="mdn" maxlength="60" placeholder="如 氨氯地平"><label>剂量（照处方写）</label><input id="mdd" maxlength="40" placeholder="如 5 mg / 1 片"><label>用法</label><select id="mdf">${Object.keys(MFREQ).map(k => `<option value="${k}">${MFREQ[k]}</option>`).join('')}</select><label>如果选“每天”，一天几次</label><select id="mdp">${[1, 2, 3, 4].map(n => `<option value="${n}">每天 ${n} 次</option>`).join('')}</select><label>开始日期（可不填）</label><input id="mds" type="date"><label>备注（可不填）</label><input id="mdt" maxlength="60" placeholder="如 吃14天停7天；饭后服"><div class="bar"><button class="btn" data-act="mdadd">添加这种药</button></div></details>`;
 }
 function medsToday(p) {
@@ -1146,6 +2505,12 @@ function presets(p) {
     if (p.disease === 'breast')
         return [G('CA153', 'U/mL', '', 25), G('CEA', 'ng/mL', '', 5), G('CA125', 'U/mL', '', 35)];
     const Z = a => a.map(x => M(x[0], x[1], '', ''));
+    if (p.disease === 'dp_ck')
+        return Z([['体重', 'kg'], ['空腹血糖', 'mmol/L'], ['LDL-C', 'mmol/L'], ['血尿酸', 'μmol/L']]);
+    if (p.disease === 'dp_pd')
+        return Z([['体重', 'kg'], ['身高', 'cm']]);
+    if (p.disease === 'dp_op')
+        return Z([['右眼视力', ''], ['左眼视力', ''], ['右眼眼压', 'mmHg'], ['左眼眼压', 'mmHg']]);
     if (p.disease === 'lymphoma')
         return Z([['LDH', 'U/L'], ['β2微球蛋白', 'mg/L'], ['血红蛋白', 'g/L']]);
     if (p.disease === 'myeloma')
@@ -1231,6 +2596,20 @@ function mxView(p) {
 function sensitiveGate(kind, onConfirm) { const o = document.createElement('div'); o.className = 'ov'; o.innerHTML = '<div class="mod"><h2>分享前请确认</h2><p>即将' + kind + '病情资料。请确认接收方可信，并检查摘要中是否包含不必要的个人信息。</p><label class="checkline"><input id="sg_ok" type="checkbox"> <span>我已检查内容，并确认不包含身份证号、手机号、住址、住院号等不必要敏感信息。</span></label><div class="bar"><button class="ghost" id="sg_n">取消</button><button class="btn" id="sg_y" disabled>继续</button></div></div>'; document.body.appendChild(o); const ok=o.querySelector('#sg_ok'), yes=o.querySelector('#sg_y'); ok.onchange=()=>{yes.disabled=!ok.checked}; o.querySelector('#sg_n').onclick=()=>o.remove(); yes.onclick=()=>{o.remove();onConfirm()}; }
 function extra(act, b, p) {
     const g = id => document.getElementById(id), f = s => { s = s.trim(); return s === '' || isNaN(+s) ? '' : +s; };
+    if (act === 'consent') { if (!UP_OK) { toastMsg('这家医院还没有开启记录上传'); return 2; } consentAsk(() => { }); return 2; }
+    if (act === 'showask') {
+        const it = (HP && Array.isArray(HP.show) ? HP.show : [])[+b.dataset.i];
+        if (!it) return 2;
+        const line = '想咨询：' + it.t + '（医院项目，是否适合请医生判断）';
+        const add = p0 => { p0.data = p0.data || {}; const cu = String(p0.data.ask || ''); if (cu.split('\n').some(x => x.trim() === line)) { toastMsg('已在“' + p0.member + '”的想问清单里'); return; } p0.data.ask = (cu.trim() ? cu.replace(/\s+$/, '') + '\n' : '') + line; save(); toastMsg('已加入“' + p0.member + '”的想问清单（不是预约）'); };
+        if (!S.profiles.length) { modal('<h2>请先建立档案</h2><p class="sub">想问清单记在档案的复诊摘要里。先新建一份档案，再回来加入。</p><div class="bar"><button class="btn" data-go>知道了</button></div>'); return 2; }
+        if (S.profiles.length === 1) { add(S.profiles[0]); return 2; }
+        const o = document.createElement('div'); o.className = 'ov';
+        o.innerHTML = '<div class="mod"><h2>加到谁的想问清单？</h2>' + S.profiles.map((q, k) => '<button class="ghost" style="display:block;width:100%;margin:6px 0" data-pk="' + k + '">' + esc(q.member) + '</button>').join('') + '<div class="bar"><button class="ghost" data-go>取消</button></div></div>';
+        o.onclick = ev => { const t = ev.target; if (t === o || (t.hasAttribute && t.hasAttribute('data-go'))) o.remove(); else if (t.dataset && t.dataset.pk !== undefined) { const q = S.profiles[+t.dataset.pk]; o.remove(); if (q) add(q); } };
+        document.body.appendChild(o);
+        return 2;
+    }
     if (act === 'tgo' || act === 'vprepare') {
         const q = S.profiles.find(x => x.id === b.dataset.pid);
         if (q) {
@@ -1253,24 +2632,28 @@ function extra(act, b, p) {
         return 2;
     }
     if (act === 'vdone') {
-        if (!okAsk('确认这次复诊已经完成吗？点“确定”后，这张复诊卡片会变成“补记下一步”。'))
+        const q0 = S.profiles.find(x => x.id === b.dataset.pid), nv0 = q0 ? flowVisit(q0) : '';
+        if (!okAsk(nv0 && nv0 > today() ? '你填的复诊日期是 ' + nv0 + '，还没到。确定已经看完医生了吗？复诊日期到之前保存复诊后记录，不记整理打卡。' : '确认这次复诊已经完成吗？点“确定”后，这张复诊卡片会变成“补记下一步”。'))
             return 2;
         const q = S.profiles.find(x => x.id === b.dataset.pid);
-        if (q && q.data.nvd) { const before = q.data.visitDoneAt || ''; q.data.visitDoneAt = q.data.nvd; save(); showActionUndo('已记录本次复诊完成', () => { q.data.visitDoneAt = before; save(); }); }
+        const nvX = q ? flowVisit(q) : ''; if (q && nvX) { const before = q.data.visitDoneAt || ''; q.data.visitDoneAt = nvX; save(); showActionUndo('已记录本次复诊完成', () => { q.data.visitDoneAt = before; save(); }); }
         return 1;
     }
     if (act === 'vfollowup') {
         const q = S.profiles.find(x => x.id === b.dataset.pid), text = b.dataset.skip ? '' : ((g('vf_text') || {}).value?.trim() || ''), due = b.dataset.skip ? '' : ((g('vf_date') || {}).value || '');
         if (!q) return 2;
-        const skip = !!b.dataset.skip, before = { text: q.data.visitFollowupText || '', date: q.data.visitFollowupDate || '', nvd: q.data.nvd || '', fol: q.data.visitFollowedAt || '', orders: (q.orders || []).slice() };
+        const skip = !!b.dataset.skip, before = { text: q.data.visitFollowupText || '', date: q.data.visitFollowupDate || '', nvd: q.data.nvd || '', fol: q.data.visitFollowedAt || '', foid: q.data.followupOrderId || '', orders: (q.orders || []).map(o => Object.assign({}, o)) };
         q.data.visitFollowedAt = q.data.visitDoneAt || '';
         q.data.visitFollowupText = skip ? '' : text; q.data.visitFollowupDate = skip ? '' : due;
         if (!skip && due) q.data.nvd = due;
         if (!skip && text) {
             q.orders = q.orders || [];
-            q.orders.push({ id: 'o' + Date.now(), date: today(), cat: '复诊后记录', text, due, done: false });
-        }
-        save(); view(); showActionUndo(due ? '已建立下一轮复诊准备' : (text ? '已保存复诊后记录' : '已保存：本次暂无新增内容'), () => { q.data.visitFollowupText = before.text; q.data.visitFollowupDate = before.date; q.data.nvd = before.nvd; q.data.visitFollowedAt = before.fol; q.orders = before.orders; save(); view(); });
+            const ex = q.data.followupOrderId && q.orders.find(o => o.id === q.data.followupOrderId && o.cat === '复诊后记录');
+            if (ex) { ex.text = text; ex.due = due; ex.done = false; }
+            else { const id = 'o' + Date.now(); q.orders.push({ id, date: today(), cat: '复诊后记录', text, due, done: false }); q.data.followupOrderId = id; }
+        } else if (q.data.followupOrderId) { q.orders = (q.orders || []).filter(o => o.id !== q.data.followupOrderId); q.data.followupOrderId = ''; }
+        const vd0 = q.data.visitDoneAt || today(), early = vd0 > today(), gotCi = !skip && (text || due) && !early && ciGrant(q.id + ':' + vd0); if (gotCi) { S.actOpen = true; logEvent('followup', { visit_date: vd0, activity: '复诊后记录', profile: q.id }); }
+        save(); view(); showActionUndo((due ? '已建立下一轮复诊准备' : (text ? '已保存复诊后记录' : '已保存：本次暂无新增内容')) + (gotCi ? '，记 1 次整理打卡（首页“惠民服务”可参与）' : (!skip && (text || due) && early && actList().some(a => a.need) ? '。复诊日期未到，暂不记整理打卡' : '')), () => { q.data.visitFollowupText = before.text; q.data.visitFollowupDate = before.date; q.data.nvd = before.nvd; q.data.visitFollowedAt = before.fol; q.data.followupOrderId = before.foid; q.orders = before.orders; save(); view(); });
         return 1;
     }
     if (act === 'smshare') { sensitiveGate('分享', () => shareText('复诊摘要', smData(p).md)); return 2; }
@@ -1286,8 +2669,16 @@ function extra(act, b, p) {
     }
     if (act === 'mdstop') {
         const m = (p.meds || []).find(x => x.id === b.dataset.id);
-        if (m) { m.stopped = !m.stopped; if (m.stopped) m.stopAt = today(); else delete m.stopAt; save(); }
-        return 1;
+        if (!m) return 1;
+        if (m.stopped) { m.stopped = false; delete m.stopAt; delete m.stopWhy; save(); return 1; }
+        askText('停用「' + m.name + '」（原因可不填）', '如 医生让停、副作用、吃完了', '', v => { m.stopped = true; m.stopAt = today(); if (v) m.stopWhy = v.slice(0, 80); else delete m.stopWhy; save(); view(); });
+        return 2;
+    }
+    if (act === 'mddose') {
+        const m = (p.meds || []).find(x => x.id === b.dataset.id);
+        if (!m) return 1;
+        askText('把「' + m.name + '」的剂量改成', '如 10 mg', m.dose || '', v => { if (!v || v === (m.dose || '')) return; (m.log = m.log || []).push(today() + ' ' + (m.dose || '未填') + ' → ' + v); m.log = m.log.slice(-50); m.dose = v.slice(0, 40); save(); view(); });
+        return 2;
     }
     if (act === 'mddel') {
         if (!okAsk('删除这种药的记录设置？已经记过的服药记录不会删除。'))
@@ -1431,6 +2822,35 @@ function extra(act, b, p) {
         }
         catch (e) { }
         return 1;
+    }
+    if (act === 'prevhosp') {
+        try { location.search = '?hospital=demo'; } catch (e) { alert('请在网址后面加上 ?hospital=demo 再打开'); }
+        return 2;
+    }
+    if (act === 'jgo') { S.jnyOpen = true; const e = document.querySelector('.hosp-jny'); if (e) { e.open = true; e.scrollIntoView({ behavior: 'smooth', block: 'start' }); return 2; } S.view = 'home'; setTimeout(() => { const e2 = document.querySelector('.hosp-jny'); if (e2) { e2.open = true; e2.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }, 80); return 1; }
+    if (act === 'jtick' || act === 'jreset') {
+        const g = jnyGet(), id = b.dataset.j, j = jnyList().find(x => x.id === id);
+        if (j) {
+            if (act === 'jreset') { if (!okAsk('清空这个流程的勾选？')) return 2; delete g[id]; }
+            else { const i = +b.dataset.s, set = new Set(g[id] || []); if (b.checked) set.add(i); else set.delete(i); g[id] = [...set].sort((x, y) => x - y); }
+            jnySet(g);
+            let earned = 0;
+            if (act === 'jtick' && b.checked && (g[id] || []).length === j.steps.length && actList().some(x => x.need)) { const c = chkGet(); if (c.d !== today()) { c.n++; c.d = today(); c.jd = (c.jd || []).concat(today()).slice(-400); chkSet(c); earned = 1; logEvent('journey', { activity: j.t, visit_date: today() }); } else toastMsg('今天已记过 1 次整理打卡，明天再来'); }
+            const h = document.querySelector('.hosp-jny'); if (h) h.outerHTML = jnyCard();
+            const ha = document.querySelector('.hosp-act'); if (ha) ha.outerHTML = actCard();
+            if (earned) { modal('<h2>整理打卡 +1</h2><p class="sub">您完成了「' + esc(j.t) + '」。当前可用整理打卡：<b>' + chkAvail() + '</b> 次。有的惠民服务需要整理打卡后才能参与，每天最多记 1 次。' + (UP_OK ? '是否上传给医院由您选择。' : '只记在您手机里。') + '</p><div class="row"><button class="ghost" id="chk_ok">知道了</button><button class="btn" id="chk_go">去参加惠民活动</button></div>'); const ov = [...document.querySelectorAll('.ov')].pop(), k = ov && ov.querySelector('#chk_ok'); if (k) k.onclick = () => ov.remove(); const gb = ov && ov.querySelector('#chk_go'); if (gb) gb.onclick = () => goCard('.hosp-act', 'actOpen'); }
+        }
+        return 2;
+    }
+    if (act === 'actopen' || act === 'actlog') {
+        const a = actList().find(x => x.id === b.dataset.id);
+        if (a && act === 'actopen' && a.need && a.per !== 'free' && chkAvail() < a.need && !actDone(a)) {
+            modal('<h2>' + esc(a.t) + '</h2><p>这个活动需要 <b>' + a.need + ' 次</b>整理打卡才能参与，您现在有 <b>' + chkAvail() + ' 次</b>，还差 <b>' + (a.need - chkAvail()) + ' 次</b>。</p><p class="sub">' + CHKTXT + '</p><div class="bar"><button class="ghost" data-go="x">先不了</button>' + (jnyList().length ? '<button class="btn" id="ag_go">去做流程清单</button>' : '') + '<button class="ghost" id="ag_pf">去看我的档案</button></div>');
+            const ov = [...document.querySelectorAll('.ov')].pop(), gb = ov && ov.querySelector('#ag_go'); if (gb) gb.onclick = () => goCard('.hosp-jny', 'jnyOpen'); const pf = ov && ov.querySelector('#ag_pf'); if (pf) pf.onclick = () => { ov.remove(); const e = document.querySelector('.gt'); if (e) e.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+            return 2;
+        }
+        if (a) { if (act === 'actopen') actPlay(a); else actLog(a); }
+        return 2;
     }
     if (act === 'notice') {
         openNotice();
@@ -1648,12 +3068,32 @@ function extra(act, b, p) {
         S.sr = b.dataset.r;
         return 1;
     }
+    if (act === 'ccsym' || act === 'ccdur' || act === 'ccsev') {
+        const v = b.dataset.v;
+        if (p && p.data && (act === 'ccsym' ? CC_SYM : act === 'ccdur' ? CC_DUR : CC_SEV).includes(v)) {
+            const cc = p.data.cc = (p.data.cc && typeof p.data.cc === 'object') ? p.data.cc : {};
+            if (act === 'ccsym') { const s = new Set(cc.sym || []); s.has(v) ? s.delete(v) : s.add(v); cc.sym = [...s]; }
+            else { const k = act === 'ccdur' ? 'dur' : 'sev'; cc[k] = cc[k] === v ? '' : v; }
+            save();
+        }
+        return 1;
+    }
+    if (act === 'ccref')
+        return 1;
+    if (act === 'ccclr') {
+        if (p && p.data) { p.data.cc = {}; p.data.ccx = ''; p.data.ccn = ''; save(); }
+        return 1;
+    }
+    if (act === 'smbr') {
+        S.sbr = b.dataset.v === '1';
+        return 1;
+    }
     if (act === 'smcheck') {
         if (p && p.data) { p.data.smChecks = p.data.smChecks || {}; p.data.smChecks[b.dataset.k] = !!b.checked; save(); }
         return 1;
     }
     if (act === 'smconfirm') {
-        if (p && p.data) { const checks = p.data.smChecks || {}; const keys = ['date','med','result','order','ask']; const miss = keys.filter(k => !checks[k]).length; if (miss && !okAsk('上面还有 ' + miss + ' 项没有勾选核对，仍要标记为“已核对”吗？\n（可以先去勾选，也可以请家人帮忙核对）')) return 2; const before = { at: p.data.visitSummaryAt || '', checks: { ...checks } }; p.data.visitSummaryAt = nextVisit(p) || today(); save(); showActionUndo('已标记摘要已核对', () => { p.data.visitSummaryAt = before.at; p.data.smChecks = before.checks; save(); }); }
+        if (p && p.data) { const checks = p.data.smChecks || {}; const keys = ['date','med','result','order','ask']; const miss = keys.filter(k => !checks[k]).length; if (miss) { alert('上面还有 ' + miss + ' 项没有勾选核对。请五项都核对（可以请家人帮忙）后，再标记为“已核对”。'); return 2; } const before = { at: p.data.visitSummaryAt || '', checks: { ...checks } }; p.data.visitSummaryAt = nextVisit(p) || today(); save(); showActionUndo('已标记摘要已核对', () => { p.data.visitSummaryAt = before.at; p.data.smChecks = before.checks; save(); }); }
         return 1;
     }
     if (act === 'smpdf') { sensitiveGate('导出 PDF', () => openPdf(p)); return 2; }
@@ -1864,7 +3304,7 @@ catch (e) {
 }
 let STO = true, IDBOK = true;
 const INAPP = typeof navigator !== 'undefined' && /MicroMessenger|\sQQ\//i.test(navigator.userAgent || '');
-const needBk = () => { let n = 0; S.profiles.filter(p => !p.demo).forEach(p => { n += (p.tl || []).length; (p.mx || []).forEach(m => n += m.pts.length); n += ((p.ck && p.ck.items) || []).length; if (p.pz && (p.pz.place || p.pz.need || p.pz.cond))
+const needBk = () => { let n = 0; S.profiles.filter(p => !p.demo).forEach(p => { n += (p.tl || []).length; (p.mx || []).forEach(m => n += m.pts.length); n += ((p.ck && p.ck.items) || []).filter(x => x.done).length; if (p.pz && (p.pz.place || p.pz.need || p.pz.cond))
         n += 1; }); if (n < 1)
     return false; return !A.bk || Date.now() - new Date(A.bk).getTime() > 30 * 864e5; };
 const lockBanner = () => (LOCK ? `<div class="card" style="border-color:#dc2626"><b><svg class="ic il" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5M12 17.5v.01"/></svg>数据异常保护中</b><br>本机档案读取失败，现在的新增和修改都不会保存，以免覆盖原数据。${BADOK ? '原始数据已另存一份。' : '<b>原始数据另存失败，请不要清理浏览器数据。</b>'}<div class="bar"><button class="ghost" data-act="bk">从备份恢复</button><button class="ghost del" data-act="unlock">放弃异常数据，重新开始</button></div></div>` : '') + (DIRTY ? `<div class="card" style="border-color:#dc2626"><b><svg class="ic il" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5M12 17.5v.01"/></svg>当前修改尚未可靠保存</b><br>刷新或关闭页面可能丢失。请先导出备份，并释放浏览器空间后重试。<div class="bar"><button class="ghost" data-act="bk">去备份</button></div></div>` : '');
@@ -1883,25 +3323,397 @@ catch (e) {
     return f;
 } }
 /* 医院配置：n 名称，w 引导语，l 院徽(data URI)，showRef:true 显示肿瘤标志物的通用参考上限（默认隐藏），hideRef:true 强制隐藏，rg:{指标名:[下限,上限]} 本院参考范围（'' 表示无该侧） */
-const HOSP = { demo: { hideRef: true, n: '示例医院（演示）', w: '本工具是医院为 VIP 客户提供的病程资料整理工具，资料只保存在您自己的设备上。', l: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTIiIGZpbGw9IiMwZjVjNTUiLz48cGF0aCBkPSJNMjYgMTRoMTJ2MTJoMTJ2MTJIMzh2MTJIMjZWMzhIMTRWMjZoMTJ6IiBmaWxsPSIjZmZmIi8+PC9zdmc+' } };
+/* 医院服务（均为静态展示，由医院提供并审核，页面不推送、不接收任何回传）：
+   c:'#rrggbb' 医院主题色（用于“医院服务”卡片）
+   vip:[{t,d}] VIP 服务权益说明（只展示，不办理、不预订）
+   ann:[{t,d,date}] 医院通知与健康科普（医院发布，更新页面后可见；内容须经医院医务科审核）
+   pre:[{t,d}] 检查/体检前准备事项（以医院通知为准）
+   tel:{n,num} 服务电话（点击拨打）；book:{n,url} 医院自有预约入口链接（https，仅跳转，不新建号源）
+   campus:[{n,addr,tel}] 多院区信息（只展示）
+   show:[{t,d,img,price,tag}] 医院项目展示（基础版≤3、升级版≤8；img 只能是本站 img/<代号>/文件名.jpg|png|webp；价格不写则显示“以门诊公示为准”；患者可“加入想问清单”，不是预约） */
+const HOSP = { demo: { hideRef: true, c: '#0f5c55', n: '示例医院（演示）', w: '本工具是医院为 VIP 客户提供的病程资料整理工具，资料只保存在您自己的设备上。',
+        vip: [{ t: '专属服务电话', d: '工作日 8:00–17:00 由 VIP 服务专员接听，协助了解医院的服务安排。' }, { t: '就诊引导', d: '到院后可向导诊台出示本页面，由工作人员引导至 VIP 服务区（示例内容）。' }, { t: '体检预约咨询', d: '体检套餐与时间请联系服务电话咨询（示例内容）。' }],
+        ann: [{ t: '国庆假期门诊安排（示例）', d: '10月1日至7日门诊时间调整，请以医院官方通知为准。', date: '2026-09-28' }, { t: '秋季流感疫苗接种提示（示例）', d: '接种时间、对象与禁忌请咨询接种门诊或您的医生。', date: '2026-10-10' }],
+        show: [{ t: '儿童口腔检查（示例）', d: '了解牙齿萌出和清洁情况，是否需要其他处理由医生判断。', img: 'img/demo/oral.jpg', tag: '口腔' }, { t: '成人洁牙（示例）', d: '示例项目，仅演示展示方式。' }],
+        pre: [{ t: '空腹抽血', d: '一般需空腹 8–12 小时，具体以检查通知为准。' }, { t: '腹部超声', d: '按通知要求空腹或憋尿，具体以检查通知为准。' }],
+        tel: { n: '示例医院 VIP 服务电话', num: '010-00000000' }, sched: [{ wd: '周一', ap: '上午', dp: '内科', dr: '示例医生甲' }, { wd: '周二', ap: '下午', dp: '口腔科', dr: '示例医生乙' }, { wd: '周三', ap: '上午', dp: '内科', dr: '示例医生甲' }, { wd: '周四', ap: '下午', dp: '儿科', dr: '示例医生丙' }, { wd: '周五', ap: '上午', dp: '中医科', dr: '示例医生丁', nt: '示例内容' }, { wd: '周六', ap: '上午', dp: '内科', dr: '示例医生甲' }], book: { n: '医院官方预约入口（示例）', url: 'https://example.com/' },
+        jny: [{ id: 'scope', t: '胃肠镜检查准备（示例）', note: '示例内容，具体请以医院发给您的检查通知为准。', steps: [{ t: '确认检查时间和地点', d: '看一下预约短信或检查单上的时间' }, { t: '按医院要求准备饮食', d: '以医院发的饮食说明为准' }, { t: '向医生说明正在用的药', d: '把药名带上，由医生决定怎么处理' }, { t: '携带证件和既往报告' }, { t: '检查后记录医生交代的事项', d: '回到「档案」里记下复查时间' }] }, { id: 'revisit', t: '复诊前整理（示例）', steps: [{ t: '整理上次的检查报告' }, { t: '写下近期症状变化' }, { t: '列出现在用的药' }, { t: '写下想问医生的问题' }, { t: '生成复诊摘要带去就诊' }] }],
+        act: [{ id: 'spring', t: '惠民服务小转盘（示例）', kind: 'wheel', per: 'day', valid: 30, pin: '1234', rule: '同一设备每天一次，凭该凭证到院核销，30 天内有效。', note: '服务内容和数量由医院设置。', items: [{ t: '定制保温杯一个', g: '一等奖', q: '数量以现场实际供应为准', d: '到服务台领取（示例）' }, { t: '文创笔记本套装', g: '二等奖', d: '到服务台领取（示例）' }, { t: '停车券一张', d: '到服务台领取（示例）' }, { t: '谢谢参与' }, { t: '健康手册一本', d: '到服务台领取（示例）' }, { t: '便携雨衣一件', g: '三等奖', d: '到服务台领取（示例）' }, { t: '定制手提袋一个', g: '三等奖', d: '到服务台领取（示例）' }, { t: '咖啡一杯', d: '到院内咖啡区兑换（示例）' }] }, { id: 'family', t: '亲子家庭转盘（示例）', kind: 'wheel', per: 'once', valid: 30, pin: '1234', rule: '同一设备限一次，30 天内凭该凭证到院核销。', note: '适合儿科、妇产科等家庭就诊场景。', items: [{ t: '儿童画册一本', d: '到服务台领取（示例）' }, { t: '儿童贴纸一套', d: '到服务台领取（示例）' }, { t: '停车券两张', d: '到服务台领取（示例）' }, { t: '谢谢参与' }, { t: '帆布袋一个', d: '到服务台领取（示例）' }, { t: '亲子绘本一本', d: '到服务台领取（示例）' }] }, { id: 'qian', t: '惠民服务抽签筒（示例）', kind: 'draw', per: 'day', need: 1, valid: 14, pin: '1234', rule: '同一设备每天一次，14 天内有效；需先完成一个就诊流程（整理打卡）。', note: '签文即服务，由医院提供。', items: [{ t: '咖啡一杯', d: '到院内咖啡区兑换（示例）' }, { t: '谢谢参与' }, { t: '帆布袋一个', d: '到服务台领取（示例）' }, { t: '健康手册一本', d: '到服务台领取（示例）' }, { t: '再来一次明天见', n: 1 }] }, { id: 'visit', t: '复诊守约签（示例）', kind: 'draw', need: 1, per: 'once', valid: 60, pin: '1234', rule: '需整理打卡 1 次（完成一个就诊流程，或复诊日期后保存复诊后记录，各记 1 次），凭证到前台核销，60 天内有效。', note: '鼓励按约复诊，由医院提供。', items: [{ t: '咖啡券两张', d: '到服务台领取（示例）' }, { t: '停车券一张', d: '到服务台领取（示例）' }, { t: '保温杯一个', d: '到服务台领取（示例）' }, { t: '笔记本一本', d: '到服务台领取（示例）' }, { t: '谢谢参与' }] }, { id: 'fest', t: '节日惠民签（示例）', kind: 'draw', per: 'once', valid: 30, pin: '1234', rule: '节日期间同一设备一次，30 天内有效。', note: '节日活动，奖项由医院设置。', items: [{ t: '晴雨伞一把', d: '到服务台领取（示例）' }, { t: '文创书签一套', d: '到服务台领取（示例）' }, { t: '咖啡一杯', d: '到院内咖啡区兑换（示例）' }, { t: '文创帆布袋一个', d: '到服务台领取（示例）' }, { t: '谢谢参与' }] }, { id: 'health', t: '健康小课堂签（示例）', kind: 'draw', per: 'free', valid: 30, pin: '1234', rule: '无次数限制，可多次参与，仅作互动。', note: '抽到的是科普主题，不涉及疾病判断。', items: [{ t: '早餐搭配小贴士', d: '均衡饮食的日常小建议，仅作科普' }, { t: '饭后散步的好处', d: '适量活动的日常小建议，仅作科普' }, { t: '规律作息怎么养成', d: '睡眠习惯小建议，仅作科普' }, { t: '看电子屏的护眼习惯', d: '用眼休息小建议，仅作科普' }, { t: '喝水小贴士', d: '日常饮水小建议，仅作科普' }] }],
+        campus: [{ n: '本部', addr: '示例路 1 号', tel: '010-00000001' }, { n: '东院', addr: '示例路 99 号', tel: '010-00000002' }],
+        l:'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTIiIGZpbGw9IiMwZjVjNTUiLz48cGF0aCBkPSJNMjYgMTRoMTJ2MTJoMTJ2MTJIMzh2MTJIMjZWMzhIMTRWMjZoMTJ6IiBmaWxsPSIjZmZmIi8+PC9zdmc+' } };
+/* 民营医院门诊演示：只开放部分科室，不显示专科病种（dis:[]） */
+HOSP.minying = { hideRef: true, c: '#0f5c55', n: '示例民营医院门诊（演示）', w: '本工具是门诊为 VIP 客户提供的就诊资料整理工具，资料只保存在您自己的设备上。', dept: ['内科', '儿科', '口腔科', '皮肤科', '中医科', '体检中心'], dis: [],
+    vip: [{ t: '专属服务电话', d: '预约、改约请联系门诊服务台（示例内容）。' }], pre: [{ t: '空腹抽血', d: '一般需空腹 8–12 小时，具体以检查通知为准。' }], tel: { n: '门诊服务电话', num: '021-00000000' }, sched: [{ wd: '周一', ap: '上午', dp: '内科', dr: '示例医生甲' }, { wd: '周二', ap: '下午', dp: '口腔科', dr: '示例医生乙' }, { wd: '周三', ap: '上午', dp: '内科', dr: '示例医生甲' }, { wd: '周四', ap: '下午', dp: '儿科', dr: '示例医生丙' }, { wd: '周五', ap: '上午', dp: '中医科', dr: '示例医生丁', nt: '示例内容' }, { wd: '周六', ap: '上午', dp: '内科', dr: '示例医生甲' }], l: HOSP.demo.l };
+/* 医院配置的读取顺序：先找页面内置的演示配置（demo / minying），没有则读取 config/<医院代号>.json（每家一个独立文件，页面源码里看不到别家配置）。
+   json 是公开文件，里面不要放敏感内容；核销密码只作轻量核验。读取失败时按没有医院参数处理。
+   这里用同步读取，是为了让整页渲染前就拿到配置；json 只会被当作数据，所有字段按白名单和长度限制整理后才使用。 */
+function cfgClean(o) {
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+    const str = (v, n) => typeof v === 'string' ? v.slice(0, n) : '', arr = (v, n) => Array.isArray(v) ? v.filter(x => x && typeof x === 'object' && !Array.isArray(x)).slice(0, n) : [];
+    const lst = (v, n, f) => arr(v, n).map(f);
+    const c = { n: str(o.n, 40) || '医院', w: str(o.w, 200), l: typeof o.l === 'string' && o.l.length < 200000 ? o.l : '', c: str(o.c, 7), showRef: o.showRef === true, hideRef: o.hideRef !== false };
+    if (typeof o.splash === 'string' && o.splash.trim()) c.splash = o.splash.trim().slice(0, 30);
+    if (o.trial === true) c.trial = true;
+    if (typeof o.icp === 'string') c.icp = o.icp.slice(0, 40);
+    if (typeof o.gaba === 'string') c.gaba = o.gaba.slice(0, 40);
+    /* 记录上传：up=上传地址（https，本机测试可用 http://localhost…），tk=医院上传口令（64 位小写十六进制），两者都由后台「患者页上传设置」生成 */
+    if (typeof o.up === 'string' && o.up.trim().length <= 300 && (/^https:\/\/[A-Za-z0-9.\-]+(:\d{1,5})?(\/[^\s"<>]*)?$/.test(o.up.trim()) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?(\/[^\s"<>]*)?$/.test(o.up.trim()))) c.up = o.up.trim();
+    if (typeof o.tk === 'string' && /^[a-f0-9]{64}$/.test(o.tk.trim())) c.tk = o.tk.trim();
+    c.vip = lst(o.vip, 30, x => ({ t: str(x.t, 40), d: str(x.d, 200) }));
+    c.ann = lst(o.ann, 30, x => ({ t: str(x.t, 40), d: str(x.d, 300), date: str(x.date, 10) }));
+    c.pre = lst(o.pre, 30, x => ({ t: str(x.t, 40), d: str(x.d, 200) }));
+    c.sched = lst(o.sched, 60, x => ({ wd: str(x.wd, 4), ap: str(x.ap, 4), dp: str(x.dp, 20), dr: str(x.dr, 20), nt: str(x.nt, 30), st: /^\d{2}:\d{2}$/.test(x.st || '') ? x.st : '', et: /^\d{2}:\d{2}$/.test(x.et || '') ? x.et : '' })).filter(x => wdIdx(x.wd) && (x.dp || x.dr));
+    c.campus = lst(o.campus, 10, x => ({ n: str(x.n, 30), addr: str(x.addr, 80), tel: str(x.tel, 20) }));
+    if (o.tel && typeof o.tel === 'object') c.tel = { n: str(o.tel.n, 30), num: str(o.tel.num, 20) };
+    if (o.book && typeof o.book === 'object') c.book = { n: str(o.book.n, 30), url: str(o.book.url, 300) };
+    if (Array.isArray(o.dept)) c.dept = o.dept.filter(x => typeof x === 'string').slice(0, 20).map(x => x.slice(0, 20));
+    /* 合同档位：由提案方发布时写入。基础版最多开放 3 个科室，超出的不显示；没写科室也只开放前 3 个，不会全开 */
+    if (o.tier === 'basic' || o.tier === 'up') c.tier = o.tier;
+    if (c.tier === 'basic') c.dept = (Array.isArray(c.dept) && c.dept.length ? c.dept : ['内科', '外科', '妇产科']).slice(0, 3);
+    /* 医院项目展示：基础版最多 3 个、升级版最多 8 个；图片只允许本站 img/ 目录下的文件；价格不写时显示“以门诊公示为准” */
+    c.show = lst(o.show, 8, x => ({ t: str(x.t, 30), d: str(x.d, 120), img: typeof x.img === 'string' && /^img\/[A-Za-z0-9_-]{1,30}\/[A-Za-z0-9_.-]{1,60}\.(jpg|jpeg|png|webp)$/i.test(x.img) ? x.img : '', price: str(x.price, 30), tag: str(x.tag, 10) })).filter(x => x.t);
+    if (c.tier === 'basic') c.show = c.show.slice(0, 3);
+    if (c.tier === 'basic' && Array.isArray(c.sched)) c.sched = c.sched.slice(0, 10);
+    if (Array.isArray(o.dis)) c.dis = o.dis.filter(x => typeof x === 'string').slice(0, 20).map(x => x.slice(0, 20));
+    if (o.rg && typeof o.rg === 'object' && !Array.isArray(o.rg)) { c.rg = {}; Object.keys(o.rg).slice(0, 60).forEach(k => { const v = o.rg[k]; if (Array.isArray(v) && v.length === 2) c.rg[k.slice(0, 20)] = v.map(x => x === '' || x === null ? '' : (isFinite(+x) ? +x : '')); }); }
+    c.jny = lst(o.jny, 6, j => ({ id: str(j.id, 30), t: str(j.t, 30), note: str(j.note, 120), steps: Array.isArray(j.steps) ? j.steps.filter(x => x && typeof x === 'object' && !Array.isArray(x)).slice(0, 15).map(x => ({ t: str(x.t, 40), d: str(x.d, 160) })) : [] }));
+    c.act = lst(o.act, 10, a => ({ id: str(a.id, 30), t: str(a.t, 30), kind: a.kind, per: a.per, need: a.per === 'free' ? 0 : Math.min(10, Math.max(0, parseInt(a.need, 10) || (a.ci === true || a.ci === 1 ? 1 : 0))), start: /^\d{4}-\d{2}-\d{2}$/.test(String(a.start || '')) ? String(a.start) : '', end: /^\d{4}-\d{2}-\d{2}$/.test(String(a.end || '')) ? String(a.end) : '', valid: +a.valid || 30, pin: str(String(a.pin || ''), 6), rule: str(a.rule, 120), note: str(a.note, 120), items: Array.isArray(a.items) ? a.items.slice(0, 12).map(x => typeof x === 'string' ? x.slice(0, 24) : (x && typeof x === 'object' ? { t: str(x.t, 24), d: str(x.d, 60), g: str(x.g, 6), q: str(x.q, 14), w: +x.w || 0, n: !!x.n } : '')) : [] }));
+    return c;
+}
+const HP_KEY = (() => { try { return (new URLSearchParams(location.search).get('hospital') || '').trim().toLowerCase(); } catch (e) { return ''; } })();
+let CFG_EXP = false, CFG_LOAD = false;
+function cfgParse(txt, k) {
+    const raw = JSON.parse(txt);
+    /* 演示自动到期：end=最后可用日期（YYYY-MM-DD）；days=本设备首次打开后可用天数（1–30）。到期后与链接失效相同，个人档案不受影响。 */
+    try {
+        const t = today();
+        if (typeof raw.end === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.end) && t > raw.end) { CFG_EXP = true; return null; }
+        const dn = parseInt(raw.days, 10);
+        if (dn >= 1 && dn <= 30) {
+            const fk = 'companion.first.' + k; let f = ''; try { f = localStorage.getItem(fk) || ''; } catch (e) { }
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) { f = t; try { localStorage.setItem(fk, f); } catch (e) { } }
+            if (Date.parse(t) >= Date.parse(f) + dn * 864e5) { CFG_EXP = true; return null; }
+        }
+    } catch (e) { }
+    return cfgClean(raw);
+}
+/* 医院配置：本会话已取过且不足 10 分钟 → 直接用；否则先显示“正在加载”，异步取到后刷新一次（弱网不再整页卡住）；浏览器不支持时退回同步读取 */
 const HP = (() => { try {
-    const k = new URLSearchParams(location.search).get('hospital');
-    return k && Object.prototype.hasOwnProperty.call(HOSP, k) ? HOSP[k] : null;
+    const k = HP_KEY;
+    if (!k) return null;
+    if (Object.prototype.hasOwnProperty.call(HOSP, k)) return HOSP[k];
+    if (k === 'preview') { const pv = cfgClean(JSON.parse(localStorage.getItem('companion.preview') || 'null')); if (pv) pv.n = (pv.n + '（预览，未上线）').slice(0, 40); return pv; }
+    if (!/^[A-Za-z0-9_-]{1,30}$/.test(k)) return null;
+    try { const c = JSON.parse(sessionStorage.getItem('companion.cfgtxt.' + k) || 'null'); if (c && typeof c.x === 'string' && Date.now() - c.t < 600000) return cfgParse(c.x, k); } catch (e) { }
+    let asyncOk = false; try { sessionStorage.setItem('companion.t3', '1'); sessionStorage.removeItem('companion.t3'); asyncOk = typeof fetch === 'function' && typeof AbortController === 'function'; } catch (e) { }
+    if (asyncOk) { CFG_LOAD = true; return null; }
+    const x = new XMLHttpRequest();
+    x.open('GET', 'config/' + k + '.json?t=' + Math.floor(Date.now() / 60000), false);
+    x.send();
+    if (x.status !== 200 || !x.responseText || x.responseText.length > 400000) return null;
+    return cfgParse(x.responseText, k);
 }
 catch (e) {
     return null;
 } })();
+/* 备案号展示位：页面底部。填写 SITE_ICP / SITE_GABA（全站统一），或在医院配置里写 icp / gaba。格式如 沪ICP备12345678号、沪公网安备 31010402001234号，留空则不显示。 */
+const SITE_ICP = '', SITE_GABA = '';
+(() => { const v = String((HP && HP.icp) || SITE_ICP || '').trim(), g = String((HP && HP.gaba) || SITE_GABA || '').trim(), el = document.getElementById('icp'); let h = '';
+    if (/^[\u4e00-\u9fa5]{1,2}ICP备\d{6,10}号(-\d{1,3})?$/.test(v)) h += '<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">' + v + '</a>';
+    if (/^[\u4e00-\u9fa5]{1,2}公网安备 ?\d{12,14}号$/.test(g)) h += (h ? ' &nbsp; ' : '') + '<a href="https://beian.mps.gov.cn/" target="_blank" rel="noopener noreferrer">' + g + '</a>';
+    if (HP_KEY === 'demo' || HP_KEY === 'minying') h = '<div style="color:#b45309">演示内容，仅供演示；不得用于患者或正式服务。演示里的核销密码不是正式密码。</div>' + h;
+    if (HP && HP.trial) h = '<div>试点临时试用地址，仅供试用；正式上线后地址会更换，届时请先导出备份</div>' + h;
+    if (el && h) { el.hidden = false; el.innerHTML = h; } })();
+/* 带了医院参数却读不到配置（文件不存在、名称不匹配、json 写错）：不显示演示内容，改为提示。 */
+let CFG_ERR = !!HP_KEY && !HP && !CFG_LOAD;
 if (HP && HP.rg)
     SRC.hosp = '本院提供的参考范围';
 const LG = HP && typeof HP.l === 'string' && /^data:image\/(png|jpeg|webp|svg\+xml);base64,[A-Za-z0-9+\/=]+$/.test(HP.l) ? HP.l : '';
 const lgImg = h => LG ? '<img src="' + LG + '" alt="" style="height:' + h + 'px;max-width:140px;object-fit:contain;vertical-align:middle;margin-right:8px">' : '';
+/* 惠民服务（抽签筒、小转盘）：由医院在配置里设置服务内容和兑换规则（act），用户抽中后得到一张带流水号和有效期的兑换凭证，凭此到院由工作人员核销。
+   结果和凭证只在本机生成、保存；核销记录是否上传给医院由患者选择（见上传引擎）；本页面无法防伪，兑换以医院现场核验和医院自己的登记（流水号）为准，同一流水号医院只应兑换一次。
+   act:[{id,t,kind:'wheel'|'draw',per:'day'|'once'|'free',valid:有效天数,pin:'核销密码(可选)',rule:'活动说明',note,items:[字符串 或 {t:服务名,d:兑换说明,g:奖项等级,q:限量说明,w:抽中权重(可选，默认一等奖1/二等奖2/其他3，数字越大越容易抽中),n:1(表示谢谢参与，无服务)}]}] */
+const ACTK = 'companion.act.' + (HP_KEY || 'demo');
+const actGet = () => { try { return JSON.parse(localStorage.getItem(ACTK) || '{}') || {}; } catch (e) { return {}; } };
+const actSet = o => { try { localStorage.setItem(ACTK, JSON.stringify(o)); } catch (e) { } };
+const rnd = n => { try { const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] % n; } catch (e) { return Math.floor(Math.random() * n); } };
+const nowStr = () => { const d = new Date(), z = x => String(x).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()) + ':' + z(d.getSeconds()); };
+const actDemo = () => !HP || HP === HOSP.demo;
+const actSrc = () => HP ? HP.act : [];
+function actList() {
+    const src = actSrc();
+    if (!Array.isArray(src)) return [];
+    const it = x => typeof x === 'string' ? { t: x.trim().slice(0, 24), d: '', n: /^谢谢参与/.test(x.trim()), g: '', q: '' } : (x && typeof x === 'object' && typeof x.t === 'string' ? { t: x.t.trim().slice(0, 24), g: typeof x.g === 'string' ? x.g.trim().slice(0, 6) : '', w: +x.w > 0 ? Math.min(100, +x.w) : 0, q: typeof x.q === 'string' ? x.q.trim().slice(0, 14) : '', d: typeof x.d === 'string' ? x.d.trim().slice(0, 60) : '', n: !!x.n || /^谢谢参与/.test(x.t.trim()) } : null);
+    return src.filter(a => a && typeof a === 'object' && /^[\w-]{1,30}$/.test(a.id || '') && (a.kind === 'wheel' || a.kind === 'draw' || a.kind === 'lottery') && typeof a.t === 'string' && Array.isArray(a.items)).map(a => ({ id: a.id, t: a.t.slice(0, 30), kind: a.kind === 'wheel' ? 'wheel' : 'draw', per: a.per === 'once' || a.per === 'free' ? a.per : 'day', need: a.per === 'free' ? 0 : Math.min(10, Math.max(0, parseInt(a.need, 10) || (a.ci === true || a.ci === 1 ? 1 : 0))), start: /^\d{4}-\d{2}-\d{2}$/.test(String(a.start || '')) ? String(a.start) : '', end: /^\d{4}-\d{2}-\d{2}$/.test(String(a.end || '')) ? String(a.end) : '', valid: Math.min(365, Math.max(1, parseInt(a.valid, 10) || 30)), pin: /^\d{4,6}$/.test(String(a.pin || '')) ? String(a.pin) : '', rule: typeof a.rule === 'string' ? a.rule.slice(0, 120) : '', note: typeof a.note === 'string' ? a.note.slice(0, 120) : '', items: a.items.map(it).filter(x => x && x.t).slice(0, 12) })).filter(a => a.items.length >= 2).filter((a, i, L) => L.findIndex(x => x.id === a.id) === i).slice(0, 10);
+}
+const vState = v => v.n ? '' : v.off ? '活动已下线，请联系医院' : v.used ? '已兑换' : (v.exp && v.exp < today()) ? '已过期' : '待兑换';
+const actPick = L => { const w = L.map(x => x.w || (x.n ? 3 : x.g === '一等奖' ? 1 : x.g === '二等奖' ? 2 : 3)), T = w.reduce((a, b) => a + b, 0); let r = rnd(T * 100) / 100; for (let k = 0; k < w.length; k++) { r -= w[k]; if (r < 0) return k; } return w.length - 1; };
+const ciGrant = key => { if (!actList().some(a => a.need)) return false; const c = chkGet(); if (c.got.includes(key)) return false; c.got.push(key); if (c.got.length > 200) c.got.splice(0, c.got.length - 200); c.n++; chkSet(c); return true; };
+const CHKK = 'companion.chk.' + (HP_KEY || 'demo');
+const chkGet = () => { try { const o = JSON.parse(localStorage.getItem(CHKK) || '{}') || {}; return { n: Math.max(0, +o.n || 0), u: Math.max(0, +o.u || 0), d: typeof o.d === 'string' ? o.d : '', got: Array.isArray(o.got) ? o.got : [], jd: Array.isArray(o.jd) ? o.jd : [] }; } catch (e) { return { n: 0, u: 0, d: '', got: [], jd: [] }; } };
+const chkSet = o => { try { localStorage.setItem(CHKK, JSON.stringify(o)); } catch (e) { } };
+/* ===== 复诊打卡与核销记录上传：医院在配置里写了 up（上传地址）和 tk（上传口令）才开启。
+   患者第一次打卡时先问一次同不同意；记录先进本机待传队列，联网后成批上传；传不上不影响使用，也不会重复上传。 */
+const UP_URL = HP && typeof HP.up === 'string' ? HP.up : '';
+const UP_TK = HP && typeof HP.tk === 'string' ? HP.tk : '';
+const UP_OK = !!(UP_URL && UP_TK && HP_KEY && HK_OK(HP_KEY) && (/^https:\/\//i.test(UP_URL) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?\//i.test(UP_URL)));
+const CTK = 'companion.consent.' + (HP_KEY || 'demo');
+const QK = 'companion.q.' + (HP_KEY || 'demo');
+const PNK = 'companion.pn.' + (HP_KEY || 'demo');
+const PTK = 'companion.pt.' + (HP_KEY || 'demo');
+const DEVK = 'companion.dev';
+const lsGet = k => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
+const devId = () => {
+    let d = lsGet(DEVK);
+    if (!/^[a-f0-9]{16}$/.test(d)) {
+        const a = new Uint8Array(8);
+        if (window.crypto && crypto.getRandomValues) crypto.getRandomValues(a); else for (let i = 0; i < 8; i++) a[i] = Math.floor(Math.random() * 256);
+        d = [...a].map(x => x.toString(16).padStart(2, '0')).join('');
+        lsSet(DEVK, d);
+    }
+    return d;
+};
+const uuid = () => { try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) { } return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = rnd(16), v = c === 'x' ? r : (r & 3 | 8); return v.toString(16); }); };
+const consentGet = () => { const v = lsGet(CTK); return v === 'name' || v === 'anon' || v === 'off' ? v : ''; };
+const qGet = () => { try { const a = JSON.parse(lsGet(QK) || '[]'); return Array.isArray(a) ? a.slice(-300) : []; } catch (e) { return []; } };
+const qSet = a => { lsSet(QK, JSON.stringify(a.slice(-300))); };
+let UP_RUN = 0, UP_STOP = 0, UP_TOLD = 0;
+function qFlush() {
+    if (!UP_OK || UP_RUN || UP_STOP) return;
+    const a = qGet();
+    if (!a.length) return;
+    UP_RUN = 1;
+    const batch = a.slice(0, 40), fin = () => { UP_RUN = 0; if (!UP_STOP && qGet().length) setTimeout(qFlush, 30000); };
+    try {
+        fetch(UP_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hospital_code: HP_KEY, token: UP_TK, events: batch }) })
+            .then(r => r.text().then(t => ({ st: r.status, t }), () => ({ st: r.status, t: '' })), () => ({ st: 0, t: '' }))
+            .then(x => {
+                let acc = [];
+                try { const j = JSON.parse(x.t || '{}'); if (Array.isArray(j.accepted)) acc = j.accepted; } catch (e) { }
+                if (x.st >= 200 && x.st < 300 && acc.length) { const ok = new Set(acc); qSet(qGet().filter(v => !ok.has(v.id))); }
+                else if (x.st === 400 || x.st === 403 || x.st === 413) { UP_STOP = 1; if (!UP_TOLD) { UP_TOLD = 1; toastMsg('打卡记录暂时传不上去，请告诉医院工作人员核对上传设置'); } }
+                fin();
+            }, fin);
+    } catch (e) { fin(); }
+}
+function consentAsk(cb) {
+    const hn = HP && HP.n ? esc(HP.n) : '医院';
+    modal('<h2>是否把复诊打卡和核销记录上传给' + hn + '？</h2>'
+        + '<p class="sub">上传后，医院能按月看到「多少人按时回来复诊了」，用来改进复诊提醒。<b>不上传也能正常使用</b>：档案、打卡、凭证都照旧记在您手机里。</p>'
+        + '<p class="sub">会上传的内容：打卡日期、流程名称、凭证流水号和奖项。下面两项由您决定，都可以不填。</p>'
+        + '<label>姓名（可不填）</label><input id="cs_n" maxlength="20" autocomplete="off" placeholder="如 张小明" value="' + esc(lsGet(PNK)) + '">'
+        + '<label>手机号后四位（可不填）</label><input id="cs_t" maxlength="4" inputmode="numeric" autocomplete="off" placeholder="如 1234" value="' + esc(lsGet(PTK)) + '">'
+        + '<div class="bar"><button class="ghost" id="cs_off">不上传</button><button class="ghost" id="cs_an">只传匿名记录</button><button class="btn" id="cs_ok">同意上传</button></div>');
+    const o = [...document.querySelectorAll('.ov')].pop();
+    const keep = () => { const n = o.querySelector('#cs_n'), t = o.querySelector('#cs_t'); lsSet(PNK, (((n && n.value) || '').trim()).slice(0, 20)); lsSet(PTK, ((((t && t.value) || '').replace(/\D/g, ''))).slice(0, 4)); };
+    o.querySelector('#cs_ok').onclick = () => { keep(); lsSet(CTK, 'name'); o.remove(); toastMsg('好的，之后有网时会自动上传'); qFlush(); if (cb) cb('name'); };
+    o.querySelector('#cs_an').onclick = () => { lsSet(CTK, 'anon'); o.remove(); toastMsg('好的，只上传不带姓名和手机号的记录'); qFlush(); if (cb) cb('anon'); };
+    o.querySelector('#cs_off').onclick = () => { lsSet(CTK, 'off'); o.remove(); toastMsg('好的，记录只留在您手机里'); if (cb) cb('off'); };
+}
+function logEvent(kind, ev) {
+    if (!UP_OK) return;
+    ev = ev || {};
+    const push = c => {
+        if (c === 'off') return;
+        const e = { id: uuid(), device_id: devId(), profile_id: String(ev.profile || S.cur || 'no-profile').slice(0, 80), kind, occurred_at: new Date().toISOString() };
+        if (ev.visit_date && /^\d{4}-\d{2}-\d{2}$/.test(ev.visit_date)) e.visit_date = ev.visit_date;
+        if (ev.serial && /^[A-Z0-9]{6}$/.test(ev.serial)) e.serial = ev.serial;
+        if (ev.activity) e.activity = String(ev.activity).slice(0, 120);
+        if (ev.prize) e.prize = String(ev.prize).slice(0, 120);
+        if (c === 'name') { const n = lsGet(PNK).trim(), t = lsGet(PTK); if (n) e.patient_name = n.slice(0, 40); if (/^\d{4}$/.test(t)) e.phone_tail = t; }
+        const a = qGet(); a.push(e); qSet(a); qFlush();
+    };
+    const c = consentGet();
+    if (c) push(c); else consentAsk(push);
+}
+const CHKTXT = '整理打卡怎么获得（二选一即可，每种来源各按规则计 1 次）：① 完成医院「就诊流程清单」中的一条完整流程，记 1 次（每天最多 1 次）；② 复诊后在档案里保存“复诊后记录”，每次复诊记 1 次（只有复诊日期当天或之后才计；日期填错请先改日期）。' + (UP_OK ? '记录是否上传给医院由您选择，可在首页「更多工具与设置 → 上传记录」里随时修改。' : '只记在您手机里，不上传。') + '整理打卡是您本人在本设备上的自助记录，医院不会远程确认您是否真的完成。';
+const chkAvail = () => { const c = chkGet(); return Math.max(0, c.n - c.u); };
+const goCard = (cls, key) => { document.querySelectorAll('.ov').forEach(x => x.remove()); S[key] = true; const e = document.querySelector(cls); if (e) { e.open = true; e.scrollIntoView({ behavior: 'smooth', block: 'start' }); } };
+const actWin = a => a.start && today() < a.start ? '活动 ' + a.start + ' 开始' : a.end && today() > a.end ? '活动已结束' : '';
+function actDone(a) { if (actWin(a)) return true; const r = (actGet()[a.id] || []); return a.per === 'once' ? r.length > 0 : a.per === 'day' ? r.some(x => x.d === today()) : false; }
+const JNYK = 'companion.jny.' + (HP_KEY || 'demo');
+const jnyGet = () => { try { return JSON.parse(localStorage.getItem(JNYK) || '{}') || {}; } catch (e) { return {}; } };
+const jnySet = o => { try { localStorage.setItem(JNYK, JSON.stringify(o)); } catch (e) { } };
+function jnyList() {
+    const src = HP ? HP.jny : HOSP.demo.jny;
+    if (!Array.isArray(src)) return [];
+    return src.filter(j => j && typeof j === 'object' && /^[\w-]{1,30}$/.test(j.id || '') && typeof j.t === 'string' && j.t.trim() && Array.isArray(j.steps)).map(j => ({ id: j.id, t: j.t.trim().slice(0, 30), note: typeof j.note === 'string' ? j.note.slice(0, 120) : '', steps: j.steps.filter(x => x && typeof x.t === 'string' && x.t.trim()).slice(0, 15).map(x => ({ t: x.t.trim().slice(0, 40), d: typeof x.d === 'string' ? x.d.trim().slice(0, 160) : '' })) })).filter(j => j.steps.length >= 1).filter((j, i, L) => L.findIndex(x => x.id === j.id) === i).slice(0, 6);
+}
+function jnyCard() {
+    const L = jnyList();
+    if (!L.length) return '';
+    const g = jnyGet(), lo = S.lo || {}, hn = HP ? esc(HP.n) : '示例医院（演示，不是真实医院）';
+    const hc = HP && /^#[0-9a-fA-F]{6}$/.test(HP.c || '') ? HP.c : '#0f5c55';
+    return '<details class="card hosp-jny"' + (S.jnyOpen ? ' open' : '') + ' style="border-left:4px solid ' + hc + '"><summary style="cursor:pointer"><div><b>医院就诊流程清单</b><div class="sub" style="margin:2px 0 0">' + L.length + ' 个流程 · 勾选只记在您自己的手机里' + (actList().some(a => a.need) ? ' · 勾完一个流程得 1 次整理打卡，每天最多 1 次（现有 ' + chkAvail() + ' 次）' : '') + '</div></div></summary><p class="sub">以下步骤由' + hn + '提供，是一般性的就诊准备提示，不构成对您个人病情的建议，具体请以医院和医生的安排为准。勾选进度只保存在本机。点流程名称可展开步骤。同一天完成多条流程，整理打卡也只记 1 次。</p>'
+        + L.map((j, ji) => { const done = new Set(g[j.id] || []), n = j.steps.filter((x, i) => done.has(i)).length;
+            return '<details class="fl" data-fk="jny_' + esc(j.id) + '"' + ((lo['jny_' + j.id] || (S.jnyOpen && ji === 0 && !L.some(x => lo['jny_' + x.id]))) ? ' open' : '') + '><summary><b>' + esc(j.t) + '</b>（' + n + '/' + j.steps.length + (n === j.steps.length ? ' 已完成' : '') + '）</summary>' + (j.note ? '<p class="sub">' + esc(j.note) + '</p>' : '')
+                + j.steps.map((x, i) => '<label class="item" style="display:flex;gap:10px;align-items:flex-start;cursor:pointer"><input type="checkbox" data-act="jtick" data-j="' + esc(j.id) + '" data-s="' + i + '"' + (done.has(i) ? ' checked' : '') + ' style="margin-top:4px;width:22px;height:22px;flex:none" aria-label="' + esc(x.t) + '"><span><b' + (done.has(i) ? ' style="text-decoration:line-through;opacity:.6"' : '') + '>' + (i + 1) + '. ' + esc(x.t) + '</b>' + (x.d ? '<span class="sub" style="display:block">' + esc(x.d) + '</span>' : '') + '</span></label>').join('')
+                + (n ? '<div class="row"><button class="ghost" data-act="jreset" data-j="' + esc(j.id) + '">清空这个流程的勾选</button></div>' : '') + '</details>'; }).join('') + '</details>';
+}
+function actCard() {
+    const L = actList().slice().sort((x, y) => (y.need ? 1 : 0) - (x.need ? 1 : 0));
+    if (!HP && !HP_KEY) return '<div class="card"><b>医院服务与惠民活动</b><p class="sub">请从医院提供的链接或二维码进入，即可看到医院服务和惠民活动。想先看看效果，可点下方“预览医院版（演示）”。</p></div>';
+    
+    const g0 = actGet(), ids = new Set(L.map(x => x.id)), orph = Object.keys(g0).filter(k => !ids.has(k)).map(k => [k, (Array.isArray(g0[k]) ? g0[k] : []).filter(v => v && !v.n)]).filter(x => x[1].length), oh = orph.length ? '<details style="margin-top:8px"><summary><b>已下线活动的凭证（' + orph.reduce((n, x) => n + x[1].length, 0) + '）</b></summary><p class="sub">这些活动已不在医院当前配置里，不能在本页核销；是否仍可兑换请联系医院。</p>' + orph.map(x => x[1].slice().reverse().map(v => actVoucherHtml(null, Object.assign({}, v, { off: 1 }))).join('')).join('') + '</details>' : '';
+    if (!L.length && !oh) return '';
+    const g = actGet(), name = HP ? esc(HP.n) : '示例医院';
+    return '<details class="card hosp-act"' + (S.actOpen ? ' open' : '') + '><summary style="cursor:pointer"><div><b>惠民服务' + (actDemo() ? '（演示）' : '') + '</b><div class="sub" style="margin:2px 0 0">' + L.length + ' 个活动 · 抽中凭证到院兑换' + '' + (L.some(x => x.need) ? ' · 整理打卡 ' + chkAvail() + ' 次' : '') + '</div></div></summary>' + (actDemo() ? '<p class="sub" style="color:#b45309"><b>这是给医院看的演示：</b>服务内容、有效期和核销规则都由医院自己设置并提供，下面的内容仅为示例。核销演示密码：1234。</p>' : '') + '<p class="sub">由' + name + '提供。抽中后会生成一张兑换凭证，凭该凭证到院由工作人员核销；结果只保存在您的手机上，兑换以医院现场核验为准，本工具不涉及付款。' + (UP_OK ? '点“确认核销”后，流水号和奖项会按您的同意范围上传给医院登记。' : '') + '</p>' + (L.some(x => x.need) ? '<details class="sub" style="margin:4px 0 8px"><summary style="cursor:pointer"><b>整理打卡是什么、怎么获得？</b>（您现有 ' + chkAvail() + ' 次）</summary>' + CHKTXT.replace('整理打卡怎么获得（二选一即可，每种来源各按规则计 1 次）：', '') + ' 抽到有服务的奖项才扣打卡，抽到“谢谢参与”不扣；一次打卡只能用在一个活动上。</details>' : '')
+        + L.map(a => { const vs = (g[a.id] || []).filter(v => vState(v) === '待兑换').length; return '<div class="item"><div class="tlh"><b>' + esc(a.t) + '</b><span class="tag">' + (a.kind === 'wheel' ? '小转盘' : '抽签筒') + '</span></div>' + (a.note ? '<div class="sub">' + esc(a.note) + '</div>' : '') + (a.rule ? '<div class="sub">规则：' + esc(a.rule) + '</div>' : '') + (a.start || a.end ? '<div class="sub">活动时间：' + esc(a.start || '即日起') + ' 至 ' + esc(a.end || '长期') + '</div>' : '') + (a.need ? '<div class="sub"><b>整理打卡：</b>需要 ' + a.need + ' 次（您现有 ' + chkAvail() + ' 次），说明见上方。</div>' : '') + '<div class="row"><button class="btn" data-act="' + (!actDone(a) && a.need && chkAvail() < a.need && jnyList().length ? 'jgo' : 'actopen') + '" data-id="' + esc(a.id) + '"' + (actDone(a) ? ' disabled' : '') + '>' + (actDone(a) ? (actWin(a) || (a.per === 'once' ? '您已参与过' : '今天已参与')) : (a.need && chkAvail() < a.need ? '还差 ' + (a.need - chkAvail()) + ' 次整理打卡' + (jnyList().length ? '｜去完成流程' : '') : '参加活动')) + '</button><button class="ghost" data-act="actlog" data-id="' + esc(a.id) + '">我的凭证' + (vs ? '（待兑换 ' + vs + '）' : '') + '</button></div></div>'; }).join('') + oh + '</details>';
+}
+document.addEventListener('toggle', e => { if (e.target && e.target.classList && e.target.classList.contains('pk-dis')) S.disOpen = e.target.open; if (e.target && e.target.classList && e.target.classList.contains('hosp-act')) S.actOpen = e.target.open; if (e.target && e.target.classList && e.target.classList.contains('hosp-jny')) S.jnyOpen = e.target.open; if (e.target && e.target.classList && e.target.classList.contains('hosp')) S.hospOpen = e.target.open; }, true);
+function qrSvg(text, px) {
+    try {
+        if (typeof __QR === 'undefined') return '';
+        const q = new __QR.QRCode(-1, __QR.Level.M); q.addData(text); q.make();
+        const n = q.getModuleCount(); let d = '';
+        for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) d += 'M' + c + ' ' + r + 'h1v1h-1z';
+        return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 ' + (n + 4) + ' ' + (n + 4) + '" width="' + px + '" height="' + px + '" role="img" aria-label="凭证二维码" shape-rendering="crispEdges"><rect x="-2" y="-2" width="' + (n + 4) + '" height="' + (n + 4) + '" fill="#fff"/><path d="' + d + '" fill="#000"/></svg>';
+    } catch (e) { return ''; }
+}
+function actVoucherHtml(a, v) {
+    return '<div style="border:2px dashed ' + (v.n ? '#9ca3af' : '#0f766e') + ';border-radius:12px;padding:10px 12px;margin-top:8px;text-align:left"><div style="font-size:18px;font-weight:700">' + (v.g ? '<span class="tag">' + esc(v.g) + '</span> ' : '') + esc(v.r) + '</div>' + (v.n ? '<div class="sub">本次没有服务，欢迎下次参与。</div>' : '<div class="sub">' + esc(v.desc || '请到院向工作人员出示本凭证') + '</div><div class="sub">流水号：<b>' + esc(v.sn) + '</b> <button type="button" class="ghost" data-cpsn="' + esc(v.sn) + '" style="padding:2px 10px;min-height:0;font-size:13px">复制</button> <button type="button" class="ghost" data-cpsn="' + esc((HP && HP.n ? HP.n + '｜' : '') + (a && a.t ? a.t + '｜' : '') + (v.g ? v.g + ' ' : '') + v.r + '｜流水号 ' + v.sn + '｜有效期至 ' + v.exp + '｜到院出示，以医院登记表为准') + '" style="padding:2px 10px;min-height:0;font-size:13px">复制凭证文字</button></div>' + ((v.used || (v.exp && v.exp < today())) ? '' : '<div style="margin-top:6px">' + qrSvg((HP_KEY || 'demo') + '|' + (a && a.id ? a.id : '') + '|' + v.sn, 112) + '<div class="sub">到院时给工作人员看这张凭证即可；二维码只方便工作人员读流水号，不是付款码</div></div>') + '<div class="sub">抽取时间：' + esc(v.at) + (v.bk ? ' · <b>来自备份</b>' : '') + '</div><div class="sub">有效期至：' + esc(v.exp) + ' · 状态：<b style="white-space:nowrap">' + vState(v) + '</b>' + (v.used ? '（' + esc(v.ut) + '）' : '') + '</div>') + '</div>';
+}
+function actLog(a) {
+    const r = (actGet()[a.id] || []).slice().reverse().slice(0, 30);
+    modal('<h2>' + esc(a.t) + ' · 我的凭证</h2><p class="sub" style="background:#fff4e5;color:#8a4b00;border-radius:8px;padding:8px 10px"><b>以医院登记表为最终依据。</b><br><b>请在本机保留此凭证：</b>换手机或清理浏览器后，页面无法找回。本页面无法防伪，到院以医院现场核验和登记的流水号为准。</p>' + (r.length ? r.map((v, i) => '<div>' + actVoucherHtml(a, v) + (vState(v) === '待兑换' ? '<div class="row"><button class="ghost" data-vsn="' + esc(v.sn) + '">到院核销（工作人员操作）</button></div>' : '') + '</div>').join('') : '<p class="sub">还没有凭证。</p>') + '<div class="bar"><button class="ghost" data-go="x">关闭</button></div>');
+    const o = [...document.querySelectorAll('.ov')].pop();
+    o.querySelectorAll('[data-vsn]').forEach(bt => bt.onclick = () => actRedeem(a, bt.dataset.vsn, o));
+}
+const RDL = { n: 0, until: 0 };
+function actRedeem(a, sn, parent) {
+    if (!a.pin) { toastMsg('这个活动没有设置核销密码，配置无效，不能核销。请联系医院或交付人员'); return; }
+    const v0 = (actGet()[a.id] || []).find(x => x.sn === sn), prize = v0 ? v0.r : '';
+    modal('<h2>到院核销 · 只读界面（工作人员操作）</h2><p class="sub" style="background:#fff4e5;color:#8a4b00;border-radius:8px;padding:8px 10px"><b>顺序：①核对下面四项 ②查医院登记表确认没兑换过，并登记流水号 ③输密码点“确认核销” ④交付奖品。</b>登记表才是最终记录。</p>' + (v0 && v0.bk ? '<p class="sub" style="background:#fdecea;color:#9f1c14;border-radius:8px;padding:8px 10px"><b>此凭证来自备份恢复，</b>可能已在另一部手机上兑换过。请重点查医院登记表，确认该流水号未登记后再核销。</p>' : '') + '<p class="sub">请把手机交给医院工作人员操作。请只展示这张凭证；如需输入核销密码，由工作人员输入，不要在公共场合翻看其他档案内容。核销前请勿自行点击。</p><p class="sub"><b>工作人员请逐项核对：</b></p><ul class="sub" style="margin:4px 0 8px;padding-left:20px"><li>活动名称：' + esc(a.t) + '</li><li>奖项：' + esc((v0 && v0.g ? v0.g + ' ' : '') + prize) + '</li><li>流水号：' + esc(sn) + '</li><li>有效期至：' + esc(v0 ? v0.exp : '') + '</li></ul><label style="display:flex;gap:8px;align-items:flex-start;margin:6px 0"><input type="checkbox" id="rd_chk" style="width:auto;margin-top:3px"><span>第一步：我已核对活动、奖项、流水号和有效期，并已查医院登记表（未登记过，未过期）</span></label><div id="rd_step2" style="display:none"><div class="item"><div class="sub">本次核销</div><div style="font-size:20px;font-weight:700">' + esc(prize) + '</div><div class="sub">' + esc(a.t) + ' · 流水号 ' + esc(sn) + ' <button type="button" class="ghost" data-cpsn="' + esc(sn) + '" style="padding:2px 10px;min-height:0;font-size:13px">复制</button></div></div>' + (a.pin ? '<label>核销密码</label><input id="rd_pin" type="password" inputmode="numeric" autocomplete="off">' : '<p class="sub" style="color:#b45309">这个活动没有设置核销密码，请确认现场有工作人员核验后再点“确认核销”。</p>') + '<p class="sub">“已核销”只是这台手机上的标记，不是医院系统记录；请以医院登记表为准。</p></div>' + '<div class="bar"><button class="ghost" data-go="x">取消</button><button class="btn" id="rd_ok" disabled>确认核销</button></div>');
+    const o = [...document.querySelectorAll('.ov')].pop();
+    o.dataset.rd = '1';
+    { const ck0 = o.querySelector('#rd_chk'), s2 = o.querySelector('#rd_step2'), ok0 = o.querySelector('#rd_ok'); ck0.onchange = () => { s2.style.display = ck0.checked ? '' : 'none'; ok0.disabled = !ck0.checked; ok0.style.opacity = ck0.checked ? '' : '.45'; }; ok0.style.opacity = '.45'; }
+    o.querySelector('#rd_ok').onclick = () => {
+        const pin = o.querySelector('#rd_pin');
+        if (v0 && v0.exp && v0.exp < today()) { toastMsg('该凭证已于 ' + v0.exp + ' 过期，不能核销；请按医院规则处理'); return; }
+        const ck = o.querySelector('#rd_chk'); if (ck && !ck.checked) { let e = o.querySelector('#rd_err0'); if (!e) { e = document.createElement('p'); e.id = 'rd_err0'; e.setAttribute('role', 'alert'); e.style.cssText = 'color:#b3261e;font-weight:600'; ck.parentNode.parentNode.insertBefore(e, ck.parentNode.nextSibling); } e.textContent = '请先勾选“已核对”。'; return; }
+        if (a.pin) {
+            if (!pin) return;
+            const LK = 'companion.rdlock.' + (HP_KEY || 'demo') + '.' + a.id, lk = (() => { try { return JSON.parse(localStorage.getItem(LK) || '{}') || {}; } catch (e) { return {}; } })();
+            const erf = t => { let e = o.querySelector('#rd_err'); if (!e) { e = document.createElement('p'); e.id = 'rd_err'; e.setAttribute('role', 'alert'); e.style.color = '#b3261e'; e.style.fontWeight = '600'; pin.parentNode.insertBefore(e, pin.nextSibling); } e.textContent = t; pin.value = ''; pin.focus(); };
+            if (lk.until && Date.now() < lk.until) { erf('密码输错次数过多，请 ' + Math.ceil((lk.until - Date.now()) / 60000) + ' 分钟后再试'); return; }
+            if (!pin.value) { erf('请输入核销密码'); return; }
+            if (pin.value !== a.pin) { lk.n = (lk.n || 0) + 1; if (lk.n >= 5) { lk.until = Date.now() + 5 * 60000; lk.n = 0; } try { localStorage.setItem(LK, JSON.stringify(lk)); } catch (e) { } erf(lk.until && Date.now() < lk.until ? '密码连续输错 5 次，已暂停 5 分钟' : '核销密码不对，请重新输入（连续输错 5 次会暂停 5 分钟）'); return; }
+            try { localStorage.removeItem(LK); } catch (e) { }
+        }
+        const g = actGet(), v = (g[a.id] || []).find(x => x.sn === sn);
+        if (v && !v.used) { v.used = 1; v.ut = nowStr(); actSet(g); }
+        logEvent('redeem', { serial: sn, prize: prize, activity: a.t });
+        o.remove(); if (parent) parent.remove();
+        const h = document.querySelector('.hosp-act'); if (h) h.outerHTML = actCard();
+        modal('<div style="text-align:center"><div style="font-size:34px;font-weight:800;color:#0f766e">已核销</div><div style="font-size:20px;font-weight:700;margin-top:8px">' + esc(prize) + '</div><div class="sub">流水号 ' + esc(sn) + '<br>' + esc(v ? v.ut : nowStr()) + '</div><p class="sub">本机已标记为已核销；请以医院登记表为最终记录。如果还没在登记表里记下流水号，请现在补记，再交付奖品。</p></div><div class="bar"><button class="ghost" data-cpsn="' + esc([v ? v.ut : nowStr(), sn, a.t, prize, ''].map(x => String(x).replace(/[,\n]/g, '，')).join(',')) + '" data-l="复制登记行">复制登记行</button><button class="btn" data-go="x">完成</button></div>');
+    };
+}
+const actFx = () => { try { return !matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return true; } };
+function actBurst(host, cols) {
+    if (!actFx() || !host.animate) return;
+    const c = document.createElement('div'); c.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:99999';
+    for (let i = 0; i < 48; i++) {
+        const e = document.createElement('i'), sz = 6 + rnd(7), x0 = 50 + (rnd(21) - 10), ang = (rnd(360)) * Math.PI / 180, dist = 120 + rnd(180), dx = Math.cos(ang) * dist, dy = Math.sin(ang) * dist - 80 - rnd(80);
+        e.style.cssText = 'position:absolute;left:' + x0 + '%;top:45%;width:' + sz + 'px;height:' + (i % 3 ? sz : sz * 2) + 'px;background:' + cols[i % cols.length] + ';border-radius:' + (i % 4 ? '2px' : '50%');
+        c.appendChild(e);
+        e.animate([{ transform: 'translate(0,0) rotate(0)', opacity: 1 }, { transform: 'translate(' + dx.toFixed(0) + 'px,' + (dy).toFixed(0) + 'px) rotate(' + (rnd(720) - 360) + 'deg)', opacity: 1, offset: .55 }, { transform: 'translate(' + (dx * 1.1).toFixed(0) + 'px,' + (dy + 260).toFixed(0) + 'px) rotate(' + (rnd(900) - 450) + 'deg)', opacity: 0 }], { duration: 1500 + rnd(600), easing: 'cubic-bezier(.2,.7,.4,1)', fill: 'forwards' });
+    }
+    document.body.appendChild(c); setTimeout(() => c.remove(), 2400);
+}
+function actPlay(a) {
+    const hc = HP && /^#[0-9a-fA-F]{6}$/.test(HP.c || '') ? HP.c : '#0f766e', n = a.items.length;
+    let vis;
+    if (a.kind === 'wheel') {
+        const R = 120, cx = 130, cy = 130, cols = [hc, '#e8a85a', '#5fa8a0', '#c0794a'];
+        const secs = a.items.map((it, i) => { const t = it.t, a0 = (i / n) * 2 * Math.PI - Math.PI / 2, a1 = ((i + 1) / n) * 2 * Math.PI - Math.PI / 2, am = (a0 + a1) / 2, x0 = cx + R * Math.cos(a0), y0 = cy + R * Math.sin(a0), x1 = cx + R * Math.cos(a1), y1 = cy + R * Math.sin(a1), tx = cx + R * .62 * Math.cos(am), ty = cy + R * .62 * Math.sin(am), deg = am * 180 / Math.PI + 90;
+            return '<path d="M' + cx + ' ' + cy + ' L' + x0.toFixed(1) + ' ' + y0.toFixed(1) + ' A' + R + ' ' + R + ' 0 ' + (n === 2 ? 1 : 0) + ' 1 ' + x1.toFixed(1) + ' ' + y1.toFixed(1) + ' Z" fill="' + cols[i % cols.length] + '" stroke="#fff" stroke-width="2"/><text x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" fill="#fff" font-size="' + (n > 8 ? 11 : 13) + '" font-weight="700" text-anchor="middle" dominant-baseline="middle" transform="rotate(' + deg.toFixed(1) + ' ' + tx.toFixed(1) + ' ' + ty.toFixed(1) + ')">' + esc(t.slice(0, 6)) + '</text>'; }).join('');
+        vis = '<div style="position:relative;width:260px;margin:8px auto"><div id="act_pt" style="position:absolute;left:50%;top:-6px;transform:translateX(-50%);transform-origin:50% 0;width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-top:18px solid #b91c1c;z-index:2"></div><svg id="act_w" viewBox="0 0 260 260" width="260" height="260" style="transition:transform 4s cubic-bezier(.17,.67,.12,1);display:block" aria-label="转盘">' + secs + '<circle cx="130" cy="130" r="14" fill="#fff" stroke="' + hc + '" stroke-width="3"/></svg></div>';
+    }
+    else {
+        vis = '<div style="text-align:center;margin:8px 0"><svg id="act_t" viewBox="0 0 120 150" width="120" height="150" aria-label="签筒" style="overflow:visible"><g id="act_st" style="opacity:0"><rect x="45" y="-6" width="8" height="52" rx="3" fill="#d94f3d"/><rect x="45" y="-6" width="8" height="10" rx="3" fill="#fbbf24"/></g><rect x="38" y="20" width="6" height="40" rx="3" fill="#c0794a"/><rect x="52" y="12" width="6" height="48" rx="3" fill="#e8a85a"/><rect x="66" y="22" width="6" height="38" rx="3" fill="#c0794a"/><rect x="80" y="16" width="6" height="44" rx="3" fill="#e8a85a"/><path d="M26 58h68l-6 80a8 8 0 0 1-8 7H40a8 8 0 0 1-8-7z" fill="' + hc + '"/><rect x="26" y="54" width="68" height="10" rx="4" fill="#fff" opacity=".35"/></svg><style>@keyframes actshake{0%,100%{transform:rotate(0)}20%{transform:rotate(-9deg)}40%{transform:rotate(9deg)}60%{transform:rotate(-7deg)}80%{transform:rotate(7deg)}}</style></div>';
+    }
+    modal('<h2>' + esc(a.t) + '</h2>' + vis + '<div id="act_r" aria-live="polite" style="text-align:center;min-height:56px"></div><div class="bar"><button class="ghost" data-go="x" id="act_x">关闭</button><button class="btn" id="act_go">' + (a.kind === 'wheel' ? '转一下' : '抽一签') + '</button></div><p class="sub" style="font-size:13px">服务由医院提供，兑换以医院工作人员现场核验为准；结果不构成对您病情的任何判断。</p>');
+    let rot = 0;
+    const o = [...document.querySelectorAll('.ov')].pop(), go = o.querySelector('#act_go'), out = o.querySelector('#act_r');
+    go.onclick = () => {
+        if (actDone(a)) { out.textContent = actWin(a) || (a.per === 'once' ? '您已参与过本活动' : '今天已经参与过了，明天再来'); go.disabled = true; return; }
+        if (a.need && a.per !== 'free' && chkAvail() < a.need) { out.textContent = '还差 ' + (a.need - chkAvail()) + ' 次整理打卡：完成医院就诊流程清单中的一条完整流程（每天最多 1 次），或复诊日期当天及之后在档案里保存“复诊后记录”。'; return; }
+        if (a.per !== 'free') { const r0 = actGet()[a.id] || []; if (r0.length >= 30 && !r0.some(x => x.n || x.used || (x.exp && x.exp < today()))) { out.textContent = '您的待兑换凭证已满 30 条，请先到院兑换，或等凭证过期后再参与。'; return; } }
+        go.disabled = true; o.dataset.lock = '1'; { const xb = o.querySelector('#act_x'); if (xb) xb.disabled = true; }
+        const idx = actPick(a.items), item = a.items[idx];
+        /* 结果在点击当下就写入本机（扣打卡、生成凭证），动画只是展示；中途切后台或被系统回收也不会丢结果 */
+        let v = null;
+        if (a.need && a.per !== 'free' && !item.n) { const c = chkGet(); c.u = Math.min(c.n, c.u + a.need); chkSet(c); }
+        if (a.per !== 'free') {
+            const g = actGet(), r = g[a.id] = g[a.id] || [];
+            v = { sn: Array.from({ length: 6 }, () => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[rnd(31)]).join(''), d: today(), at: nowStr(), r: item.t, g: item.g, desc: (item.q ? item.q + '。' : '') + item.d, n: item.n ? 1 : 0, exp: item.n ? '' : dstr(a.valid), used: 0, ut: '' };
+            r.push(v); while (r.length > 30) { let k = r.findIndex(x => x.n || x.used || (x.exp && x.exp < today())); r.splice(k >= 0 ? k : 0, 1); } actSet(g);
+        }
+        const fin = () => {
+            delete o.dataset.lock; { const xb = o.querySelector('#act_x'); if (xb) xb.disabled = false; }
+            if (a.per === 'free') { out.innerHTML = '<div style="font-size:20px;font-weight:700">' + esc(item.t) + '</div><div class="sub">' + esc(item.d) + '</div>'; go.textContent = '再来一次'; go.disabled = false; return; }
+            out.innerHTML = '<div style="font-size:20px;font-weight:700">结果：' + esc(item.t) + '</div>' + actVoucherHtml(a, v);
+            go.textContent = '已完成'; go.disabled = true;
+            if (!item.n) { actBurst(o, ['#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#a855f7', '#fbbf24']); if (out.animate && actFx()) out.animate([{ transform: 'scale(.6)', opacity: 0 }, { transform: 'scale(1.06)', opacity: 1, offset: .6 }, { transform: 'scale(1)', opacity: 1 }], { duration: 520, easing: 'ease-out' }); }
+            if (!item.n) { out.insertAdjacentHTML('beforeend', '<p style="margin:10px 0 4px;color:#0f766e"><b>如何领取：</b>到院向工作人员出示这张凭证，并报流水号 ' + esc(v.sn) + '。</p><p class="sub" style="margin:6px 0 4px">接下来您可以：</p><div class="row" style="flex-wrap:wrap"><button class="ghost" id="ch1">查看我的凭证</button><button class="ghost" id="ch2">VIP 权益说明</button><button class="ghost" id="ch3">后续优惠和礼品</button></div>');
+                out.querySelector('#ch1').onclick = () => { o.remove(); actLog(a); };
+                out.querySelector('#ch2').onclick = () => { const H = HP || HOSP.demo; modal('<h2>完整VIP权益</h2><p class="sub">具体权益、办理方式和费用以' + esc(HP ? HP.n : '示例医院') + '前台或服务电话公布为准' + (H.tel && typeof H.tel === 'object' && H.tel.num ? '：' + esc(H.tel.num) : (typeof H.tel === 'string' && H.tel ? '：' + esc(H.tel) : '')) + '。本工具不收款、不办理会员。</p><div class="bar"><button class="ghost" data-go="x">关闭</button></div>'); };
+                out.querySelector('#ch3').onclick = () => { modal('<h2>后续优惠和礼品</h2><p class="sub">后续活动、优先参与资格和礼品由医院另行通知和发放，到院时请向工作人员询问。您抽到的凭证可在“我的凭证”里随时查看。</p><div class="bar"><button class="ghost" data-go="x">关闭</button></div>'); };
+            }
+            const h = document.querySelector('.hosp-act'); if (h) h.outerHTML = actCard();
+        };
+        if (a.kind === 'wheel') {
+            const w = o.querySelector('#act_w'), tgt = (360 - (idx + .5) * 360 / n), turn = rot + 360 * 5 + (((tgt - rot) % 360) + 360) % 360;
+            rot = turn; w.getBoundingClientRect(); w.style.transform = 'rotate(' + turn + 'deg)';
+            const pt = o.querySelector('#act_pt'); if (pt && pt.animate && actFx()) pt.animate([{ transform: 'translateX(-50%) rotate(0)' }, { transform: 'translateX(-50%) rotate(-16deg)' }, { transform: 'translateX(-50%) rotate(8deg)' }, { transform: 'translateX(-50%) rotate(0)' }], { duration: 260, iterations: 15 });
+            setTimeout(fin, 4100);
+        }
+        else {
+            const t = o.querySelector('#act_t'); t.style.transformOrigin = '50% 100%'; t.style.animation = 'actshake .9s ease-in-out 2'; out.textContent = '正在抽取，请勿关闭页面…'; setTimeout(() => { t.style.animation = ''; const st = o.querySelector('#act_st'); if (st && st.animate && actFx()) { st.style.opacity = 1; st.animate([{ transform: 'translateY(22px)', opacity: 0 }, { transform: 'translateY(-20px)', opacity: 1 }], { duration: 500, fill: 'forwards', easing: 'ease-out' }); setTimeout(fin, 650); } else fin(); }, 1900);
+        }
+    };
+}
+function wdIdx(s) { s = String(s || '').trim().replace(/^(周|星期|礼拜)/, ''); return ({ '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '日': 7, '天': 7, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7 })[s] || 0; }
+function schedHtml() {
+    const WN = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日'], AP = { '上午': 1, '下午': 2, '晚间': 3, '晚上': 3 };
+    const rows = (Array.isArray(HP.sched) ? HP.sched : []).filter(x => x && wdIdx(x.wd)).slice(0, 60).sort((a, b) => wdIdx(a.wd) - wdIdx(b.wd) || (AP[a.ap] || 0) - (AP[b.ap] || 0));
+    if (!rows.length) return '';
+    const td = new Date().getDay() || 7, line = x => '<div class="sub">' + esc((x.ap ? x.ap + ' ' : '') + (x.st && x.et && x.st < x.et ? x.st + '–' + x.et + ' ' : '') + [x.dp, x.dr].filter(Boolean).join(' · ') + (x.nt ? '（' + x.nt + '）' : '')) + '</div>';
+    const today = rows.filter(x => wdIdx(x.wd) === td);
+    let body = '<div class="item"><b>今天（' + WN[td] + '）</b>' + (today.length ? today.map(line).join('') : '<div class="sub">排班表里没有今天的门诊。</div>') + '</div>';
+    for (let d = 1; d <= 7; d++) { const r = rows.filter(x => wdIdx(x.wd) === d); if (r.length) body += '<div class="item"><b>' + WN[d] + '</b>' + r.map(line).join('') + '</div>'; }
+    return '<details><summary><b>出诊时间表</b>（今天 ' + today.length + ' 条）</summary><p class="sub">按周固定排班。临时停诊、调班和加号情况，请以医院现场公示或通知为准；本工具不办理挂号，也不保证有号。</p>' + body + '</details>';
+}
+function hospCard() {
+    if (!HP) return '';
+    const arr = x => Array.isArray(x) ? x.filter(i => i && typeof i === 'object').slice(0, 30) : [];
+    const hc = /^#[0-9a-fA-F]{6}$/.test(HP.c || '') ? HP.c : '#0f766e';
+    const item = i => '<div class="item"><b>' + esc(i.t) + '</b>' + (i.date ? ' <small class="sub">' + esc(i.date) + '</small>' : '') + (i.d ? '<div class="sub">' + esc(i.d) + '</div>' : '') + '</div>';
+    const sec = (title, note, rows, open) => rows.length ? '<details' + (open ? ' open' : '') + '><summary><b>' + title + '</b>（' + rows.length + '）</summary><p class="sub">' + note + '</p>' + rows.map(item).join('') + '</details>' : '';
+    const vip = arr(HP.vip), ann = arr(HP.ann).sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))), pre = arr(HP.pre), campus = arr(HP.campus), shw = arr(HP.show).slice(0, 8);
+    const tel = HP.tel && /^[0-9+\-() ]{5,20}$/.test(HP.tel.num || '') ? HP.tel : null;
+    const bk = HP.book && /^https:\/\/[^\s"'<>]+$/.test(HP.book.url || '') ? HP.book : null;
+    const schH = schedHtml();
+    if (!vip.length && !ann.length && !pre.length && !campus.length && !shw.length && !tel && !bk && !schH) return '';
+    const hn = esc(HP.n);
+    const camp = campus.length ? '<details><summary><b>院区信息</b>（' + campus.length + '）</summary>' + campus.map(c => '<div class="item"><b>' + esc(c.n) + '</b>' + (c.addr ? '<div class="sub">' + esc(c.addr) + '</div>' : '') + (c.tel && /^[0-9+\-() ]{5,20}$/.test(c.tel) ? '<div class="row"><a class="lnkg" href="tel:' + esc(c.tel.replace(/[^0-9+]/g, '')) + '">拨打 ' + esc(c.tel) + '</a></div>' : '') + '</div>').join('') + '</details>' : '';
+    const acts = (tel || bk) ? '<div class="row" style="margin-top:8px">' + (tel ? '<a class="lnkb" href="tel:' + esc(tel.num.replace(/[^0-9+]/g, '')) + '">' + esc(tel.n || '服务电话') + '：' + esc(tel.num) + '</a>' : '') + (bk ? '<a class="lnkg" href="' + esc(bk.url) + '" target="_blank" rel="noopener noreferrer">' + esc(bk.n || '医院预约入口') + '</a>' : '') + '</div>' + (bk ? '<p class="sub">预约入口是' + hn + '自己的页面，点开后离开本工具；本工具不办理预约。</p>' : '') : '';
+    return '<details class="card hosp"' + (S.hospOpen ? ' open' : '') + ' style="border-left:4px solid ' + hc + '"><summary style="cursor:pointer"><div><b>' + lgImg(26) + hn + ' · 医院服务</b><div class="sub" style="margin:2px 0 0">VIP 权益、通知、检查前准备、电话和预约</div></div></summary><p class="sub">以下内容由' + hn + '提供，页面不会主动推送；不构成对您个人病情的建议，也不替代医生面诊。</p>'
+        + sec('VIP 服务权益', '具体以医院实际安排为准；本工具不办理、不预订这些服务。', vip, false)
+        + sec('医院通知与健康科普', '由医院发布，更新页面后可见。', ann, false)
+        + sec('检查前准备', '一般提示，具体请以医院发给您的检查通知为准。', pre, false)
+        + schH
+        + (shw.length ? '<details><summary><b>医院项目</b>（' + shw.length + '）</summary><p class="sub">由医院提供，仅作介绍；是否适合您，请到院由医生判断。加入想问清单不是预约，也不会通知医院。价格以门诊公示为准。</p>' + shw.map((i, n) => '<div class="item">' + (i.img ? '<img src="' + esc(i.img) + '" alt="' + esc(i.t) + '" loading="lazy" style="width:100%;max-height:170px;object-fit:cover;border-radius:10px;margin-bottom:6px">' : '') + '<b>' + esc(i.t) + '</b>' + (i.tag ? ' <small class="sub">' + esc(i.tag) + '</small>' : '') + (i.d ? '<div class="sub">' + esc(i.d) + '</div>' : '') + '<div class="sub">价格：' + esc(i.price || '以门诊公示为准，到院咨询') + '</div><div class="row" style="margin-top:6px"><button class="lnkg" data-act="showask" data-i="' + n + '">加入想问清单</button></div></div>').join('') + '</details>' : '')
+        + camp + acts + '</details>';
+}
 function openNotice() {
     document.querySelectorAll('.pvdoc').forEach(x => x.remove());
     const w = document.createElement('div');
     w.className = 'pvdoc';
     const H = (HP ? esc(HP.n) + ' · ' : '');
     const S1 = [['这是什么', '这是患者自己使用的病程资料记录和整理工具。它不是医院的电子病历系统，不提供诊断、解读或治疗建议，不能替代医生面诊。内容由您自行录入，不作为医院正式病历或法律上的医疗文书。'],
-        ['资料存在哪里', '您录入的文字和图片只保存在您自己设备的浏览器里，本页面本身不会把它们上传到服务器。但本机存储没有加密：别人能打开您的手机或浏览器，就可能看到这些内容。请勿在公用设备上使用。医院不会收到这些资料，也无法帮您找回或恢复；资料丢了只能靠您自己导出的备份文件。'],
+        ['资料存在哪里', '您录入的文字和图片只保存在您自己设备的浏览器里，本页面本身不会把它们上传到服务器。但本机存储没有加密：别人能打开您的手机或浏览器，就可能看到这些内容。请勿在公用设备上使用。医院不会收到这些资料，也无法帮您找回或恢复；资料丢了只能靠您自己导出的备份文件。' + (UP_OK ? '复诊打卡和核销记录是否上传给医院由您选择（首页「更多工具与设置 → 上传记录」）。' : '') + ''],
         ['可能丢失的情况', '清理浏览器数据、使用无痕模式、更换手机、卸载或重置浏览器，都可能让资料丢失。请不要在微信 / QQ 内置浏览器里使用，改用手机自带的 Safari 或 Chrome。'],
         ['请定期备份', '每次录入重要资料后，请到「数据备份」导出备份文件，并保存在手机以外的地方。导出时可设置备份密码；密码忘记后无法找回，请自己牢记。'],
         ['关于指标和参考范围', '趋势图、范围线和红色提示只是方便您对照记录，不代表病情好坏。请以化验单和医生的判断为准，不要自行调整治疗方案。'],
@@ -1926,7 +3738,7 @@ catch (e) {
     storeFail();
 } };
 const sha = async (s) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map(x => x.toString(16).padStart(2, '0')).join('');
-const privacy = () => modal('<h2>隐私说明</h2><p>你在这里录入的内容，只保存在这台设备的浏览器里，页面本身不会把它上传到服务器。</p><p>会保存的内容：档案信息、时间线记录、指标数值和你上传的图片。</p><p>清理浏览器数据、使用无痕模式或更换设备，都会丢失这些资料，请定期在「数据备份」里导出。</p><p><b>资料存在本机不等于已加密。</b>别人能打开你的手机或浏览器，就可能看到这些内容；备份文件默认也未加密（导出时可设密码），请勿放在公共设备或不可信的共享空间。</p><p>儿童档案请由监护人填写。</p><p class="sub">本工具仅作病程资料归档，不能替代医生面诊。</p><div class="bar"><button class="btn" data-go="x">我知道了</button></div>');
+const privacy = () => modal('<h2>隐私说明</h2><p class="sub">首次使用请先看一下，点底部按钮关闭后即可新建档案。</p><p>你录入的内容只保存在这台设备的浏览器里，页面不会上传到服务器。</p>' + (UP_OK ? '<p>复诊打卡和核销记录是否上传给医院，由您自己选择；可随时在首页「更多工具与设置 → 上传记录」里修改。</p>' : '') + '<p><p>清理浏览器数据或更换设备会丢失资料，请定期在「数据备份」里导出。</p><p>本地保存不等于加密，请勿在公共设备使用。</p><details><summary>展开更多说明</summary><p>会保存的内容：档案信息、时间线记录、指标数值和你上传的图片。</p><p>清理浏览器数据、使用无痕模式或更换设备，都会丢失这些资料，请定期在「数据备份」里导出。</p><p><b>资料存在本机不等于已加密。</b>别人能打开你的手机或浏览器，就可能看到这些内容；备份文件默认也未加密（导出时可设密码），请勿放在公共设备或不可信的共享空间。</p><p>儿童档案请由监护人填写。</p><p class="sub">本工具仅作病程资料归档，不能替代医生面诊。</p></details><div class="bar"><button class="btn" data-go="x">我已阅读，开始使用</button></div>');
 function acctInit() {
     try {
         if (navigator.storage && navigator.storage.persist)
@@ -1962,6 +3774,17 @@ function acctInit() {
     else
         A = a;
 }
+function askText(title, ph, init, cb) {
+    const o = document.createElement('div');
+    o.className = 'ov';
+    o.innerHTML = '<div class="mod"><p style="margin:0 0 10px"><b>' + esc(title) + '</b></p><input id="at_v" maxlength="80" placeholder="' + esc(ph) + '" value="' + esc(init || '') + '"><div class="bar"><button class="ghost" id="at_n">取消</button><button class="btn" id="at_y">确定</button></div></div>';
+    document.body.appendChild(o);
+    const go = () => { const v = o.querySelector('#at_v').value.trim(); o.remove(); cb(v); };
+    o.querySelector('#at_n').onclick = () => o.remove();
+    o.querySelector('#at_y').onclick = go;
+    o.querySelector('#at_v').onkeydown = e => { if (e.key === 'Enter') go(); };
+    o.querySelector('#at_v').focus();
+}
 function okAsk(msg, o2) {
     const b = window.__b;
     if (b && b._ok) {
@@ -1982,8 +3805,8 @@ function okAsk(msg, o2) {
     } };
     return false;
 }
-function modal(h) { const o = document.createElement('div'); o.className = 'ov'; o.innerHTML = '<div class="mod">' + h + '</div>'; o.onclick = e => { if (e.target === o)
-    o.remove(); }; o.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { o.remove(); }); document.body.appendChild(o); }
+function modal(h) { const o = document.createElement('div'); o.className = 'ov'; o.innerHTML = '<div class="mod">' + h + '</div>'; o.onclick = e => { if (e.target === o && !o.dataset.lock)
+    o.remove(); }; o.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { if (!o.dataset.lock) o.remove(); }); document.body.appendChild(o); }
 function csvText(p) { const q = s => { let t = String(s !== null && s !== void 0 ? s : ''); if (typeof s === 'string' && /^[=+\-@\t\r]/.test(t))
     t = "'" + t; return '"' + t.replace(/"/g, '""') + '"'; }; let r = ['日期,类型,医院科室,内容']; (p.tl || []).slice().sort((a, b) => b.date.localeCompare(a.date)).forEach(x => r.push([x.date, x.kind + (x.tpl ? '·' + x.tpl : ''), x.hosp, [x.text, ...(x.fields || []).map(f => f.n + '：' + f.v)].filter(Boolean).join('；')].map(q).join(','))); r.push('', '指标,单位,日期,数值,化验单参考下限,化验单参考上限,检测机构'); (p.mx || []).forEach(m => m.pts.forEach(x => r.push([m.name, m.unit, x.date, x.v, hasL(x) ? x.rl : '', hasL(x) ? x.rh : '', x.org || ''].map(q).join(',')))); return r.join('\n'); }
 const app = document.getElementById('app');
@@ -1998,7 +3821,7 @@ app.addEventListener('click', e => {
         return;
     window.__b = b;
     const act = b.dataset.act, p = cur();
-    if (LOCK && ['new', 'create', 'demo', 'addrow', 'rm', 'tlsave', 'med', 'oradd', 'ordone', 'orundo', 'tdone', 'tmed', 'bpadd', 'mdadd', 'mdstop', 'mddel', 'mdlog', 'ordel', 'tldel', 'mxnew', 'mxadd', 'mxesave', 'mxrange', 'mxdel', 'mxrm', 'tplnew', 'tpldel', 'tlupd', 'tlstar', 'del', 'ckstart', 'cktog', 'ckdel', 'ckadd', 'ckclr', 'pzclr'].includes(act)) {
+    if (LOCK && ['new', 'create', 'demo', 'addrow', 'rm', 'tlsave', 'med', 'oradd', 'ordone', 'orundo', 'tdone', 'tmed', 'bpadd', 'mdadd', 'mdstop', 'mddose', 'mddel', 'mdlog', 'ordel', 'tldel', 'mxnew', 'mxadd', 'mxesave', 'mxrange', 'mxdel', 'mxrm', 'tplnew', 'tpldel', 'tlupd', 'tlstar', 'del', 'ckstart', 'cktog', 'ckdel', 'ckadd', 'ckclr', 'pzclr'].includes(act)) {
         alert('数据异常保护中：请先从备份恢复，或在页面顶部选择放弃异常数据后重新开始。');
         return;
     }
@@ -2014,6 +3837,9 @@ app.addEventListener('click', e => {
         S.q = '';
         S.kf = '';
         S.edit = null;
+    }
+    else if (act === 'qadd') {
+        S.cur = b.dataset.id; S.view = 'list'; S.tab = 'tl'; S.addOpen = true; S.q = ''; S.kf = ''; S.edit = null;
     }
     else if (act === 'new') {
         S.view = 'new';
@@ -2044,8 +3870,12 @@ app.addEventListener('click', e => {
             alert('请填写成员称呼');
             return;
         }
+        if (d.nvd && /^\d{4}-\d{2}-\d{2}$/.test(d.nvd) && d.nvd < today()) {
+            alert('下次复诊日期 ' + d.nvd + ' 已经过去了，不会生成复诊准备清单。请改成今天或之后的日期；还没定就先留空，以后在档案里补。');
+            return;
+        }
         if (!d.disease) {
-            alert('请选择病种');
+            alert('请选择科室或病种');
             return;
         }
         if (d.disease === 'rare' && !d.age) {
@@ -2164,7 +3994,49 @@ load();
 if (S.profiles.length)
     S.view = 'home';
 view();
-if (INAPP)
+/* 复制流水号：优先用剪贴板接口，不行就用选中文字的老办法；都不行时提示手动复制 */
+document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('[data-cpsn]'); if (!b) return;
+    e.preventDefault(); e.stopPropagation();
+    const t = b.getAttribute('data-cpsn') || '', lb = b.getAttribute('data-l') || b.textContent, ok = () => { b.setAttribute('data-l', lb); b.textContent = '已复制'; setTimeout(() => { b.textContent = lb; }, 1500); }, no = () => { b.textContent = lb; modal('<h2>请手动复制</h2><textarea readonly style="width:100%;min-height:90px">' + esc(t) + '</textarea><p class="sub">长按文字，选择“全选”再复制。</p><div class="bar"><button class="ghost" data-go="x">关闭</button></div>'); };
+    const old = () => { try { const x = document.createElement('textarea'); x.value = t; x.setAttribute('readonly', ''); x.style.cssText = 'position:fixed;left:-9999px;top:0'; document.body.appendChild(x); x.select(); x.setSelectionRange(0, t.length); const g = document.execCommand('copy'); x.remove(); g ? ok() : no(); } catch (er) { no(); } };
+    try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(ok, old); else old(); } catch (er) { old(); }
+}, true);
+/* 待传的打卡记录：打开页面后补传一次，恢复联网时再试，之后每分钟检查一次 */
+try { if (UP_OK) { window.addEventListener('online', () => { UP_STOP = 0; qFlush(); }); setTimeout(() => { UP_STOP = 0; qFlush(); }, 1500); setInterval(() => { if (qGet().length) qFlush(); }, 60000); } } catch (e) { }
+/* 离线缓存：同目录有 sw.js 时注册，重复访问更快，断网也能打开；注册失败不影响使用 */
+try { if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) { const hadCtl = !!navigator.serviceWorker.controller; navigator.serviceWorker.register('sw.js').catch(() => { }); navigator.serviceWorker.addEventListener('controllerchange', () => { if (!hadCtl || document.getElementById('upd_tip')) return; const t = document.createElement('div'); t.id = 'upd_tip'; t.className = 'toast'; t.setAttribute('role', 'status'); t.style.cursor = 'pointer'; t.textContent = '页面已更新到新版本，点这里刷新'; t.onclick = () => location.reload(); document.body.appendChild(t); }); } } catch (e) { }
+/* 启动页：医院配置了 splash 时，每台设备每个版本只显示一次；点一下或 2.5 秒后自动关闭；存储不可用时不显示，绝不挡住使用 */
+(function () { try {
+    if (!HP || !HP.splash || !HP_KEY || HP_KEY === 'preview') return;
+    const k = 'companion.splash.' + HP_KEY, v = String(HP.ver || '1');
+    if (localStorage.getItem(k) === v) return;
+    localStorage.setItem(k, v);
+    const d = document.createElement('div');
+    d.setAttribute('role', 'presentation');
+    d.style.cssText = 'position:fixed;inset:0;z-index:9999;background:' + (HP.c || '#0f5c55') + ';color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;transition:opacity .4s';
+    d.innerHTML = (HP.l ? '<img alt="" style="width:72px;height:72px;object-fit:contain;background:#fff;border-radius:16px;padding:6px;margin-bottom:16px" src="' + esc(HP.l) + '">' : '') + '<div style="font-size:22px;font-weight:700">' + esc(HP.n) + '</div><div style="margin-top:10px;font-size:15px;opacity:.92">' + esc(HP.splash) + '</div>';
+    const off = () => { if (!d.parentNode) return; d.style.opacity = '0'; setTimeout(() => d.remove(), 400); };
+    d.onclick = off; document.body.appendChild(d); setTimeout(off, 2500);
+} catch (e) { } })();
+
+if (CFG_LOAD) {
+    (async () => {
+        const k = HP_KEY;
+        try {
+            const ac = new AbortController(), tm = setTimeout(() => ac.abort(), 12000);
+            const rs = await fetch('config/' + k + '.json?t=' + Math.floor(Date.now() / 60000), { signal: ac.signal, cache: 'no-store' }); clearTimeout(tm);
+            const x = await rs.text();
+            if (rs.status !== 200 || !x || x.length > 400000) throw new Error('bad');
+            JSON.parse(x);
+            if (!CFG_LOAD) return;
+            sessionStorage.setItem('companion.cfgtxt.' + k, JSON.stringify({ t: Date.now(), x }));
+            location.reload();
+        } catch (e) { if (!CFG_LOAD) return; CFG_LOAD = false; CFG_ERR = true; try { view(); } catch (e2) { } }
+    })();
+}
+if (CFG_ERR || CFG_LOAD) { }
+else if (INAPP)
     inAppModal();
 else if (!A.priv) {
     A.priv = 1;
