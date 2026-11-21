@@ -397,11 +397,6 @@ async function cached(k, fn) {
   mcache.set(k, { t: Date.now(), v });
   return v;
 }
-function pickGood(ids, wants) {
-  for (const w of wants) { const f = ids.find((id) => id.toLowerCase().includes(w)); if (f) return f; }
-  const bad = ["flint", "recursive", "dolphin", "xingchen", "guard", "whisper", "tts", "orpheus"];
-  return ids.find((id) => !bad.some((b) => id.toLowerCase().includes(b))) || ids[0];
-}
 const T = (ms) => AbortSignal.timeout(ms);
 // ---- v25 飞书：只走 open.feishu.cn 开放接口，绝不用通用 fetch 去抓 my.feishu.cn 页面（会被平台拦：Access denied due to platform policy）----
 const FEISHU_HOST_RE = /(^|\.)(feishu\.cn|larksuite\.com)$/i;
@@ -689,24 +684,6 @@ async function feishuRead(env, f) {
   return { ok: true, title, content: String((d.j.data && d.j.data.content) || "") };
 }
 
-async function getGroqModel(key) {
-  return cached("groq:" + key.slice(-6), async () => {
-    try {
-      const r = await fetch("https://api.groq.com/openai/v1/models", { headers: { Authorization: "Bearer " + key }, signal: T(8000) });
-      const ids = ((await r.json()).data || []).map((x) => x.id);
-      return pickGood(ids, ["gpt-oss-120b", "llama-3.3", "gpt-oss-20b"]) || "openai/gpt-oss-120b";
-    } catch { return "openai/gpt-oss-120b"; }
-  });
-}
-async function getOpenRouterModel(key) {
-  return cached("or:" + key.slice(-6), async () => {
-    try {
-      const r = await fetch("https://openrouter.ai/api/v1/models", { headers: { Authorization: "Bearer " + key }, signal: T(8000) });
-      const ids = ((await r.json()).data || []).filter((m) => m.pricing && Number(m.pricing.prompt) === 0 && m.id.endsWith(":free")).map((m) => m.id);
-      return pickGood(ids, ["nemotron-3-ultra", "gemma-3", "llama-3.3"]) || "nvidia/nemotron-3-ultra:free";
-    } catch { return "openai/gpt-oss-120b:free"; }
-  });
-}
 async function getGeminiModel(key) {
   return cached("gem:" + key.slice(-6), async () => {
     try {
@@ -773,36 +750,6 @@ async function streamOpenAI(url, key, body, emit, { firstMs = 45000, idleMs = 45
     err = e.name === "AbortError" ? (full ? "上游模型长时间没有新内容" : "上游模型首字超时") : (e.message || "上游连接中断");
   } finally { clearTimeout(idle); clearTimeout(first); }
   return { text: full, err, finish };
-}
-async function tryOpenAIStream(url, key, body, emit) { const r = await streamOpenAI(url, key, body, emit); return r.text.trim() ? r.text : null; }
-async function tryGroq(messages, key) {
-  try {
-    const model = await getGroqModel(key), url = "https://api.groq.com/openai/v1/chat/completions";
-    let res = await chatOpenAI(url, key, groqBody(model, messages, { temperature: 0.7 }));
-    if (res.status === 400) res = await chatOpenAI(url, key, { model, messages, temperature: 0.7 });
-    if (!res.ok) return null;
-    return ((await res.json()).choices?.[0]?.message?.content || "").trim() || null;
-  } catch { return null; }
-}
-async function tryGroqStream(messages, key, emit) {
-  try {
-    const model = await getGroqModel(key);
-    return await tryOpenAIStream("https://api.groq.com/openai/v1/chat/completions", key, groqBody(model, messages, { temperature: 0.7 }), emit);
-  } catch { return null; }
-}
-async function tryOpenRouter(messages, key) {
-  try {
-    const model = await getOpenRouterModel(key);
-    const res = await chatOpenAI("https://openrouter.ai/api/v1/chat/completions", key, { model, messages });
-    if (!res.ok) return null;
-    return ((await res.json()).choices?.[0]?.message?.content || "").trim() || null;
-  } catch { return null; }
-}
-async function tryOpenRouterStream(messages, key, emit) {
-  try {
-    const model = await getOpenRouterModel(key);
-    return await tryOpenAIStream("https://openrouter.ai/api/v1/chat/completions", key, { model, messages }, emit);
-  } catch { return null; }
 }
 function toGemini(messages) {
   const sys = messages.filter((m) => m.role === "system").map((m) => textOf(m.content)).join("\n");
@@ -1117,7 +1064,6 @@ const YOUDAO_FANYI_ERR = { "101": "缺少必填参数", "102": "不支持的语�
 const mtSleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const mtBaiduOn = (env) => !!(String(env.BAIDU_FANYI_APPID || "").trim() && String(env.BAIDU_FANYI_KEY || "").trim());
 const mtYoudaoOn = (env) => !!(String(env.YOUDAO_FANYI_APPID || "").trim() && String(env.YOUDAO_FANYI_KEY || "").trim());
-const mtAny = (env) => mtBaiduOn(env) || mtYoudaoOn(env);
 function mtChunks(text, maxChars) {
   const out = []; let cur = "";
   for (let line of String(text).split("\n")) {
@@ -1207,7 +1153,6 @@ async function mtTranslate(env, text, to = "zh", skipAgg = false) {
   try { const out = await rivaTranslate(env, text, to); if (out) return { text: out, via: "Riva 翻译模型", errs }; } catch {}
   return { text: "", via: "", errs };
 }
-const mtText = async (env, text, to) => { try { return (await mtTranslate(env, text, to)).text || ""; } catch { return ""; } };
 async function mtDiag(env) {
   const rows = [];
   for (const [name, on, one] of [["百度翻译", mtBaiduOn(env), baiduFanyiOne], ["有道翻译", mtYoudaoOn(env), youdaoFanyiOne]]) {
@@ -1473,99 +1418,7 @@ async function cGet(url, opt = {}, ms = 8000) {
 const C_NAMES = "Google Scholar|谷歌学术|WolframAlpha|Brave Search|Yandex|Naver|Ecosia|Startpage|Qwant|Mojeek|Bing|HuggingFace|Hugging Face|arXiv|Semantic Scholar|OpenAlex|Crossref|PubMed|Wikipedia|GitHub|知乎|CSDN|站酷|小红书|抖音|Meta|Facebook|Instagram|Threads|美团|京东|滴滴|滴答|百度地图|知网|CNKI|Britannica|大英百科|国家统计局|中国政府网|欧盟官网|NIH|官网|官方文档|Google|谷歌|网页搜索|全网|Learn Anything|CocoLoop|全景世界|YouArt|FMHY|Latent Box|Toolify|There's An AI For That|AI工具集|AI导航网|AIHUB|优设AI导航|AIXZD|Free AI Tools Directory|Wikidata|Stack Overflow|GitLab|Reddit|YouTube|Futurepedia|Pixabay|Pinterest|Vimeo|Unsplash|Sourcegraph|Phind|Wolfram|Lovart|Cherry Studio|iMini|Perplexity|OpenCode|OpenMAIC|Free LLM API";
 const C_FILLER = new RegExp("请问|请你|帮我|帮忙|麻烦|给我|我想|我要|想知道|能不能|可以|一下|查一下|查查|查询|搜一下|搜索|搜|查|找找|找|看看|有没有|有哪些|有什么|怎么样|如何|吗|呢|吧|啊|呀|相关的|最新的|论文|文献|仓库|用\\s*(?:" + C_NAMES + ")|(?:" + C_NAMES + ")(?:上|里)?", "gi");
 const cKeywords = (t) => { const k = cCl(String(t).replace(C_FILLER, " ").replace(/[，。？！?!,;；:：“”"'（）()\[\]【】、]/g, " ").replace(/\bpapers?\b/gi, " "), 120); return k.length >= 2 ? k : cCl(t, 80); };
-const cIsCJK = (t) => (String(t).match(/[一-鿿]/g) || []).length >= 2;
-const cDoiRe = /10\.\d{4,9}\/[^\s"'<>，。；、）)]+/;
-const cDoi = (t) => { const m = String(t).match(cDoiRe); return m ? m[0].replace(/[.,;:]+$/, "") : ""; };
-const cTag = (s, tag) => { const m = String(s).match(new RegExp("<" + tag + "[^>]*>([\\s\\S]*?)</" + tag + ">")); return m ? cStrip(m[1], 4000) : ""; };
 
-// ---------- 权威组 ----------
-async function cHF(q, env, x) {
-  const tok = String(env.HF_TOKEN || "").trim(), headers = tok ? { Authorization: "Bearer " + tok } : {};
-  const lic = (m) => { const c = m.cardData && m.cardData.license; const v = Array.isArray(c) ? c.join("/") : c; return v || ((m.tags || []).find((t) => /^license:/.test(t)) || "").slice(8) || ""; };
-  const idm = q.match(/(?:^|[\s(（"'“])([A-Za-z0-9][\w.-]*\/[A-Za-z0-9][\w.-]*)(?=$|[\s)）"'”，。？?!！,])/);
-  let id = idm ? idm[1] : "", hits = [];
-  if (!id) {
-    const { r, j } = await cGet(`https://huggingface.co/api/models?search=${cEu(cKeywords(x.qEn))}&limit=5&sort=downloads&direction=-1`, { headers });
-    if (!r.ok) throw new ConnErr("HuggingFace 返回 " + r.status + (r.status === 401 ? "（HF_TOKEN 无效）" : ""), r.status);
-    hits = Array.isArray(j) ? j : []; if (!hits.length) return { items: [] };
-    id = hits[0].id || hits[0].modelId;
-  }
-  const items = [], d = await cGet(`https://huggingface.co/api/models/${id}`, { headers });
-  if (d.r.status === 404) { if (!hits.length) return { items: [], note: "HuggingFace 上没有 " + id }; }
-  else if (!d.r.ok) throw new ConnErr("HuggingFace 返回 " + d.r.status, d.r.status);
-  else if (d.j) {
-    const m = d.j, files = (m.siblings || []).map((s) => s.rfilename);
-    items.push({ title: m.id || id, url: "https://huggingface.co/" + (m.id || id), extra: `许可证：${lic(m) || "未标注（以模型页面为准）"}｜下载量：${m.downloads ?? "?"}｜点赞：${m.likes ?? "?"}｜任务：${m.pipeline_tag || "?"}｜更新：${String(m.lastModified || "").slice(0, 10) || "?"}${m.gated ? "｜需申请访问" : ""}｜文件(${files.length}个)：${files.slice(0, 12).join("、")}${files.length > 12 ? "…" : ""}` });
-  }
-  for (const m of hits.slice(items.length ? 1 : 0, 5)) { const mid = m.id || m.modelId; if (mid) items.push({ title: mid, url: "https://huggingface.co/" + mid, extra: `下载量：${m.downloads ?? "?"}｜点赞：${m.likes ?? "?"}｜许可证：${lic(m) || "未标注"}` }); }
-  return { items };
-}
-async function cGithub(q, env, x) {
-  const pat = String(env.GH_PAT || "").trim(); if (!pat) throw new ConnErr("GH_PAT 没有配置", 500);
-  const kw = cCl(String(x.qEn).replace(/github|仓库|\brepo\b|代码库|开源项目|源码/gi, " ").replace(C_FILLER, " ")) || cCl(x.qEn, 60);
-  const { r, j } = await cGet(`https://api.github.com/search/repositories?q=${cEu(kw)}&per_page=5`, { headers: { Authorization: "Bearer " + pat, Accept: "application/vnd.github+json" } });
-  if (!r.ok) throw new ConnErr("GitHub API 返回 " + r.status, r.status);
-  return { items: (j.items || []).map((p) => ({ title: p.full_name, url: p.html_url, extra: `★${p.stargazers_count}｜forks ${p.forks_count}｜${p.language || "?"}｜许可证：${(p.license && p.license.spdx_id) || "未标注"}｜${cCl(p.description, 120)}` })) };
-}
-async function cArxiv(q, env, x) {
-  const idm = q.match(/\b(\d{4}\.\d{4,5})(?:v\d+)?\b|\b([a-z-]+(?:\.[A-Z]{2})?\/\d{7})\b/);
-  const terms = cKeywords(x.qEn).split(/\s+/).filter(Boolean).slice(0, 6);
-  const url = idm ? `https://export.arxiv.org/api/query?id_list=${cEu(idm[1] || idm[2])}` : `https://export.arxiv.org/api/query?search_query=${terms.map((w) => "all:" + cEu(w)).join("+AND+")}&start=0&max_results=4&sortBy=relevance`;
-  const { r, t } = await cGet(url, {}, 10000);
-  if (!r.ok) throw new ConnErr("arXiv 返回 " + r.status, r.status);
-  const items = [];
-  for (const e of t.split(/<entry>/).slice(1)) {
-    const id = cTag(e, "id"); if (!id || /\/api\/errors/.test(id)) continue;
-    const names = [...e.matchAll(/<name>([^<]*)<\/name>/g)].map((m) => cCl(m[1], 40)), doi = cTag(e, "arxiv:doi");
-    items.push({ title: cTag(e, "title"), url: id.replace(/^http:/, "https:"), doi, extra: `作者：${names.slice(0, 5).join("、")}${names.length > 5 ? " 等" : ""}｜arXiv:${id.split("/abs/")[1] || ""}｜发布：${cTag(e, "published").slice(0, 10)}｜摘要：${cCl(cTag(e, "summary"), 160)}` });
-  }
-  return { items };
-}
-async function cS2(q, env, x) {
-  const { r, j } = await cGet(`https://api.semanticscholar.org/graph/v1/paper/search?query=${cEu(cKeywords(x.qEn))}&limit=5&fields=title,authors,year,citationCount,abstract,externalIds,url,venue`, {}, 10000);
-  if (r.status === 429) throw new ConnErr("Semantic Scholar 限流（429，免费公共额度被占满），过一会儿再试", 429);
-  if (!r.ok) throw new ConnErr("Semantic Scholar 返回 " + r.status, r.status);
-  return { items: (j.data || []).map((p) => ({ title: p.title, url: p.url || (p.paperId ? "https://www.semanticscholar.org/paper/" + p.paperId : ""), doi: (p.externalIds && p.externalIds.DOI) || "", extra: `作者：${(p.authors || []).slice(0, 5).map((a) => a.name).join("、")}｜${p.year || "?"}｜引用量：${p.citationCount ?? "?"}｜${cCl(p.venue, 60)}｜摘要：${cCl(p.abstract, 160) || "无"}` })) };
-}
-async function cOpenAlex(q, env, x) {
-  const { r, j } = await cGet(`https://api.openalex.org/works?search=${cEu(cKeywords(x.qEn))}&per-page=5&select=id,doi,title,publication_year,cited_by_count,authorships,primary_location`, {}, 10000);
-  if (!r.ok) throw new ConnErr("OpenAlex 返回 " + r.status, r.status);
-  return { items: (j.results || []).map((w) => { const doi = String(w.doi || "").replace(/^https?:\/\/doi\.org\//, ""); const src = w.primary_location && w.primary_location.source; const inst = [...new Set((w.authorships || []).flatMap((a) => (a.institutions || []).map((i) => i.display_name)))].slice(0, 3);
-    return { title: w.title, url: w.doi || w.id, doi, extra: `作者：${(w.authorships || []).slice(0, 5).map((a) => a.author && a.author.display_name).filter(Boolean).join("、")}｜${w.publication_year || "?"}｜被引：${w.cited_by_count ?? "?"}｜期刊：${(src && src.display_name) || "?"}｜机构：${inst.join("、") || "?"}` }; }) };
-}
-async function cCrossref(q, env, x) {
-  const doi = cDoi(q);
-  if (doi) {
-    const { r, j } = await cGet(`https://api.crossref.org/works/${cEu(doi).replace(/%2F/gi, "/")}`, {}, 10000);
-    if (r.status === 404) return { items: [], note: `Crossref 查不到 DOI ${doi}：它没有在 Crossref 登记（可能是编的、写错了；arXiv、Zenodo 等的 DOI 登记在 DataCite，也会查不到）` };
-    if (!r.ok) throw new ConnErr("Crossref 返回 " + r.status, r.status);
-    const m = j.message || {}, au = (m.author || []).slice(0, 5).map((a) => cCl((a.given || "") + " " + (a.family || ""), 40));
-    return { items: [{ title: (m.title || [])[0] || "(无标题)", url: "https://doi.org/" + m.DOI, doi: m.DOI, extra: `✅ Crossref 已登记这个 DOI｜作者：${au.join("、")}｜${(m["container-title"] || [])[0] || m.publisher || "?"}｜${(((m.issued || {})["date-parts"] || [[]])[0] || [])[0] || "?"}｜被引：${m["is-referenced-by-count"] ?? "?"}` }] };
-  }
-  const { r, j } = await cGet(`https://api.crossref.org/works?query.bibliographic=${cEu(cKeywords(x.qEn))}&rows=5&select=DOI,title,author,issued,container-title,is-referenced-by-count`, {}, 10000);
-  if (!r.ok) throw new ConnErr("Crossref 返回 " + r.status, r.status);
-  return { items: ((j.message || {}).items || []).map((m) => ({ title: (m.title || [])[0] || "(无标题)", url: "https://doi.org/" + m.DOI, doi: m.DOI, extra: `作者：${(m.author || []).slice(0, 4).map((a) => cCl((a.given || "") + " " + (a.family || ""), 40)).join("、")}｜${(m["container-title"] || [])[0] || "?"}｜${(((m.issued || {})["date-parts"] || [[]])[0] || [])[0] || "?"}` })) };
-}
-async function cPubMed(q, env, x) {
-  const s = await cGet(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${cEu(cKeywords(x.qEn))}&retmax=4&retmode=json&sort=relevance`, {}, 10000);
-  if (!s.r.ok) throw new ConnErr("PubMed 返回 " + s.r.status, s.r.status);
-  const ids = (s.j && s.j.esearchresult && s.j.esearchresult.idlist) || []; if (!ids.length) return { items: [] };
-  const d = await cGet(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ids.join(",")}&retmode=json`, {}, 10000);
-  if (!d.r.ok || !d.j) throw new ConnErr("PubMed 摘要接口返回 " + d.r.status, d.r.status);
-  return { items: ids.map((id) => d.j.result && d.j.result[id]).filter(Boolean).map((p) => ({ title: cStrip(p.title, 200), url: `https://pubmed.ncbi.nlm.nih.gov/${p.uid}/`, doi: ((p.articleids || []).find((a) => a.idtype === "doi") || {}).value || "", extra: `作者：${(p.authors || []).slice(0, 5).map((a) => a.name).join("、")}｜${p.fulljournalname || p.source || "?"}｜${p.pubdate || "?"}｜PMID ${p.uid}` })) };
-}
-async function cWiki(q, env, x) {
-  const lang = cIsCJK(q) ? "zh" : "en", kw = cKeywords(q).replace(/维基百科|维基|百科|是谁|什么是|是什么|定义|概念/g, " ").trim() || cKeywords(q);
-  const s = await cGet(`https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${cEu(kw)}&srlimit=3&format=json&utf8=1&origin=*`, {}, 8000);
-  if (!s.r.ok) throw new ConnErr("Wikipedia 返回 " + s.r.status, s.r.status);
-  const hits = (s.j && s.j.query && s.j.query.search) || []; const items = [];
-  for (const [i, h] of hits.entries()) {
-    const url = `https://${lang}.wikipedia.org/wiki/${cEu(h.title.replace(/ /g, "_"))}`; let extra = cStrip(h.snippet, 160);
-    if (i === 0) { try { const w = await cGet(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${cEu(h.title)}`, {}, 6000); if (w.r.ok && w.j && w.j.extract) extra = cCl(w.j.extract, 320); } catch {} }
-    items.push({ title: h.title, url, extra });
-  }
-  return { items };
-}
 
 // ---------- 官方接口：高德 → 腾讯（签名）→ 百度地图 / 天气 ----------
 const mapMask = (s, ...secrets) => secrets.reduce((x, k) => k ? String(x).split(k).join("***") : x, String(s));
@@ -1652,12 +1505,6 @@ function cTencentKit(env) {
   const route = async (mode, from, to) => { const path = mode === "driving" ? "ws/direction/v1/driving/" : mode === "walking" ? "ws/direction/v1/walking/" : "ws/direction/v1/transit/"; return call(path, { from: `${from.lat},${from.lng}`, to: `${to.lat},${to.lng}`, policy: 0 }); };
   const mk = () => ""; // 未取得上游真实详情链接时，不自行拼接 marker URL
   return { name: "腾讯地图", call: async () => { throw new ConnErr("腾讯地图请使用 route 接口", 400); }, geo, poi, around, regeo, suggest, district, ip, convert, staticMap, route, mk };
-}
-async function cMapKit(env) {
-  const kits = [cAmapKit(env), cTencentKit(env), cBaiduKit(env)].filter(Boolean), errs = [];
-  if (!kits.length) return null;
-  const run = async (method, ...args) => { for (const k of kits) { if (typeof k[method] !== "function") continue; try { const r = await k[method](...args); if (method !== "poi" || (r && r.list && r.list.length)) return r && typeof r === "object" ? { ...r, provider: k.name } : r; errs.push(k.name + "没有结果"); } catch (e) { errs.push(k.name + "：" + e.message); } } throw new ConnErr(errs.join("｜"), 502); };
-  return { name: "地图（高德→腾讯→百度）", call: (...a) => run("call", ...a), geo: (...a) => run("geo", ...a), poi: (...a) => run("poi", ...a), regeo: (...a) => run("regeo", ...a), suggest: (...a) => run("suggest", ...a), district: (...a) => run("district", ...a), ip: (...a) => run("ip", ...a), weather: (...a) => run("weather", ...a), convert: (...a) => run("convert", ...a), staticMap: (...a) => run("staticMap", ...a), route: (...a) => run("route", ...a), mk: (...a) => { for (const k of kits) return k.mk(...a); } };
 }
 // v57：百度「地点检索」免费档每天只有 100 次、并发 3（控制台实测 0.01万次/天、3QPS）。这里：地点类请求串行 ≥450ms 间隔；遇到 302 额度用完就 10 分钟内不再打；结果存 KV 6 小时
 let BD_PLACE_Q = Promise.resolve(), BD_PLACE_LAST = 0, BD_DOWN_UNTIL = 0;
@@ -1765,215 +1612,10 @@ const gcjDelta = (lat, lng) => {
 };
 const bdToWgs = (lat, lng) => { const g = bdToGcj(lat, lng), d = gcjDelta(g.lat, g.lng); return { lat: g.lat - d.dLat, lng: g.lng - d.dLng }; };
 const wgsToBd = (lat, lng) => { const d = gcjDelta(lat, lng), gl = lat + d.dLat, go = lng + d.dLng, X = (Math.PI * 3000) / 180, z = Math.sqrt(go * go + gl * gl) + 0.00002 * Math.sin(gl * X), th = Math.atan2(gl, go) + 0.000003 * Math.cos(go * X); return { lat: z * Math.sin(th) + 0.006, lng: z * Math.cos(th) + 0.0065 }; };
-const raceMs = (pr, ms, msg) => { pr.catch(() => {}); return Promise.race([pr, new Promise((_, rej) => setTimeout(() => rej(new Error(msg)), ms))]); };   // 连接器总共只有 12 秒：百度地点检索最多等 6 秒，不行就用备用
-// ---------- v52：百度地图 MCP（百度自己托管的 Streamable HTTP 服务）+ 三路并行找地点：REST → MCP → OpenStreetMap ----------
-// 背景：同一把 AK、同样的参数，浏览器里 place/v2/search 能出结果，Worker 里被判 status 2 —— 说明百度地点检索 REST 不接受 Worker 的出口；MCP 是百度服务器替你去查，不走 Worker 的出口。
-async function bdMcpSession(ak) {
-  const url = `https://mcp.map.baidu.com/mcp?ak=${encodeURIComponent(ak)}`; let sid = "", id = 0;
-  const hide = (x) => String(x).split(ak).join("***");
-  const post = async (body) => {
-    const r = await fetch(url, { method: "POST", signal: T(7000), headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream", ...(sid ? { "Mcp-Session-Id": sid } : {}) }, body: JSON.stringify(body) });
-    const h = r.headers.get("mcp-session-id"); if (h) sid = h;
-    const raw = await r.text(); let msg = null;
-    if (/event-stream/i.test(r.headers.get("content-type") || "")) { for (const blk of raw.split(/\r?\n\r?\n+/)) { const d = blk.split(/\r?\n/).filter((l) => l.startsWith("data:")).map((l) => l.slice(5).trim()).join(""); if (!d) continue; try { const j = JSON.parse(d); if (j.result || j.error) msg = j; } catch {} } }
-    else { try { msg = JSON.parse(raw); } catch {} }
-    return { r, msg, raw };
-  };
-  const call = async (method, params) => {
-    const { r, msg, raw } = await post({ jsonrpc: "2.0", id: ++id, method, params });
-    if (!msg) throw new ConnErr(`百度 MCP 没返回可解析的内容（HTTP ${r.status}｜${cCl(hide(raw).replace(/\s+/g, " "), 120)}）`, 502);
-    if (msg.error) throw new ConnErr("百度 MCP 报错：" + cCl(hide(JSON.stringify(msg.error)), 160), 502);
-    return msg.result;
-  };
-  const init = async () => { await call("initialize", { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "openmanus-gateway", version: "1.0" } }); try { await post({ jsonrpc: "2.0", method: "notifications/initialized" }); } catch {} };
-  return { init, call };
-}
-async function bdMcpSearch(ak, kw, o) {
-  const s = await bdMcpSession(ak); await s.init();
-  const tl = (await s.call("tools/list", {})).tools || [], tool = tl.find((t) => t.name === "map_search_places") || tl.find((t) => /search.*place|place.*search/i.test(t.name));
-  if (!tool) throw new ConnErr("百度 MCP 里没有地点检索工具（有：" + tl.map((t) => t.name).join("、") + "）", 502);
-  const sc = tool.inputSchema || {}, props = Object.keys(sc.properties || {}), pick = (...n) => n.find((x) => props.includes(x)), args = {}, kq = pick("query", "keyword", "q");
-  if (!kq) throw new ConnErr("百度 MCP 地点检索工具没有 query 参数（有：" + props.join("、") + "）", 502);
-  args[kq] = kw;
-  if (o.loc) { const kl = pick("location", "center"), kr = pick("radius"); if (kl) args[kl] = `${o.loc.lat},${o.loc.lng}`; if (kr) args[kr] = o.radius || 1000; }
-  const pm = (sc.properties || {}).is_chinese_mainland; if (pm) args.is_chinese_mainland = pm.type === "string" ? "1" : pm.type === "integer" || pm.type === "number" ? 1 : true;   // v85：MCP 地点检索的 is_chinese_mainland（国内=1/true）
-  const kg = pick("region", "city"); if (kg && (o.region || !o.loc || (sc.required || []).includes(kg))) args[kg] = o.region || "全国";
-  const res = await s.call("tools/call", { name: tool.name, arguments: args });
-  const txt = ((res && res.content) || []).filter((c) => c.type === "text").map((c) => c.text).join("\n");
-  if (res && res.isError) throw new ConnErr("百度 MCP 工具报错：" + cCl(txt, 160), 502);
-  let j = null; try { j = JSON.parse(txt); } catch { const a = txt.indexOf("{"), b = txt.lastIndexOf("}"); if (a >= 0 && b > a) { try { j = JSON.parse(txt.slice(a, b + 1)); } catch {} } }
-  if (!j) throw new ConnErr("百度 MCP 返回的不是 JSON：" + cCl(txt.replace(/\s+/g, " "), 120), 502);
-  if (j.status != null && j.status !== 0) throw new ConnErr(`百度 MCP 返回 ${j.status}：${cCl(j.message || "", 80)}`, 502);
-  const arr = [j.results, j.result, j.pois, j.data && j.data.results, j.data].find(Array.isArray) || [], R = 6371000, rad = (x) => (x * Math.PI) / 180;
-  const list = arr.map((x) => { const l = x.location || (x.lat != null ? { lat: x.lat, lng: x.lng } : null); if (!l || !x.name) return null; const dist = o.loc ? Math.round(2 * R * Math.asin(Math.sqrt(Math.sin(rad(l.lat - o.loc.lat) / 2) ** 2 + Math.cos(rad(o.loc.lat)) * Math.cos(rad(l.lat)) * Math.sin(rad(l.lng - o.loc.lng) / 2) ** 2))) : undefined; return { name: x.name, address: x.address || "", telephone: x.telephone, location: { lat: Number(l.lat), lng: Number(l.lng) }, detail_info: { distance: dist } }; }).filter(Boolean);
-  const inR = o.loc ? list.filter((x) => x.detail_info.distance <= (o.radius || 1000)).sort((a, b) => a.detail_info.distance - b.detail_info.distance) : list;
-  return inR.slice(0, 5);
-}
-async function nearbyAlt(env, k, kw, o, radius, region, restMs) {
-  const ak = String(env.BAIDU_MAP_AK || "").trim(), errs = [];
-  const restP = k.poi(kw, { loc: o, radius, region });
-  const mcpP = bdPlaceOn(env) ? bdMcpSearch(ak, kw, { loc: o, radius, region }).then((list) => ({ list }), (e) => ({ err: String(e.message).split(ak).join("***") })) : Promise.resolve({ err: "百度地点检索已关闭（BAIDU_PLACE 未开）" });
-  const osmP = osmNearby(kw, o, radius).then((f) => ({ f }), (e) => ({ err: e.message }));
-  let p = null, restNote = ""; try { p = await raceMs(restP, restMs, "百度 REST 地点检索超过 " + restMs / 1000 + " 秒没返回"); } catch (e) { restNote = e.message; errs.push(e.message); }
-  if (p && !p.list.length) restNote = p.via || "没有结果";
-  if (p && p.list.length) return { kind: "rest", p, errs };
-  const m = await Promise.race([mcpP, new Promise((r) => setTimeout(() => r({ err: "百度 MCP 超过 3 秒没返回" }), 3000))]);
-  if (m.list && m.list.length) return { kind: "mcp", list: m.list, errs, restNote };
-  errs.push("MCP：" + (m.err || "没有结果"));
-  const f = await osmP; if (f.f && f.f.list.length) return { kind: "osm", f: f.f, errs, restNote, mcpErr: m.err || "没有结果" };
-  if (f.err) errs.push("OSM：" + f.err);
-  return { kind: "none", p, errs };
-}
-const OSM_KINDS = [
-  [/公共自行车|共享单车|自行车站|单车/, "公共自行车站", ['["amenity"="bicycle_rental"]']],
-  [/充电桩|充电站|电动车充电|新能源汽车充电/, "充电桩", ['["amenity"="charging_station"]']],
-  [/停车场|停车位|停车/, "停车场", ['["amenity"="parking"]']],
-  [/银行|ATM|取款机|自动取款/, "银行/ATM", ['["amenity"="bank"]', '["amenity"="atm"]']],
-  [/公交|巴士/, "公交站", ['["highway"="bus_stop"]', '["public_transport"="platform"]["bus"="yes"]']],
-  [/地铁/, "地铁站", ['["station"="subway"]', '["railway"="subway_entrance"]']],
-];
-async function osmNearby(kw, loc, radius) {
-  const k = OSM_KINDS.find(([re]) => re.test(kw)); if (!k) return null;
-  const w = bdToWgs(loc.lat, loc.lng), rr = Math.min(radius, 3000);
-  const body = "[out:json][timeout:12];(" + k[2].map((f) => `node(around:${rr},${w.lat.toFixed(6)},${w.lng.toFixed(6)})${f};`).join("") + ");out 80;";
-  let j = null, err = "";
-  try {
-    j = await Promise.any(["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"].map(async (ep) => {
-      const r = await fetch(ep, { method: "POST", body: "data=" + encodeURIComponent(body), headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "OpenManusGateway/1.0" }, signal: T(9000) });
-      if (!r.ok) throw new Error("HTTP " + r.status); return await r.json();
-    }));
-  } catch (e) { err = (e.errors || []).map((x) => x.message).join("；") || e.message; }
-  if (!j) throw new ConnErr("OpenStreetMap 备用数据也没连上（" + err + "）", 502);
-  const R = 6371000, rad = (x) => (x * Math.PI) / 180, seen = new Set(), all = [];
-  for (const e of j.elements || []) {
-    if (e.type !== "node" || typeof e.lat !== "number") continue;
-    const dLa = rad(e.lat - w.lat), dLo = rad(e.lon - w.lng), a = Math.sin(dLa / 2) ** 2 + Math.cos(rad(w.lat)) * Math.cos(rad(e.lat)) * Math.sin(dLo / 2) ** 2, t = e.tags || {};
-    all.push({ id: e.id, name: t["name:zh"] || t.name || "", d: Math.round(2 * R * Math.asin(Math.sqrt(a))), lat: e.lat, lng: e.lon, ref: t.route_ref || t.ref || t.lines || "" });
-  }
-  const out = []; for (const x of all.filter((x) => x.d <= radius).sort((a, b) => a.d - b.d)) { if (x.name) { if (seen.has(x.name)) continue; seen.add(x.name); } out.push(x); }   // 同名站点（马路两侧）只算一个
-  return { kind: k[1], distinct: out.length, list: out.slice(0, 5) };
-}
-const osmItem = (x, kind) => ({ title: x.name || kind + "（OSM 上没有名字）", url: `https://www.openstreetmap.org/node/${x.id}`, src: "OpenStreetMap（备用，非百度）", extra: `距离约 ${x.d} 米${x.ref ? "｜线路 " + x.ref : ""}｜OpenStreetMap 志愿者数据，可能不全、不是实时` });
-async function baiduDiag(env, full = false) {
-  const ak = String(env.BAIDU_MAP_AK || "").trim();
-  if (!ak) return { items: [], note: "Worker 里没读到 BAIDU_MAP_AK（Secret 名字必须一模一样，改完要重新部署）" };
-  const mask = (x) => String(x).split(ak).join("***"), UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
-  const probe = async (label, pq, plain, extraH) => {
-    if (!full && /^[③④⑦⑧⑨⑩⑫⑬⑭⑮]/.test(label)) return null;   // v57：这些都是地点类请求，每个都吃每天 100 次的额度
-    try { const r = await fetch(`https://api.map.baidu.com/${pq}&ak=${encodeURIComponent(ak)}`, { signal: T(8000), headers: plain ? {} : { "User-Agent": UA, Accept: "application/json, text/plain, */*", "Accept-Language": "zh-CN,zh;q=0.9", ...(extraH || {}) } }); const raw = mask((await r.text()).replace(/\s+/g, " ").trim()); const lg = []; r.headers.forEach((v, hk) => { if (/logid|x-bd|request-id/i.test(hk)) lg.push(hk + "=" + v); }); const tt = new Date(), bj = new Date(tt.getTime() + 8 * 3600000).toISOString().replace("T", " ").slice(0, 19); return `${label}｜HTTP ${r.status}｜${raw.startsWith("<") ? "XML/HTML" : "JSON"}｜${cCl(raw, 150)}｜响应头：${lg.join("；") || "没有 logid 相关头"}｜时间：北京时间 ${bj}`; }
-    catch (e) { return `${label}｜请求失败：${e.message}`; }
-  };
-  let colo = ""; try { const tr = await (await fetch("https://www.cloudflare.com/cdn-cgi/trace", { signal: T(4000) })).text(); colo = tr.split("\n").filter((l) => /^(colo|loc|ip)=/.test(l)).join("，"); } catch {}
-  let ip = ""; try { ip = (await (await fetch("https://api.ipify.org?format=json", { signal: T(4000) })).json()).ip || ""; } catch {}
-  const lines = (await Promise.all([
-    probe("①地理编码", `geocoding/v3/?address=${cEu("上海浦东新区陆家嘴")}&output=json`),
-    (async () => {   // v59：地点检索类探针串行（每次间隔 600ms，免得再被并发 3 限流），并加两个对比：带 Referer、经第三方中转（换一个出口 IP）
-      const q2 = `place/v2/search?query=${cEu("公交站")}&region=${cEu("上海")}&output=json`, out = [], nap = () => new Promise((r) => setTimeout(r, 600));
-      out.push(await probe("②地点检索（和你浏览器里成功的写法一样：query+region+output）", q2)); await nap();
-      out.push(await probe("⑯同②，另加 Referer: https://lbsyun.baidu.com/ 头", q2, false, { Referer: "https://lbsyun.baidu.com/" })); await nap();
-      try { const r = await fetch(`https://r.jina.ai/https://api.map.baidu.com/${q2}&ak=${encodeURIComponent(ak)}`, { signal: T(15000), headers: { Accept: "text/plain" } }); out.push("⑰同②，但经第三方中转 r.jina.ai 发出（出口 IP 不是 Cloudflare）｜HTTP " + r.status + "｜" + mask((await r.text()).replace(/\s+/g, " ").trim().slice(0, 260))); } catch (e) { out.push("⑰经第三方中转｜请求失败：" + e.message); }
-      out.push(await probe("⑲百度 Python 示例的参数原样（place/v3/region：output+page_num+page_size+region_limit+scope=2+type，用你自己的 AK）", `place/v3/region?query=${cEu("ATM机")}&region=${cEu("北京市海淀区")}&output=json&page_num=0&page_size=10&region_limit=true&scope=2&type=${cEu("银行")}`)); await nap();
-      if (full) out.push(await probe("⑳同⑲，但 User-Agent 换成 python-requests（示例脚本发出去的样子）", `place/v3/region?query=${cEu("ATM机")}&region=${cEu("北京市海淀区")}&output=json&page_num=0&page_size=10&region_limit=true&scope=2&type=${cEu("银行")}`, false, { "User-Agent": "python-requests/2.31.0", Accept: "*/*" }));
-      return out.join("\n");
-    })(),
-    raceMs(bdMcpSearch(ak, "公交站", { loc: { lat: 31.239, lng: 121.499 }, radius: 1000, region: "上海" }).then((l) => "⑱百度 MCP 真实地点检索（公交站，外滩 1000 米）｜共 " + l.length + " 个：" + l.map((x) => x.name + (x.address ? "（" + cCl(x.address, 30) + "）" : "")).join("、"), (e) => "⑱百度 MCP 真实地点检索｜失败：" + mask(e.message)), 12000, "超过 12 秒没返回").catch((e) => "⑱百度 MCP 真实地点检索｜" + e.message),
-    probe("③同②，但不带浏览器头", `place/v2/search?query=${cEu("公交站")}&region=${cEu("上海")}&output=json`, true),
-    probe("④周边检索 location+radius", `place/v2/search?query=${cEu("公交站")}&location=31.239,121.499&radius=1000&output=json`),
-    probe("⑦同②，加 scope=2&page_size=10（对比有没有这些参数）", `place/v2/search?query=${cEu("公交站")}&region=${cEu("上海")}&output=json&scope=2&page_size=10`),
-    probe("⑧地点检索 region 改城市代码 131", `place/v2/search?query=${cEu("公交站")}&region=131&output=json`),
-    probe("⑨地点检索换关键词（银行）", `place/v2/search?query=${cEu("银行")}&region=${cEu("上海")}&output=json`),
-    probe("⑩地点检索 v3 周边", `place/v3/around?query=${cEu("公交站")}&location=31.239,121.499&radius=1000&output=json`),
-    (async () => { try { const r = await fetch("https://httpbin.org/headers", { signal: T(6000) }); const h = (await r.json()).headers || {}; return "⑪Worker 实际发出的请求头（httpbin 回显）｜" + Object.entries(h).map(([a, b]) => a + "=" + cCl(String(b), 60)).join("；"); } catch (e) { return "⑪Worker 实际发出的请求头｜没取到：" + e.message; } })(),
-    probe("⑫百度官方文档示例原样：place/v2/search ATM机+银行+北京", `place/v2/search?query=${cEu("ATM机")}&tag=${cEu("银行")}&region=${cEu("北京")}&output=json`),
-    probe("⑬官方文档示例原样：place/v3/around 银行 39.915,116.404 半径2000", `place/v3/around?query=${cEu("银行")}&location=39.915,116.404&radius=2000`),
-    probe("⑭官方文档示例原样：place/v3/region ATM机+银行+北京", `place/v3/region?query=${cEu("ATM机")}&type=${cEu("银行")}&region=${cEu("北京")}`),
-    probe("⑮官方文档示例：多维检索 api_place_pro/v1/region", `api_place_pro/v1/region?page_num=0&region_limit=true&scope=2&output=json&extensions_adcode=true&region=${cEu("郑州")}&query=${cEu("宠物友好餐厅")}`),
-    probe("⑤逆地理编码", `reverse_geocoding/v3/?location=31.239,121.499&output=json&extensions_poi=1`),
-    probe("㉑路线：步行 directionlite/v1/walking（人民广场→外滩，附近结果的真实步行距离靠它）", `directionlite/v1/walking?origin=31.2304,121.4737&destination=31.2397,121.4998`),
-    probe("㉒路线：批量算路 routematrix/v2/walking（1 个起点 × 2 个终点）", `routematrix/v2/walking?origin=31.2304,121.4737&destination=31.2397,121.4998|31.2380,121.4900`),
-    raceMs((async () => { const s = await bdMcpSession(ak); await s.init(); const tl = (await s.call("tools/list", {})).tools || []; return "㉓百度 MCP 路线工具参数｜" + ["map_directions", "map_directions_matrix"].map((n) => { const t = tl.find((x) => x.name === n), sc = (t && t.inputSchema) || {}; return n + "：" + (Object.keys(sc.properties || {}).join("、") || "（没找到）") + "（必填：" + ((sc.required || []).join("、") || "无") + "）"; }).join("；"); })(), 8000, "超过 8 秒没返回").catch((e) => "㉓百度 MCP 路线工具参数｜失败：" + cCl(String(e.message).split(ak).join("***"), 200)),
-    raceMs((async () => { const s = await bdMcpSession(ak); await s.init(); const tl = (await s.call("tools/list", {})).tools || [], t = tl.find((x) => x.name === "map_search_places"), sc = (t && t.inputSchema) || {}; return `⑥百度 MCP（Streamable HTTP，百度服务器替你查）｜通｜工具：${tl.map((x) => x.name).join("、")}｜map_search_places 参数：${Object.keys(sc.properties || {}).join("、") || "（没找到这个工具）"}（必填：${(sc.required || []).join("、") || "无"}）`; })(), 8000, "超过 8 秒没返回").catch((e) => "⑥百度 MCP（Streamable HTTP）｜失败：" + cCl(String(e.message).split(ak).join("***"), 220)),
-  ])).filter(Boolean);
-  if (!full) lines.push("（为省额度，已略过 ③④⑦–⑩⑫–⑮ 这些地点类探针：百度地点检索免费档每天只有 100 次、并发 3。要跑完整自检，请说“百度完整自检”）");
-  const sent = `实际发出的②URL：https://api.map.baidu.com/place/v2/search?query=${cEu("公交站")}&region=${cEu("上海")}&output=json&ak=***`;
-  const shape = /^[A-Za-z0-9]{32}$/.test(ak) ? "32 位字母数字（正常）" : "不是常见的 32 位字母数字，检查有没有多余的引号、空格、换行";
-  return { items: [{ title: "百度地图自检结果（Worker 真实向百度发请求，百度的原始回复）", url: "https://lbsyun.baidu.com/apiconsole/key", src: "百度地图开放平台（自检）", verbatim: true, extra: `AK：长度 ${ak.length}，${shape}，开头 ${ak.slice(0, 4)}…结尾 ${ak.slice(-4)}（和百度控制台里那把 AK 对一下是不是同一把）｜Worker 出口 IP：${ip || "没取到"}｜Worker 所在 Cloudflare 节点：${colo || "没取到"}\n${sent}\n` + lines.join("\n") }], note: "【系统会把自检原文原样贴在回答末尾，你只用一两句话说“自检结果见下方原文”，不要改写、不要猜原因】百度官方状态码对照（只能按这个解释，不要编别的原因）：2=请求参数非法；4 或 302=当天调用次数超限；401=并发超限；210=IP 校验失败；211=SN 校验失败；240=该 AK 没勾选这项服务。注意：百度地点检索免费档每天只有 100 次、并发 3；同一个官方示例请求，在不同时间可能一次回 401 并发超限、另一次回 status 2，所以 status 2 不一定是参数写错，也可能是被限流。⑯是加了 Referer 的对比，⑰是换了出口 IP 的对比，⑱是百度 MCP 的真实检索：哪一条出了结果、哪一条没出，就说明问题出在“请求头”还是“出口 IP”，只陈述这个对比，不要下别的结论。只有真的出现 210 / 240 才能说 IP 白名单 / 服务没勾选；没有出现就不要提。" };
-}
 // v60：百度「轻量级路线规划-公交」directionlite/v1/transit：每个公交段（vehicle）带 start_time 首班车 / end_time 末班车（文档：公交路线规划，2026/03/19）
 // v63：百度公交方案的 steps 里，步行段也带一个空的 vehicle 对象，之前把它当成“公交 ? → ?”列了出来；现在只收有线路名的车辆段。
 // 文档：step.type 3=公交 5=步行；vehicle.name 是线路名。start_time 和 end_time 一样时，只是百度给了一个时刻，不能当“首班=末班”。
 const bdBus = (x) => x && x.vehicle && typeof x.vehicle === "object" && String(x.vehicle.name || "").trim() && x.type !== 5;
-const bdTimes = (v, none) => { const a = v.start_time || "", b = v.end_time || ""; return a && b && a === b ? `百度只给了一个时刻 ${a}（不一定是首末班）` : `首班 ${a || none}｜末班 ${b || none}`; };
-async function cBaiduTransit(env, o, d, prov) {
-  const kit = cBaiduKit(env); if (!kit) throw new ConnErr("没有配置 BAIDU_MAP_AK", 500);
-  const ct = /高德|腾讯/.test(prov || "") ? "gcj02" : "bd09ll";   // 起终点是高德/腾讯地理编码出来的就是国测局坐标
-  const j = await kit.call("directionlite/v1/transit", `origin=${o.lat},${o.lng}&destination=${d.lat},${d.lng}&coord_type=${ct}&steps_info=1`);
-  const routes = (j.result && j.result.routes) || [], none = "未提供";
-  const items = routes.slice(0, 2).map((rt, i) => {
-    const vs = (rt.steps || []).flat().filter(bdBus).map((x) => x.vehicle);
-    const lines = vs.map((v) => `${v.name}｜${bdTimes(v, none)}｜${v.start_name || "?"}→${v.end_name || "?"}${v.stop_num ? "｜经过 " + v.stop_num + " 站" : ""}`).join("；");
-    return { title: `公交方案${i + 1}（${vs.map((v) => v.name).filter(Boolean).join(" → ") || "步行"}）`, url: `https://api.map.baidu.com/direction?origin=latlng:${o.lat},${o.lng}|name:${cEu(o.name || "起点")}&destination=latlng:${d.lat},${d.lng}|name:${cEu(d.name || "终点")}&mode=transit&coord_type=${ct}&output=html&src=webapp.openmanus.gateway`, src: "百度地图 公交路线规划", extra: `约 ${((rt.distance || 0) / 1000).toFixed(1)} 公里｜约 ${Math.max(1, Math.round((rt.duration || 0) / 60))} 分钟${rt.price ? "｜票价 " + rt.price + " 元" : ""}｜${lines || "没有公交车辆信息"}`, mapAt: Date.now() };
-  });
-  return { items, note: items.length ? "首班 / 末班时间来自百度公交路线规划的 start_time / end_time；地铁或部分线路可能没有这两个字段（写“未提供”）" : "百度没有给出公交方案" };
-}
-async function cMapCore(q, env) {
-  const k = await cMapKit(env); if (!k) throw new ConnErr("AMAP_KEY、TENCENT_MAP_KEY/TENCENT_MAP_SK、BAIDU_MAP_AK 都没有配置", 500);
-  const t = String(q);
-  const detailed = /详细版|详情|详细|带地址|带电话|带首末班/.test(t), cat = /农家乐|餐馆|饭店|餐厅|民宿|景点|公交站|地铁站|医院|加油站|充电桩|充电站|停车场|停车位|银行|ATM|取款机/.test(t), wantsList = /有哪些|哪里有|推荐|附近|周边|周围|有什么/.test(t), city = t.match(/(?:北京|上海|天津|重庆|香港|澳门|[一-鿿]{2,3}市|[一-鿿]{2,4}(?:区|县))/);
-  if (/军民农家乐/.test(t) && !city && !/附近|周边|周围/.test(t)) return { items: [], note: "你要查哪个城市的军民农家乐？" };
-  if (/诊断|自检|排查/.test(t) && /百度/.test(t)) return await baiduDiag(env, /完整|全部|full/i.test(t));
-  const addrLabel = /公交|巴士|地铁/.test(t) ? "途经线路" : "地址";
-  const item = (p, extra) => ({ title: p.name, url: p.url || "", extra: extra || `${addrLabel}：${p.address || "?"}${p.telephone ? "｜电话：" + p.telephone : ""}`, mapDetail: { ...(p.mapDetail || {}), address: p.address || "", telephone: p.telephone || "", distance: p.detail_info && p.detail_info.distance }, mapSource: p.provider || "百度地图", mapAt: Date.now() });
-  const dist = (p) => { const d = p.detail_info && p.detail_info.distance; return d != null ? `｜距离约 ${d} 米` : ""; };
-  const rm = t.match(/从\s*(.{1,20}?)\s*(?:走到|骑到|开到|到|去|至)\s*(.{1,24}?)\s*(?:有多远|多远|多长|多久|怎么走|怎么去|的?距离|的?路线|需要|要多|走路|步行|骑车|开车|$|[，。？?！!])/);
-  if (rm) {
-    const from = rm[1].replace(/^(我|请问|帮我|查一下)/, "").trim(), toRaw = rm[2].replace(/(?:坐|乘|搭)?(?:公交|地铁|公共交通).*$|首末班.*|首班.*|末班.*|最早一班.*|最晚一班.*|怎么.*/, "").trim(), nearest = toRaw.match(/^(?:最近的|附近的|离.{1,10}最近的)(.+)$/);
-    const o = await k.geo(from), items = []; let to = toRaw, d;
-    if (nearest) {
-      const nk = nearest[1].replace(/(多远|的)$/g, ""), A = await nearbyAlt(env, k, nk, o, 3000, undefined, 5000);
-      if (A.kind === "rest") { const x = A.p.list[0]; to = x.name; d = { lat: x.location.lat, lng: x.location.lng }; items.push(item(x, `最近的一个｜${addrLabel}：${x.address || "?"}${dist(x)}`)); }
-      else if (A.kind === "mcp") { const x = A.list[0]; to = x.name; d = { lat: x.location.lat, lng: x.location.lng }; items.push(item(x, `最近的一个（百度地图 MCP）｜${addrLabel}：${x.address || "?"}${dist(x)}`)); }
-      else if (A.kind === "osm") { const x = A.f.list[0]; to = x.name || A.f.kind; d = wgsToBd(x.lat, x.lng); items.push(osmItem(x, A.f.kind)); items[0].extra = `最近的一个（高德/腾讯地点检索没给出结果，改用 OpenStreetMap 备用数据）｜` + items[0].extra; }
-      else { if (!A.p) throw new ConnErr(A.errs.join("｜"), 502); return { items: [], note: `「${from}」3 公里内没有查到${nearest[1]}（${A.p.via}）` }; }
-    }
-    else d = await k.geo(toRaw);
-    const mt = t.split(from).join(" ").split(toRaw).join(" "), mode = /开车|驾车|自驾|打车/.test(mt) ? "driving" : /骑/.test(mt) ? "riding" : /公交|地铁|公共交通/.test(mt) ? "transit" : "walking", mn = { driving: "驾车", riding: "骑行", transit: "公交", walking: "步行" }[mode];
-    if (mode === "transit" && String(env.BAIDU_MAP_AK || "").trim()) {
-      try { const bt = await cBaiduTransit(env, { ...o, name: from }, { ...d, name: to }, o.provider || d.provider); if (bt.items.length) return { items: [...items, ...bt.items], note: bt.note }; } catch (e) { items.push({ title: "百度公交路线规划没成功", url: "https://lbsyun.baidu.com/faq/api?title=webapi/directionlite-v1/transit", src: "百度地图 公交路线规划", extra: cCl(String(e.message).split(String(env.BAIDU_MAP_AK)).join("***"), 140) + "（下面改用别的地图的公交路线，不含首末班）" }); }
-    }
-    const j = await k.route(mode, o, d), rt = (j.route && (j.route.paths && j.route.paths[0] || j.route.routes && j.route.routes[0] || j.route[0])) || (j.result && j.result.routes && j.result.routes[0]);
-    if (!rt) return { items, note: "百度地图没有给出路线" };
-    const steps = (rt.steps || []).flat().map((s) => cStrip(s.instruction || "", 60)).filter(Boolean).slice(0, 6);
-    items.unshift({ title: `${from} → ${to}（${mn}）`, url: `https://api.map.baidu.com/direction?origin=latlng:${o.lat},${o.lng}|name:${cEu(from)}&destination=latlng:${d.lat},${d.lng}|name:${cEu(to)}&mode=${mode}&output=html&src=webapp.openmanus.gateway`, extra: `距离：约 ${(rt.distance / 1000).toFixed(2)} 公里（${rt.distance} 米）｜预计 ${Math.max(1, Math.round(rt.duration / 60))} 分钟${steps.length ? "｜路线：" + steps.join("；") : ""}` });
-    return { items };
-  }
-  const cm = t.match(/(.{1,16}?)(?:的)?(?:附近|周边|周围)/);
-  if (cm) {
-    const center = cm[1].replace(/(请问|帮我|查一下|查|我|在|看看|离|这里|这|那里)/g, "").trim();
-    if (!center) return { items: [], note: "没说你在哪儿，百度地图不知道“附近”是哪里——请告诉我具体地点（例如“中山路附近”）" };
-    const rad = t.match(/(\d+)\s*(米|m\b|公里|km)/i), radius = rad ? Math.round(Number(rad[1]) * (/公里|km/i.test(rad[2]) ? 1000 : 1)) : 1000;
-    const kw = (t.split(/附近|周边|周围/)[1] || "").replace(/\d+\s*(?:米|m\b|公里|km)(?:内|以内)?|有几个|有多少个?|有哪些|有没有|有什么|有|几个|多少|的|[？?。！!，,]|吗|呢|请问/gi, " ").trim() || (t.split(/附近|周边|周围/)[0].match(/(?:的|查)(.+)$/) || [])[1] || "";
-    if (!kw) return { items: [], note: `想查「${center}」附近的什么？比如“${center}附近 500 米有几个公共自行车站”` };
-    const o = await k.geo(center), region = (center.match(/^(北京|上海|天津|重庆|[一-鿿]{2,3}市)/) || [])[1], A = await nearbyAlt(env, k, kw, o, radius, region, 6000), head = cCl(String(A.restNote || "没有结果").split(/[；｜]/)[0].replace(/^地点检索全被拒（/, ""), 80);
-    if (A.kind === "rest") { const p = A.p; return { items: p.list.map((x) => item(x, `${addrLabel}：${x.address || "?"}${dist(x)}`)), note: `「${center}」${radius} 米内查到 ${p.list.length} 个（${p.via}；接口一次最多返回 5 个，实际数量可能更多）` }; }
-    if (A.kind === "mcp") return { items: A.list.map((x) => item(x, `${addrLabel}：${x.address || "?"}${dist(x)}`)), note: `「${center}」${radius} 米内查到 ${A.list.length} 个（百度地图 MCP；百度 REST 地点检索没给出结果：${head}；接口一次最多列 5 个）` };
-    if (A.kind === "osm") return { items: A.f.list.map((x) => osmItem(x, A.f.kind)), note: `高德/腾讯地点检索没有给出结果（${head}），已改用 OpenStreetMap 备用数据（志愿者数据，可能不全）：「${center}」${radius} 米内按站名去重共 ${A.f.distinct} 个，最多列 5 个` };
-    if (!A.p) throw new ConnErr(A.errs.join("｜"), 502);
-    return { items: [], note: `「${center}」${radius} 米内没有查到${kw}（${A.p.via}，接口原始返回 ${A.p.raw} 条）` };
-  }
-  if (/附近|周边|周围/.test(t)) return { items: [], note: "你现在在哪个地点？" };   // v65：“附近 500 米…”前面没有地名，不能把它当关键词去全国搜
-
-  const kw = cKeywords(t).replace(/在哪里?|在哪儿|的?地址|位置|有哪些|哪里有|推荐|附近|周边|周围/g, " ").trim() || cCl(t, 40), region = city ? city[0].replace(/市$/, "") : undefined;
-  let p; try { p = await k.poi(kw, { region, detailed }); } catch (e) { try { const g = await k.geo(kw); return { items: [item({ ...g, address: "", provider: g.provider }, `地理编码位置：${kw}；POI 详细地址暂无`) ] }; } catch {} throw e; }
-  if (p.cityList) return { items: [], note: `「${kw}」在全国多个城市都有，请告诉我是哪个城市` };
-  if (!p.list.length) { try { const g = await k.geo(kw); return { items: [item({ ...g, address: "", provider: g.provider }, `地理编码位置：${kw}；详细地址暂无`) ] }; } catch {} }
-  return { items: p.list.map((x) => item({ ...x, provider: p.provider })) };
-}
-async function cMap(q, env) {
-  const r = await cMapCore(q, env), t = String(q);
-  if (/首班|末班|首末班|最早一班|最晚一班/.test(t) && !/从\s*.{1,20}?\s*(?:到|去|至)/.test(t) && r && Array.isArray(r.items) && r.items.length) r.note = (r.note ? r.note + "｜" : "") + "首末班：百度只在“公交路线规划”里给出首班/末班时间，要查请说「从 起点 到 终点 坐公交」；地点检索只有站名和途经线路";
-  return r;
-}
 const C_WMO = { 0: "晴", 1: "大部晴朗", 2: "多云", 3: "阴", 45: "雾", 48: "冻雾", 51: "小毛毛雨", 53: "毛毛雨", 55: "大毛毛雨", 56: "冻毛毛雨", 57: "强冻毛毛雨", 61: "小雨", 63: "中雨", 65: "大雨", 66: "冻雨", 67: "强冻雨", 71: "小雪", 73: "中雪", 75: "大雪", 77: "雪粒", 80: "小阵雨", 81: "阵雨", 82: "强阵雨", 85: "小阵雪", 86: "大阵雪", 95: "雷暴", 96: "雷暴伴小冰雹", 99: "雷暴伴大冰雹" };
 function cWeatherPlace(t) {
   const left = String(t).replace(/今天|明天|后天|大后天|周末|这周末|这周|本周|下周|最近|未来|现在|目前|这两天|今晚|明早|天气预报|天气|气温|温度|怎么样|怎样|如何|冷不冷|热不热|下不下雨|会不会下雨|下雨|下雪|降雨|降水|会不会|多少度|几度|要不要|带伞|穿什么|穿|衣服|的|请问|帮我|查一下|查查|查|看看|有没有|是不是|吗|呢|吧|啊|用\s*[A-Za-z一-鿿]{0,12}\s*查|[，。？?！!,.\s]/g, "");
@@ -2023,92 +1665,7 @@ async function tavilyNewsList(query, env, max = 8) {
   return (j.results || []).filter((x) => x && x.url && x.title).map((x) => ({ x, ts: Date.parse(x.published_date || "") })).filter((o) => Number.isFinite(o.ts) && now - o.ts <= 24 * 3600e3).sort((a, b) => b.ts - a.ts).slice(0, max)
     .map(({ x, ts }) => ({ title: cDec(x.title), url: x.url, ts, ago: cAgo(ts), snippet: cCl(cStrip(x.content || "", 160), 160) }));
 }
-// v97：早报 / 热榜新闻固定搜 “今日要闻 财经 国内”（Tavily 新闻模式），不带用户上一句话的词；只要新闻，词典 / 帮助文档 / 飞书帮助页一律丢掉
-const NEWS_JUNK_HOST = /(^|\.)(pku\.edu\.cn|17173\.com|pudong\.gov\.cn|china\.com|feishu\.cn|larksuite\.com|larkoffice\.com|cambridge\.org|dictionary\.com|merriam-webster\.com|collinsdictionary\.com|youdao\.com|iciba\.com|baike\.baidu\.com|wikipedia\.org)$/i;
-const NEWS_JUNK_TITLE = /dictionary|词典|释义|英语单词|help center|帮助中心|帮助文档|使用指南|用户手册|使用说明/i;
-async function newsToday(env, n = 6) {
-  const list = await tavilyNewsList("今日要闻 财经 国内", env, 20), out = [];
-  for (const x of list) {
-    let h = ""; try { h = new URL(x.url).hostname.replace(/^www\./, ""); } catch {}
-    if (!h || NEWS_JUNK_HOST.test(h) || NEWS_JUNK_TITLE.test(x.title || "")) continue;
-    out.push(x); if (out.length >= n) break;
-  }
-  return out;
-}
-async function cNews(q, env) {
-  const list = await tavilyNewsList(cKw(q) || "今日要闻", env, 8);
-  return { items: list.map((n) => ({ title: n.title, url: n.url, ts: n.ts, extra: `${n.ago}｜${n.snippet}`, src: `Tavily 新闻（${n.ago}）` })), note: list.length ? "" : "Tavily 新闻模式最近 24 小时内没有带发布时间的结果（没时间的不显示）" };
-}
 
-// ---------- 参考组：网页搜索（非官方数据）----------
-const C_WEB = {
-  zhihu: { name: "知乎", sites: ["zhihu.com"] }, csdn: { name: "CSDN", sites: ["blog.csdn.net"] }, zcool: { name: "站酷", sites: ["zcool.com.cn"] },
-  xiaohongshu: { name: "小红书（国内版 xiaohongshu.com）", sites: ["xiaohongshu.com"] }, douyin: { name: "抖音", sites: ["douyin.com"] },
-  meta: { name: "公开社交帖子（Instagram / Facebook / X / Threads）", sites: ["facebook.com", "instagram.com", "threads.net", "threads.com", "x.com", "twitter.com"] },
-  meituan: { name: "美团", sites: ["meituan.com"] }, jd: { name: "京东", sites: ["jd.com"] },
-  didi: { name: "滴滴", sites: ["didiglobal.com", "xiaojukeji.com", "didi.cn"] }, didapinche: { name: "滴答", sites: ["didapinche.com"] },
-  cnki: { name: "知网 CNKI", sites: ["cnki.net"] },
-  britannica: { name: "Britannica 大英百科", sites: ["britannica.com"] },
-  stats: { name: "国家统计局", sites: ["stats.gov.cn"] },
-  govcn: { name: "中国政府网", sites: ["gov.cn"] },
-  nih: { name: "美国 NIH", sites: ["nih.gov"] },
-  eugov: { name: "欧盟官网", sites: ["europa.eu"] },
-  pydoc: { name: "Python 官网", sites: ["python.org"] },
-  pytorch: { name: "PyTorch 官网", sites: ["pytorch.org"] },
-  mistral: { name: "Mistral 官网", sites: ["mistral.ai"] },
-  metaai: { name: "Meta 官网（Llama / Meta AI）", sites: ["llama.com", "ai.meta.com"] },
-  googleai: { name: "Google 模型官网（Gemini / Gemma）", sites: ["ai.google.dev", "deepmind.google", "ai.google"] },
-  learnany: { name: "Learn Anything 学习路径", sites: ["learn-anything.xyz"] },
-  cocoloop: { name: "CocoLoop（AI Skills 商店）", sites: ["cocoloop.cn"] },
-  tgmeng: { name: "全景世界（热点聚合）", sites: ["tgmeng.com"] },
-  youart: { name: "YouArt", sites: ["youart.ai"] },
-  fmhy: { name: "FMHY 免费资源索引", sites: ["fmhy.net"] },
-  freellm: { name: "Free LLM API resources（免费大模型 API 合集）", sites: ["github.com/cheahjs/free-llm-api-resources"] },
-  openmaic: { name: "OpenMAIC（清华开源 AI 互动课堂）", sites: ["github.com/thu-maic/openmaic", "open.maic.chat", "maic.chat"] },
-  latentbox: { name: "Latent Box（AI / 创意 / 艺术资源）", sites: ["latentbox.com", "github.com/latentcat/latentbox"] },
-  toolify: { name: "Toolify.ai（AI 工具目录）", sites: ["toolify.ai"] },
-  taift: { name: "There's An AI For That", sites: ["theresanaiforthat.com"] },
-  aibot: { name: "AI工具集 ai-bot.cn", sites: ["ai-bot.cn"] },
-  ainav: { name: "AI导航网 ainav.cn", sites: ["ainav.cn"] },
-  aihub: { name: "AIHUB aihub.cn", sites: ["aihub.cn"] },
-  uisdc: { name: "优设AI导航", sites: ["uisdc.com"] },
-  aixzd: { name: "AIXZD（综合工具库）", sites: [], q: "AIXZD" },
-  freeaitools: { name: "Free AI Tools Directory（免费 AI 工具导航）", sites: [], q: "Free AI Tools Directory" },
-  futurepedia: { name: "Futurepedia（AI 工具目录）", sites: ["futurepedia.io"] },
-  aicpb: { name: "AI产品库（ai-bot.cn/aicpb，带评测）", sites: ["ai-bot.cn/aicpb"] },
-  pixabay: { name: "Pixabay（免版权图片视频）", sites: ["pixabay.com"] },
-  dazi: { name: "打字鸭", sites: [], q: "打字鸭" },
-  base: { name: "BASE（欧洲开放学术搜索）", sites: ["base-search.net"] },
-  core: { name: "CORE（开放论文聚合）", sites: ["core.ac.uk"] },
-  lens: { name: "Lens（专利 + 论文）", sites: ["lens.org"] },
-  dimensions: { name: "Dimensions（论文 / 专利 / 基金 / 临床试验）", sites: ["dimensions.ai"] },
-  sourcegraph: { name: "Sourcegraph（跨仓库搜代码）", sites: ["sourcegraph.com"] },
-  phind: { name: "Phind（程序员 AI 搜索）", sites: ["phind.com"] },
-  youtube: { name: "YouTube", sites: ["youtube.com", "youtu.be"] },
-  vimeo: { name: "Vimeo", sites: ["vimeo.com"] },
-  pinterest: { name: "Pinterest", sites: ["pinterest.com"] },
-  unsplash: { name: "Unsplash（免版权图片）", sites: ["unsplash.com"] },
-  dongku: { name: "东库网（虚拟产品货源）", sites: [], q: "东库网" },
-  jianchuang: { name: "简创库（虚拟产品货源）", sites: [], q: "简创库" },
-  qianliao: { name: "千料网（虚拟产品货源）", sites: [], q: "千料网" },
-  jiancang: { name: "剪仓库（虚拟产品货源）", sites: [], q: "剪仓库" },
-  anbing: { name: "按兵资源网（虚拟产品货源）", sites: [], q: "按兵资源网" },
-  niubuluo: { name: "牛部落（聚合搜索入口）", sites: [], q: "牛部落" },
-  cankao: { name: "全国图书馆参考咨询联盟", sites: [], q: "全国图书馆参考咨询联盟" },
-  guji: { name: "中华古籍资源库（国家图书馆）", sites: ["read.nlc.cn"] },
-  nlcopen: { name: "国图公开课（国家图书馆）", sites: ["open.nlc.cn"] },
-  nlc: { name: "国家图书馆（线上电子图书馆）", sites: ["nlc.cn"] },
-  openstd: { name: "国家标准全文公开系统", sites: ["openstd.samr.org.cn"] },
-  xuexi: { name: "学习强国", sites: ["xuexi.cn"] },
-  kepu: { name: "科普中国", sites: ["kepuchina.cn", "kepu.gov.cn"] },
-  poe: { name: "Poe", sites: ["poe.com"] },
-  lovart: { name: "Lovart", sites: ["lovart.ai"] },
-  cherry: { name: "Cherry Studio", sites: ["cherry-ai.com", "cherryai.com"] },
-  imini: { name: "iMini AI", sites: ["imini.com"] },
-  perplexity: { name: "Perplexity", sites: ["perplexity.ai"] },
-  opencode: { name: "OpenCode", sites: ["opencode.ai"] },
-  worldstats: { name: "国际官方统计（世界银行 / OECD / 美国人口普查局 / 联合国 UN Data）", sites: ["data.worldbank.org", "worldbank.org", "oecd.org", "census.gov", "un.org", "unstats.un.org"] },
-};
 const C_LABEL = { learnany: "第三方学习导航，非官方数据", cocoloop: "网页搜索 / 第三方资源，非官方数据", tgmeng: "网页搜索 / 第三方资源，非官方数据", youart: "网页搜索 / 第三方资源，非官方数据", fmhy: "网页搜索 / 第三方资源，非官方数据" };
 const C_GEN = "网页搜索 / 第三方资源，非官方数据";
 for (const k of ["aixzd", "freeaitools", "freellm", "openmaic", "latentbox", "toolify", "taift", "aibot", "ainav", "aihub", "uisdc", "poe", "lovart", "cherry", "imini", "perplexity", "opencode"]) C_LABEL[k] = C_GEN;
@@ -2119,396 +1676,18 @@ for (const k of ["futurepedia", "aicpb"]) C_LABEL[k] = "第三方导航 / 资源
 for (const k of ["pixabay", "dazi", "base", "core", "lens", "dimensions", "sourcegraph", "phind", "youtube", "vimeo", "pinterest", "unsplash", "cankao"]) C_LABEL[k] = C_GEN;
 const C_SUPPLY = "货源类要自己再核实版权 / 是否能商用，不直接当货源证据";
 for (const k of ["dongku", "jianchuang", "qianliao", "jiancang", "anbing", "niubuluo"]) C_LABEL[k] = "网页搜索，非官方数据（" + C_SUPPLY + "）";
-const C_REMIND = {
-  dongku: C_SUPPLY, jianchuang: C_SUPPLY, qianliao: C_SUPPLY, jiancang: C_SUPPLY, anbing: C_SUPPLY, niubuluo: C_SUPPLY,
-  cankao: "官方域名还没确认，是按名字搜的，要核对链接确实是这个联盟",
-  dazi: "官方域名还没确认，是按名字搜的，要核对链接",
-  poe: "付费订阅也有点数额度，不是无限量",
-  lovart: "价格偏贵；国内需要翻墙才能访问",
-  cherry: "对话与知识库存本地、断网可用，但要在设置里自己粘贴各模型的 API Key 才能用",
-  imini: "免费额度是每日的，用完要等第二天",
-  perplexity: "它直接给答案并附实时信源链接，答案要以它给的信源链接为准，逐条点开核对",
-  opencode: "支持接多种模型，自带 DeepSeek 等免费模型免填 Key，但实测部分免费模型可能调不通",
-  meta: "社交帖子是个人说法：只能反映大家怎么说，不能当事实；要说明是哪个平台、哪天的帖子",
-  worldstats: "引用统计数字要写明发布机构、统计年份和口径",
-};
-const C_SEARCHLINK = { xiaohongshu: (kw) => "https://www.xiaohongshu.com/search_result?keyword=" + cEu(kw) };   // 小红书内容大多要登录才看得到，搜索引擎收录少：搜不到时给站内搜索入口（并明说这不是搜索结果）
-const C_HOME = { learnany: "https://learn-anything.xyz", fmhy: "https://fmhy.net", latentbox: "https://latentbox.com", toolify: "https://www.toolify.ai", taift: "https://theresanaiforthat.com", aibot: "https://ai-bot.cn", ainav: "https://ainav.cn", aihub: "https://aihub.cn", poe: "https://poe.com", lovart: "https://www.lovart.ai", perplexity: "https://www.perplexity.ai", opencode: "https://opencode.ai", freellm: "https://github.com/cheahjs/free-llm-api-resources", openmaic: "https://github.com/THU-MAIC/OpenMAIC" };
-   // 站内检索靠网页脚本，搜不到具体页面时给站点入口（并明说这是入口）
-const C_OFFICIAL_WEB = ["guji", "nlcopen", "nlc", "openstd", "xuexi", "kepu", "worldstats", "stats", "govcn", "nih", "eugov", "pydoc", "pytorch", "mistral", "metaai", "googleai"];
-const cHost = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
-const cCanon = (u) => { try { const o = new URL(u); return (o.hostname.replace(/^www\./, "") + o.pathname).replace(/\/+$/, ""); } catch { return u; } };
-function cUnwrap(href) {
-  let h = String(href).replace(/&amp;/g, "&"); if (h.startsWith("//")) h = "https:" + h;
-  try {
-    const o = new URL(h);
-    if (/duckduckgo\.com$/.test(o.hostname) && o.searchParams.get("uddg")) return o.searchParams.get("uddg");
-    if (/bing\.com$/.test(o.hostname) && o.pathname.startsWith("/ck/") && o.searchParams.get("u")) { const u = o.searchParams.get("u"); if (/^a1/.test(u)) { try { return atob(u.slice(2).replace(/-/g, "+").replace(/_/g, "/")); } catch {} } }
-  } catch {}
-  return h;
-}
-function cParseDDG(html) { const out = []; for (const b of html.split(/<div class="[^"]*\bresult\b[^"]*results_links[^"]*"/).slice(1)) { const a = b.match(/<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/); if (!a) continue; const s = b.match(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>/); out.push({ url: cUnwrap(a[1]), title: cStrip(a[2], 140), snippet: s ? cStrip(s[1], 140) : "" }); } return out; }
-function cParseBing(html) { const out = []; for (const b of html.split(/<li class="b_algo"/).slice(1)) { const a = b.match(/<h2[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/); if (!a) continue; const s = b.match(/<p[^>]*>([\s\S]*?)<\/p>/); out.push({ url: cUnwrap(a[1]), title: cStrip(a[2], 140), snippet: s ? cStrip(s[1], 140) : "" }); } return out; }
-// 站点可以带路径（github.com/某人/某仓库）：域名对得上，且路径以它开头
-function cSiteHit(u, site) {
-  const [h, ...ps] = String(site).toLowerCase().split("/"), host = cHost(u);
-  if (!(host === h || host.endsWith("." + h))) return false;
-  if (!ps.length) return true;
-  try { return new URL(u).pathname.toLowerCase().replace(/^\/+/, "").startsWith(ps.join("/")); } catch { return false; }
-}
-async function cWebSearch(sites, kw) {
-  const q = (sites.length > 1 ? "(" + sites.map((s) => "site:" + s).join(" OR ") + ")" : "site:" + sites[0]) + " " + kw, errs = [], pools = [];
-  for (const [name, url, parse] of [["DuckDuckGo", `https://html.duckduckgo.com/html/?q=${cEu(q)}&kl=cn-zh`, cParseDDG], ["Bing", `https://www.bing.com/search?q=${cEu(q)}&setlang=zh-cn`, cParseBing], ["Bing 国内站", `https://cn.bing.com/search?q=${cEu(q)}&setlang=zh-cn`, cParseBing]]) {
-    try { const { r, t } = await cGet(url, { headers: { Accept: "text/html", "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8" } }, 9000); if (!r.ok) { errs.push(name + " " + r.status); continue; } const rs = parse(t).filter((x) => x.url && sites.some((s) => cSiteHit(x.url, s))); if (rs.length) { pools.push(...rs); break; } errs.push(name + " 无结果"); } catch (e) { errs.push(name + " " + e.message); }
-  }
-  const seen = new Set(), items = [];
-  for (const x of pools) { const c = cCanon(x.url); if (seen.has(c)) continue; seen.add(c); items.push({ title: x.title, url: x.url, extra: x.snippet ? "摘要：" + x.snippet : "" }); if (items.length >= 5) break; }
-  if (!items.length && errs.length && errs.every((e) => /\d{3}$|fetch|timeout|aborted|Timeout/i.test(e))) throw new ConnErr("搜索引擎暂时不可用（" + errs.join("；") + "）", 502);
-  return { items, note: items.length ? "" : "搜索引擎没返回这个网站的结果" };
-}
-// 通用网页搜索（不限网站）：Google 自己的结果页拒绝脚本访问、官方 API 要付费，所以用免费的 DuckDuckGo / Bing 搜，不冒充 Google 的结果
-async function cWebAny(kw) {
-  const errs = [], skip = /(^|\.)(bing|duckduckgo|microsoft)\.com$/;
-  for (const [name, url, parse] of [["DuckDuckGo", `https://html.duckduckgo.com/html/?q=${cEu(kw)}&kl=wt-wt`, cParseDDG], ["Bing", `https://www.bing.com/search?q=${cEu(kw)}`, cParseBing]]) {
-    try {
-      const { r, t } = await cGet(url, { headers: { Accept: "text/html", "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8" } }, 9000);
-      if (!r.ok) { errs.push(name + " " + r.status); continue; }
-      const seen = new Set(), items = [];
-      for (const x of parse(t)) { if (!/^https?:\/\//i.test(x.url || "") || skip.test(cHost(x.url))) continue; const c = cCanon(x.url); if (seen.has(c)) continue; seen.add(c); items.push({ title: x.title, url: x.url, src: "网页搜索（" + name + "）", extra: x.snippet ? "摘要：" + x.snippet : "" }); if (items.length >= 6) break; }
-      if (items.length) return { items };
-      errs.push(name + " 无结果");
-    } catch (e) { errs.push(name + " " + e.message); }
-  }
-  if (errs.every((e) => /\d{3}$|fetch|timeout|aborted|Timeout/i.test(e))) throw new ConnErr("搜索引擎暂时不可用（" + errs.join("；") + "）", 502);
-  return { items: [], note: "搜索引擎没返回结果" };
-}
-const cWebRun = (key) => async (q, env) => {
-  if (!C_WEB[key].sites.length) {   // 还没确认官方域名：按名字搜，不限网站，只保留标题或摘要里真带这个名字的结果
-    const nm = C_WEB[key].q, kw = cKeywords(q) || cCl(q, 60), r = await cWebAny(`"${nm}" ${kw}`), low = nm.toLowerCase();
-    const items = (r.items || []).filter((i) => (i.title + " " + (i.extra || "")).toLowerCase().includes(low));
-    return { items, note: items.length ? "官方域名还没确认，是按名字搜的，请核对链接确实是这个站" : "官方域名还没确认，按名字没搜到可靠结果" };
-  }
-  const kw2 = cKeywords(q).replace(/附近|好吃的|好吃|吃的|上?怎么说|上?怎么样|上有没有|上有什么/g, " ").replace(/\s+/g, " ").trim() || cCl(q, 60), r = await cWebSearch(C_WEB[key].sites, kw2);
-  if (!r.items.length && C_SEARCHLINK[key]) return { items: [{ title: C_WEB[key].name + " 站内搜索入口：" + kw2, url: C_SEARCHLINK[key](kw2), extra: "没从搜索引擎查到具体笔记（这类内容大多要登录才能看，搜索引擎收录很少）。这是站内搜索链接，需要你自己打开，可能要登录——它不是搜索结果" }], note: "只有站内搜索入口，没有具体笔记" };
-  if (!r.items.length && C_HOME[key]) return { items: [{ title: C_WEB[key].name + " 入口", url: C_HOME[key], extra: "没搜到具体页面，这是站点入口，需要在网页里自己输入主题" }], note: "只有站点入口，没有具体结果" };
-  return r;
-};
 
 
 // ---------- v41 免费 API 连接器（都不要 Key；没返回就是没查到，不编）----------
 const cDec = (t) => String(t || "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#0?39;|&#x27;/g, "'").replace(/&amp;/g, "&");
 const cKw = (q) => (cKeywords(q) || cCl(q, 80)).replace(/\s+/g, " ").trim();
-async function cJson(url, hdr = {}, ms = 9000) { const { r, j } = await cGet(url, { headers: hdr }, ms); if (!r.ok || !j) throw new ConnErr("返回 " + r.status, r.status); return j; }
-async function cWikidata(q) {
-  const kw = cKw(q), l = cIsCJK(kw) ? "zh" : "en", j = await cJson(`https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${cEu(kw)}&language=${l}&uselang=${l}&format=json&limit=5&origin=*`);
-  return { items: (j.search || []).filter((x) => x.id).map((x) => ({ title: (x.label || x.id) + (x.description ? "（" + x.description + "）" : ""), url: "https://www.wikidata.org/wiki/" + x.id, extra: "实体 ID：" + x.id })) };
-}
-async function cStackOverflow(q) {
-  const j = await cJson(`https://api.stackexchange.com/2.3/search/advanced?order=desc&sort=relevance&q=${cEu(cKw(q))}&site=stackoverflow&pagesize=5`);
-  return { items: (j.items || []).filter((x) => x.link).map((x) => ({ title: cDec(x.title), url: x.link, extra: `${x.score} 分｜${x.answer_count} 个回答｜${x.is_answered ? "已有回答" : "暂无采纳"}｜标签：${(x.tags || []).slice(0, 4).join("、")}` })) };
-}
-async function cGitlab(q) {
-  const j = await cJson(`https://gitlab.com/api/v4/projects?search=${cEu(cKw(q))}&order_by=star_count&sort=desc&per_page=5&simple=true`);
-  return { items: (Array.isArray(j) ? j : []).filter((x) => x.web_url).map((x) => ({ title: x.name_with_namespace || x.path_with_namespace || x.name, url: x.web_url, extra: `${x.star_count || 0} 星｜${cCl(x.description || "", 120)}` })) };
-}
-async function cArchive(q) {
-  const j = await cJson(`https://archive.org/advancedsearch.php?q=${cEu(cKw(q))}&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=mediatype&fl%5B%5D=year&rows=5&output=json&sort%5B%5D=downloads+desc`);
-  return { items: ((j.response && j.response.docs) || []).filter((x) => x.identifier).map((x) => ({ title: cDec(Array.isArray(x.title) ? x.title[0] : x.title || x.identifier), url: "https://archive.org/details/" + x.identifier, extra: `${x.mediatype || ""}${x.year ? "｜" + x.year : ""}` })) };
-}
-async function cNasa(q) {
-  const j = await cJson(`https://api.us.socrata.com/api/catalog/v1?domains=data.nasa.gov&q=${cEu(cKw(q))}&limit=5`);
-  return { items: (j.results || []).map((x) => ({ title: (x.resource && x.resource.name) || "", url: x.link || (x.resource && x.resource.id ? "https://data.nasa.gov/d/" + x.resource.id : ""), extra: cCl((x.resource && x.resource.description) || "", 140) })).filter((x) => x.title && x.url) };
-}
-// Papers With Code 官方站 2025 年起并入 HuggingFace Papers，所以查 HuggingFace 的免费论文接口
-async function cHFPapers(q, env, x) {
-  const kw = (x && x.qEn) || cKw(q), j = await cJson(`https://huggingface.co/api/papers/search?q=${cEu(kw)}&limit=5`);
-  return { items: (Array.isArray(j) ? j : []).map((y) => y.paper || y).filter((p) => p && p.id && p.title).map((p) => ({ title: cDec(p.title), url: "https://huggingface.co/papers/" + p.id, extra: `arXiv:${p.id}${p.publishedAt ? "｜" + String(p.publishedAt).slice(0, 10) : ""}${p.upvotes != null ? "｜" + p.upvotes + " 赞" : ""}` })) };
-}
-async function cReddit(q) {
-  const kw = cKw(q);
-  try {
-    const { r, j } = await cGet(`https://www.reddit.com/search.json?q=${cEu(kw)}&limit=6&sort=relevance&raw_json=1`, {}, 9000);
-    const items = r.ok && j && j.data && Array.isArray(j.data.children) ? j.data.children.map((c) => c.data).filter((d) => d && d.permalink && d.title).map((d) => ({ title: cDec(d.title), url: "https://www.reddit.com" + d.permalink, extra: `r/${d.subreddit}｜${d.score} 赞｜${d.num_comments} 条评论｜${new Date(d.created_utc * 1000).toISOString().slice(0, 10)}` })) : [];
-    if (items.length) return { items };
-  } catch {}
-  const w = await cWebSearch(["reddit.com"], kw);   // Reddit 常拒绝云端 IP：退回网页搜索
-  return { items: w.items, note: w.items.length ? "Reddit 接口没通，这是网页搜索的结果" : w.note };
-}
-// 只给搜索入口链接（付费 API 不接 / 没有免费 API 的）：入口不是结果，会明说
-const C_ENG = [
-  ["Google", /google\s*search|谷歌搜索|google(?!\s*(scholar|学术|模型|官))|谷歌(?!学术)/i, "https://www.google.com/search?q=", "付费 API 不接，只给网页入口；国内要翻墙"],
-  ["Bing", /bing|必应/i, "https://www.bing.com/search?q=", ""],
-  ["DuckDuckGo", /duckduckgo|\bddg\b/i, "https://duckduckgo.com/?q=", ""],
-  ["Brave Search", /brave\s*(search|搜索)|search\.brave/i, "https://search.brave.com/search?q=", "国内部分要翻墙"],
-  ["Ecosia", /ecosia/i, "https://www.ecosia.org/search?q=", ""],
-  ["Startpage", /startpage/i, "https://www.startpage.com/do/search?q=", ""],
-  ["Qwant", /qwant/i, "https://www.qwant.com/?q=", ""],
-  ["Mojeek", /mojeek/i, "https://www.mojeek.com/search?q=", ""],
-  ["Yandex", /yandex/i, "https://yandex.com/search/?text=", "俄语内容最全"],
-  ["Naver", /naver/i, "https://search.naver.com/search.naver?query=", "韩语内容最全"],
-  ["Yahoo Search", /yahoo|雅虎/i, "https://search.yahoo.com/search?p=", "国内部分要翻墙"],
-];
-const cEntry = (name, tpl, note) => (q) => ({ items: [{ title: name + " 搜索「" + cCl(cKw(q), 60) + "」", url: tpl + cEu(cKw(q)), src: name, extra: "这是搜索入口链接，不是搜索结果" + (note ? "；" + note : "") }], note: "只有搜索入口，没有具体结果" });
-async function cEngines(q) {
-  const hit = C_ENG.filter((e) => e[1].test(q)); if (!hit.length) return { items: [], note: "没说用哪个搜索引擎" };
-  return { items: hit.slice(0, 4).flatMap((e) => cEntry(e[0], e[2], e[3])(q).items), note: "只有搜索入口，没有具体结果（Bing / DuckDuckGo / Google 类的真实结果见“通用网页搜索”）" };
-}
 
-// ---------- 注册表 + 路由 ----------
-// ===== v73 搜索分级（按 Meta AI 的习惯）：1 官方 → 2 百科 → 3 论文 → 4 新闻 → 5 技术 → 6 真人体验 → 7 数据核对 → 8 小众补充 =====
-const TIER_NAME = { 1: "官方", 2: "百科", 3: "论文", 4: "新闻", 5: "技术", 6: "真人体验", 7: "数据核对", 8: "小众补充" };
-const CONN_TIER = { news: 4, amap: 1, tencentmap: 1, baidumap: 1, weather: 1, nasa: 1, huggingface: 1, wikipedia: 2, wikidata: 2, arxiv: 3, pubmed: 3, semantic: 3, openalex: 3, crossref: 3, hfpapers: 3, github: 5, gitlab: 5, sourcegraph: 5, stackoverflow: 5, reddit: 6, youtube: 6, vimeo: 6, pinterest: 6, worldstats: 7, archive: 7, marginalia: 8 };
-function tHost(u) { try { return new URL(u).hostname.replace(/^www\./, "").toLowerCase(); } catch { return ""; } }
-function itemTier(connId, i) {
-  if (connId === "news") return 4;   // v86：新闻同一级，才能纯按时间排
-  const h = tHost(i.url), url = String(i.url || ""), c = CONNECTORS[connId] || {};
-  if (/(^|\.)worldbank\.org$|(^|\.)archive\.org$|(^|\.)data\.gov$|(^|\.)ourworldindata\.org$/.test(h)) return 7;
-  if (/(^|\.)gov(\.[a-z]{2})?$|\.gov\.cn$|(^|\.)who\.int$|(^|\.)un\.org$|(^|\.)europa\.eu$|(^|\.)stats\.gov\.cn$|(^|\.)pbc\.gov\.cn$|(^|\.)nih\.gov$|(^|\.)nmc\.cn$/.test(h) && !/pubmed|ncbi/.test(h)) return 1;
-  if (/^(docs|developer|developers|help|support|status|learn|platform|api)\./.test(h) || /\/(docs|documentation|pricing|changelog|release-notes|help-center|status)(\/|$)/i.test(url)) return 1;
-  if (/wikipedia\.org$|wikidata\.org$|britannica\.com$|baike\.baidu\.com$/.test(h)) return 2;
-  if (/(^|\.)(arxiv\.org|semanticscholar\.org|openalex\.org|doi\.org|nature\.com|science\.org|sciencedirect\.com|springer\.com|ieee\.org|acm\.org|biorxiv\.org)$|pubmed|ncbi\.nlm\.nih/.test(h)) return 3;
-  if (/(^|\.)(reuters\.com|apnews\.com|bbc\.com|bbc\.co\.uk|bloomberg\.com|nytimes\.com|xinhuanet\.com|news\.cn|people\.com\.cn|thepaper\.cn|caixin\.com)$/.test(h)) return 4;
-  if (/developer\.mozilla\.org$|(^|\.)github\.com$|(^|\.)gitlab\.com$|stackoverflow\.com$|stackexchange\.com$|readthedocs\.io$/.test(h)) return 5;
-  if (/(^|\.)(reddit\.com|youtube\.com|youtu\.be|instagram\.com|facebook\.com|threads\.net|xiaohongshu\.com|zhihu\.com|bilibili\.com|v2ex\.com|douban\.com|tieba\.baidu\.com)$/.test(h)) return 6;
-  if (/news\.ycombinator\.com$|marginalia\.nu$|blogspot\.|medium\.com$|substack\.com$|wordpress\.com$|\.github\.io$|juejin\.cn$|cnblogs\.com$|csdn\.net$/.test(h)) return 8;
-  if (CONN_TIER[connId]) return CONN_TIER[connId];
-  return c.group === "official" ? 1 : c.group === "authority" ? 3 : 8;
-}
-// 官方 / 可验证：1 2 3 4 7，以及官方技术文档 / GitHub（第 5 级，社区问答除外）；其余 = 网友说法 / 仅供参考
-function itemSide(tier, i) { return [1, 2, 3, 4, 7].includes(tier) || (tier === 5 && !/stackoverflow|stackexchange/.test(tHost(i.url))) ? "verified" : "opinion"; }
-const cIsEntry = (i) => /搜索入口/.test(String(i.extra || ""));   // 入口链接：只是个搜索框，没有正文
-// 中文问题：先用中文来源搜，搜不到才译成英文再搜
-async function cZhEn(q, env, fn) {
-  const r = await fn(q, env); if ((r.items && r.items.length) || !cIsCJK(q)) return r;
-  let en = ""; try { en = await mtText(env, cKeywords(q) || q, "en"); } catch {}
-  if (!en || !en.trim() || en.trim() === q) return r;
-  const r2 = await fn(cCl(en, 160), env);
-  return r2.items && r2.items.length ? { ...r2, note: "中文来源没搜到，才改用英文来源（检索词：" + cCl(en, 60) + "）" } : r;
-}
-const CONN_GROUPS = [
-  { id: "authority", title: "权威数据源", note: "论文引用只用这一组和官方组" },
-  { id: "official", title: "官方组", note: "模型官网（Meta、Mistral、Google、Python、PyTorch）、政府官网、国家图书馆 / 国家标准 / 学习强国、NASA、世界银行 / UN、地图、天气" },
-  { id: "reference", title: "参考组（网页搜索，非官方数据）", note: "只能参考，不能当论文证据" },
-];
 // v72：Tavily（AI 搜索，TAVILY_KEY）/ Brave Search（BRAVE_KEY）/ Marginalia（免 key）。没配 key 的两个自动跳过，不报错
 async function cTavily(q, env) {
   const key = String(env && env.TAVILY_KEY || "").trim(); if (!key) return { items: [], note: "没配置 TAVILY_KEY，已跳过" };
   const r = await fetch("https://api.tavily.com/search", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + key }, body: JSON.stringify({ query: cCl(cKw(q), 300), max_results: 6, search_depth: "basic", include_answer: false }), signal: T(10000) });
   const j = await r.json().catch(() => null); if (!r.ok || !j) throw new ConnErr("Tavily 返回 " + r.status + (j && (j.detail && (j.detail.error || j.detail) || j.error) ? "：" + cCl(String(j.detail && (j.detail.error || j.detail) || j.error), 80) : ""), r.status);
   return { items: (j.results || []).filter((x) => x.url && x.title).map((x) => ({ title: cDec(x.title), url: x.url, extra: cCl(cStrip(x.content || "", 220), 220), src: "Tavily 搜索" })) };
-}
-async function cBrave(q, env) {
-  const key = String(env && env.BRAVE_KEY || "").trim(); if (!key) return { items: [], note: "没配置 BRAVE_KEY，已跳过" };
-  const r = await fetch("https://api.search.brave.com/res/v1/web/search?count=6&q=" + cEu(cCl(cKw(q), 300)), { headers: { Accept: "application/json", "X-Subscription-Token": key }, signal: T(10000) });
-  const j = await r.json().catch(() => null); if (!r.ok || !j) throw new ConnErr("Brave 返回 " + r.status, r.status);
-  return { items: ((j.web && j.web.results) || []).filter((x) => x.url && x.title).map((x) => ({ title: cDec(cStrip(x.title, 160)), url: x.url, extra: cCl(cStrip(x.description || "", 220), 220), src: "Brave Search" })) };
-}
-async function cExa(q, env) {
-  const key = String(env && env.EXA_KEY || "").trim(); if (!key) return { items: [], note: "没配置 EXA_KEY，已跳过" };
-  const r = await fetch("https://api.exa.ai/search", { method: "POST", headers: { "Content-Type": "application/json", "x-api-key": key }, body: JSON.stringify({ query: cCl(cKw(q), 300), numResults: 6, contents: { text: { maxCharacters: 400 } } }), signal: T(12000) });
-  const j = await r.json().catch(() => null); if (!r.ok || !j) throw new ConnErr("Exa 返回 " + r.status, r.status);
-  return { items: (j.results || []).filter((x) => x.url).map((x) => ({ title: cDec(x.title || x.url), url: x.url, extra: cCl(cStrip(x.text || "", 220), 220), src: "Exa 搜索" })) };
-}
-async function cSerper(q, env) {
-  const key = String(env && env.SERPER_KEY || "").trim(); if (!key) return { items: [], note: "没配置 SERPER_KEY，已跳过" };
-  const r = await fetch("https://google.serper.dev/search", { method: "POST", headers: { "Content-Type": "application/json", "X-API-KEY": key }, body: JSON.stringify({ q: cCl(cKw(q), 300), num: 6, gl: "cn", hl: "zh-cn" }), signal: T(10000) });
-  const j = await r.json().catch(() => null); if (!r.ok || !j) throw new ConnErr("Serper 返回 " + r.status, r.status);
-  return { items: (j.organic || []).filter((x) => x.link && x.title).map((x) => ({ title: cDec(x.title), url: x.link, extra: cCl(cStrip(x.snippet || "", 220), 220), src: "Serper（Google 结果）" })) };
-}
-// 主备顺序：Tavily（每月免费）→ Exa → Serper（一次性额度）→ Brave（付费计划）。前一个没配 key / 出错 / 没结果 / 额度用完，才轮到下一个，不会同时烧多家额度
-async function cSearchPool(q, env) {
-  const chain = [["Tavily", "TAVILY_KEY", cTavily], ["Exa", "EXA_KEY", cExa], ["Serper", "SERPER_KEY", cSerper], ["Brave", "BRAVE_KEY", cBrave]], notes = [];
-  for (const [name, k, fn] of chain) {
-    if (!String(env && env[k] || "").trim()) continue;
-    try { const r = await cZhEn(q, env, fn); if (r.items && r.items.length) return { items: r.items, note: notes.length ? notes.join("；") + "，所以改用了 " + name : "" }; notes.push(name + " 没有结果"); } catch (e) { notes.push(name + " 出错：" + cCl(String(e && e.message || e), 50)); }
-  }
-  return { items: [], note: notes.length ? "搜索 API 都没查到：" + notes.join("；") : "没配置任何搜索 API key（TAVILY_KEY / EXA_KEY / SERPER_KEY / BRAVE_KEY），已跳过" };
-}
-async function cMarginalia(q) {
-  const kw = cKw(q), j = await cJson(`https://api.marginalia.nu/public/search/${cEu(cCl(kw, 120))}?count=6`);
-  return { items: (j.results || []).filter((x) => x.url && x.title).map((x) => ({ title: cDec(x.title), url: x.url, extra: cCl(cStrip(x.description || "", 200), 200), src: "Marginalia（小众非商业网站）" })), note: (j.results || []).length ? "" : "Marginalia 只收小众、非商业网站，中文关键词常常没有结果" };
-}
-const CONNECTORS = {
-  huggingface: { name: "HuggingFace", group: "authority", env: "HF_TOKEN", run: cHF, academic: true },
-  github: { name: "GitHub", group: "authority", env: "GH_PAT", run: cGithub, academic: true },
-  arxiv: { name: "arXiv", group: "authority", run: cArxiv, academic: true },
-  semantic: { name: "Semantic Scholar", group: "authority", run: cS2, academic: true },
-  openalex: { name: "OpenAlex", group: "authority", run: cOpenAlex, academic: true },
-  crossref: { name: "Crossref", group: "authority", run: cCrossref, academic: true },
-  pubmed: { name: "PubMed", group: "authority", run: cPubMed, academic: true },
-  wikipedia: { name: "Wikipedia 维基百科", group: "authority", run: cWiki },
-  amap: { name: "高德地图", group: "official", env: "AMAP_KEY", run: cMap },
-  tencentmap: { name: "腾讯地图（签名）", group: "official", env: "TENCENT_MAP_KEY", run: cMap },
-  baidumap: { name: "百度地图（最后备用）", group: "official", env: "BAIDU_MAP_AK", run: cMap },
-  weather: { name: "天气 Open-Meteo", group: "official", run: cWeather },
-  hfpapers: { name: "Papers With Code → HuggingFace Papers（论文 + 代码）", group: "authority", run: cHFPapers, academic: true },
-  wikidata: { name: "Wikidata 结构化知识库", group: "authority", run: cWikidata },
-  gitlab: { name: "GitLab 开源项目", group: "authority", run: cGitlab },
-  nasa: { name: "NASA Open Data（免费 API）", group: "official", run: cNasa },
-  stackoverflow: { name: "Stack Overflow（免费 API）", group: "reference", label: "社区问答，非官方数据，只能参考", run: cStackOverflow },
-  reddit: { name: "Reddit（免费接口，不通时退回网页搜索）", group: "reference", label: "公开社区帖子，只代表个人说法，非官方数据", run: cReddit },
-  archive: { name: "Internet Archive archive.org（免费 API）", group: "reference", label: "第三方档案，非官方数据", run: cArchive },
-  engines: { name: "世界通用搜索引擎入口（Google / Bing / DuckDuckGo / Brave / Ecosia / Startpage / Qwant / Mojeek / Yandex / Naver / Yahoo）", group: "reference", label: "搜索入口，不是结果", run: cEngines },
-  scholar: { name: "Google Scholar 入口（无免费 API）", group: "reference", label: "搜索入口，不是结果", run: cEntry("Google Scholar", "https://scholar.google.com/scholar?q=", "无官方免费 API，只能网页搜；国内要翻墙") },
-  wolfram: { name: "WolframAlpha 入口（公式 / 数据 / 计算）", group: "reference", label: "搜索入口，不是结果", run: cEntry("WolframAlpha", "https://www.wolframalpha.com/input?i=", "不是普通网页搜索，要打开链接看计算结果") },
-  tavily: { name: "Tavily AI 搜索（免费额度，需 TAVILY_KEY）", group: "reference", web: true, env: "TAVILY_KEY", label: "网页搜索，非官方数据", run: (q, env) => cTavily(q, env) },
-  brave: { name: "Brave Search（需 BRAVE_KEY；免费档已取消，付费计划才有额度，排在最后）", group: "reference", web: true, env: "BRAVE_KEY", label: "网页搜索，非官方数据", run: (q, env) => cBrave(q, env) },
-  exa: { name: "Exa 搜索（需 EXA_KEY，备用）", group: "reference", web: true, env: "EXA_KEY", label: "网页搜索，非官方数据", run: (q, env) => cExa(q, env) },
-  serper: { name: "Serper（Google 结果，需 SERPER_KEY，一次性额度，备用）", group: "reference", web: true, env: "SERPER_KEY", label: "网页搜索，非官方数据", run: (q, env) => cSerper(q, env) },
-  news: { name: "今日新闻（Tavily 新闻模式，最近 24 小时，带发布时间，按时间倒序）", group: "reference", web: true, env: "TAVILY_KEY", label: "新闻，带发布时间", run: (q, env) => cNews(q, env) },
-  searchpool: { name: "搜索 API 主备（Tavily → Exa → Serper → Brave）", group: "reference", web: true, label: "网页搜索，非官方数据", run: (q, env) => cSearchPool(q, env) },
-  marginalia: { name: "Marginalia 小众网站搜索（免费，免 key）", group: "reference", web: true, label: "小众网站，非官方数据", run: (q, env) => cZhEn(q, env, (qq) => cMarginalia(qq)) },
-  websearch: { name: "通用网页搜索（Google 类；实际用 DuckDuckGo / Bing）", group: "reference", web: true, run: (q, env) => cZhEn(q, env, (qq) => cWebAny(cKeywords(qq) || cCl(qq, 80))) },
-  ...Object.fromEntries(Object.entries(C_WEB).map(([k, v]) => [k, { name: v.name, group: k === "britannica" ? "authority" : C_OFFICIAL_WEB.includes(k) ? "official" : "reference", web: true, label: C_LABEL[k] || "", ...(C_REMIND[k] ? { remind: C_REMIND[k] } : {}), run: cWebRun(k) }])),
-};
-function routeConnectors(t, env) {
-  const s = String(t || ""), ids = [], add = (...a) => a.forEach((i) => { if (!ids.includes(i)) ids.push(i); });
-  const mapQuestion = /农家乐|餐馆|饭店|餐厅|民宿|景点|公交站|地铁站|医院|加油站|充电桩|充电站|停车场|停车位|银行|ATM|取款机/.test(s) && /有哪些|哪里有|推荐|附近|周边|周围|有什么/.test(s) && /北京|上海|天津|重庆|香港|澳门|[一-鿿]{2,3}市|[一-鿿]{2,4}(?:区|县)/.test(s);
-  const route = /首班|末班|首末班|最早一班|最晚一班|公交路线|坐公交|在哪|地址|怎么走|多远|距离|附近|周边|周围|路线|导航|公共自行车|充电桩|充电站|停车场|停车位|银行|ATM|取款机|百度地图|高德地图|腾讯地图/.test(s) || mapQuestion || /军民农家乐/.test(s), weather = /天气|气温|冷不冷|热不热|下雨|下雪|降雨|带伞|weather/i.test(s);
-  if (cDoi(s) || /\bDOI\b/i.test(s)) add("crossref");
-  if (/huggingface|hugging\s*face|\bHF\b|许可证|licen[sc]e|开源协议|下载量|能不能商用|可以商用/i.test(s)) add("huggingface");
-  if (/github|仓库|\brepo\b|代码库|开源项目|源码/i.test(s)) add("github");
-  if (/arxiv|论文|\bpapers?\b|文献|preprint|综述|引用量|被引/i.test(s)) add("arxiv", "semantic", "openalex");
-  if (/semantic\s*scholar/i.test(s)) add("semantic"); if (/openalex/i.test(s)) add("openalex"); if (/crossref/i.test(s)) add("crossref");
-  if (/pubmed|医学文献|临床|症状|药物|疗法|治疗|疾病|诊断/i.test(s) && !(/百度|地图|接口|\bapi\b|worker|自检/i.test(s) && !/pubmed|医学|临床|疾病/i.test(s))) add("pubmed");   // v51：“百度地图诊断”里的“诊断”不是医学诊断
-  if (weather) add("weather"); if (route && !/学习(路线|路径)|入门路线|自学路线|ai.{0,3}(工具|网站)|工具导航|ai\s*导航|货源|虚拟(产品|资源)/i.test(s) && !(weather && !/附近|周边|周围|在哪|地址|怎么走|多远|距离|路线/.test(s))) add("amap");
-  if (/打车|滴滴|出租车|网约车/.test(s)) { add("didi"); if (/从.+(到|去)/.test(s)) add("baidumap"); }
-  if (/拼车|滴答|顺风车/.test(s)) add("didapinche");
-  if (/美团|好吃|美食|餐厅|饭店|外卖|吃什么|吃的/.test(s)) add("meituan");
-  if (/京东/.test(s) || (!/lovart|poe|cherry|imini|perplexity|opencode|toolify|ai\s*工具/i.test(s) && !/打车|滴滴|出租车|网约车|拼车|滴答|顺风车/.test(s) && /商品|多少钱|价格|售价|哪里买|怎么买/.test(s))) add("jd");
-  if (/知乎|zhihu/i.test(s)) add("zhihu"); if (/csdn/i.test(s)) add("csdn"); if (/站酷|zcool/i.test(s)) add("zcool");
-  if (/经验|教程|攻略|入门|怎么学|学习路线/.test(s)) add("zhihu", "csdn");
-  if (/设计|海报|\blogo\b|插画|作品集|配色/i.test(s)) add("zcool");
-  if (/小红书|xiaohongshu|种草/i.test(s)) add("xiaohongshu"); if (/抖音|douyin|短视频/i.test(s)) add("douyin");
-  if (/facebook|instagram|threads|脸书|(?<![\w/-])meta(?![\w/-])/i.test(s)) add("meta");
-  if (/python/i.test(s) && /官网|官方|版本|许可证|licen[sc]e|文档|下载/i.test(s)) add("pydoc");
-  if (/pytorch/i.test(s) && /官网|官方|版本|许可证|licen[sc]e|文档|安装/i.test(s)) add("pytorch");
-  if (/mistral/i.test(s) && /官网|官方|版本|许可证|licen[sc]e|商用|文档|模型/i.test(s)) add("mistral");
-  if (/llama|meta\s*ai|meta.{0,6}(官网|官方)/i.test(s) && /官网|官方|版本|许可证|licen[sc]e|商用|文档/i.test(s)) add("metaai");
-  if (/gemini|gemma|google.{0,12}(模型|官网|官方)/i.test(s) && /官网|官方|版本|许可证|licen[sc]e|商用|文档|模型/i.test(s)) add("googleai");
-  if (/中国政府网|国务院|政府工作报告|政策文件|法规|条例|发改委/.test(s)) add("govcn");
-  if (/\bNIH\b|美国国立卫生|国立卫生研究院/i.test(s)) add("nih");
-  if (/欧盟|european union|\bEU\b\s*(官网|政策|法规)/i.test(s)) add("eugov");
-  if (/google|谷歌|网上(搜|查)|网页搜索|全网|上网(搜|查)/i.test(s) && !/google.{0,12}(模型|官网|官方)/i.test(s)) add("websearch");
-  if (/learn.?anything|学习路线|学习路径|学习地图|怎么学|如何学|入门路线|想学|自学/i.test(s)) add("learnany");
-  if (/cocoloop|ai\s*skills?\b|skills?\s*商店|技能商店/i.test(s)) add("cocoloop");
-  if (/全景世界|tgmeng|热榜|热搜|trending/i.test(s) && !/新闻|今日热点|热点新闻/.test(s)) add("tgmeng");
-  if (/youart|一句话.{0,4}视频|文字生成视频|文生视频|ai\s*视频/i.test(s)) add("youart");
-  if (/fmhy|免费资源|资源导航|免费.{0,6}(网站|工具|软件|电影|资源|书|课程)/i.test(s)) add("fmhy");
-  if (/free.?llm|免费.{0,6}(api|大模型|模型|额度)|api.{0,4}(免费|白嫖)|白嫖.{0,4}(api|模型)/i.test(s)) add("freellm");
-  if (/openmaic|互动课堂|ai\s*课堂|清华.{0,6}(课堂|教学)/i.test(s)) add("openmaic");
-  if (/latent\s*box|latentbox|创意资源|艺术资源|ai\s*艺术|灵感资源/i.test(s)) add("latentbox");
-  if (/aixzd/i.test(s)) add("aixzd"); if (/free\s*ai\s*tools?\s*directory|免费.{0,4}ai\s*工具/i.test(s)) add("freeaitools");
-  if (/toolify/i.test(s)) add("toolify"); if (/there'?s\s*an\s*ai|theresanaiforthat|taift/i.test(s)) add("taift");
-  if (/ai-?bot|ai工具集/i.test(s)) add("aibot"); if (/ainav|ai导航网/i.test(s)) add("ainav"); if (/aihub/i.test(s)) add("aihub"); if (/优设/.test(s)) add("uisdc");
-  if (/ai.{0,3}(工具|导航|网站).{0,6}(推荐|目录|大全|合集|有哪些|哪个好)|(找|有什么|有哪些|推荐).{0,4}ai\s*工具|ai\s*工具(导航|目录|大全|合集)/i.test(s)) add("toolify", "aibot", "ainav");
-  if (/(?<![\w-])poe(?![\w-])/i.test(s) && /poe\.com|聚合|点数|订阅|模型|切换|\bai\b/i.test(s)) add("poe");
-  if (/lovart|多模态创作|商用物料/i.test(s)) add("lovart");
-  if (/cherry\s*studio|cherry-?ai/i.test(s)) add("cherry");
-  if (/imini/i.test(s)) add("imini");
-  if (/perplexity|ai\s*搜索/i.test(s)) add("perplexity");
-  if (/opencode|终端编程助手|终端.{0,4}(编程|写代码)/i.test(s)) add("opencode");
-  // v40 公开社交：Instagram / Facebook / X / Threads 的公开帖子，找大家真实在说什么、怎么评价、新趋势
-  if (/(?<![\w])(x|twitter)\.com|推特|(?<![\w/-])twitter(?![\w/-])|(?<![A-Za-z])X\s*(上|平台|帖子|推文)|推文|公开帖子|社交(媒体|平台|内容)/i.test(s)) add("meta");
-  if (/大家(都)?(怎么|在)?(说|评价|看|讨论)|真实(评价|反馈|口碑|声音)|网友|口碑|舆情|吐槽|新趋势|最新趋势|热议|种草|避雷/.test(s)) add("meta");
-  // v40 公开网页：只要是公开能打开的网页都能搜，不用提前加进清单（新闻 / 官网 / 博客 / 教程 / 文档 / 百科）
-  if (/新闻|报道|快讯|头条|要闻|时事|突发|今日热点|热点新闻/.test(s)) add("news");   // v86：问新闻只走 Tavily 新闻模式，不再走普通搜索
-  if (/台风|热带风暴|热带气旋|天气预警|气象预警|暴雨预警|寒潮预警/.test(s)) add("websearch");   // v86：台风预警先不专门接，用搜索 + 来源（中央气象台 nmc.cn 记为官方）
-  if (/最新(消息|动态|进展|版本)|官网|官方网站|博客|blog|教程|tutorial|文档站|documentation|百科|评测|测评|排行榜|榜单|发布会/i.test(s)) add("websearch");
-  // v40 学术 / 官方数据：论文库、DOI、官方统计、官方文档
-  if (/官方文档|开发文档|API\s*文档|官方指南|白皮书|技术报告/i.test(s)) add("websearch");
-  if (/官方统计|统计数据|世界银行|world\s*bank|oecd|联合国|人口数据|经济数据|人均\s*gdp|census/i.test(s)) add("worldstats");
-  if (/论文库|学术(搜索|数据库)|期刊|会议论文|openreview|zenodo|figshare|dblp|acl\s*anthology|ssrn/i.test(s)) add("arxiv", "semantic", "openalex");
-  if (/知网|cnki|中国知网|学位论文|硕博|核心期刊/i.test(s)) add("cnki");
-  if (/britannica|大英百科/i.test(s)) add("britannica");
-  if (/国家统计局|统计年鉴|统计公报|gdp|人口普查|cpi\b/i.test(s)) add("stats");
-  if (/维基|wikipedia|百科|是谁|什么是|是什么|定义|概念|起源/i.test(s) && s.length <= 80) add("wikipedia");
-  // v41 世界通用搜索 / 学术 / 代码 / 百科 / 视频社交 / 政府数据 / 国家级资源 / 货源
-  if (C_ENG.some((e) => e[1].test(s))) { add("engines"); if (/bing|必应|duckduckgo|\bddg\b|google|谷歌/i.test(s)) add("websearch"); }
-  if (/google\s*scholar|谷歌学术/i.test(s)) add("scholar");
-  if (/papers?\s*with\s*code|paperswithcode|论文.{0,4}代码|榜单分数|任务分数|sota/i.test(s)) add("hfpapers");
-  if (/base-search|base\s*(search|搜索)|欧洲.{0,4}开放学术/i.test(s)) add("base");
-  if (/core\.ac\.uk|core\s*(开放|论文|open)/i.test(s)) add("core");
-  if (/lens\.org|专利/i.test(s)) add("lens");
-  if (/dimensions\.ai|(?<![\w-])dimensions(?![\w-])/i.test(s)) add("dimensions");
-  if (/sourcegraph|跨仓库/i.test(s)) add("sourcegraph"); if (/gitlab/i.test(s)) add("gitlab");
-  if (/stack\s*overflow|stackoverflow|报错|traceback|exception|报错信息/i.test(s)) add("stackoverflow");
-  if (/phind/i.test(s)) add("phind");
-  if (/wikidata|实体关系|知识图谱/i.test(s)) add("wikidata");
-  if (/wolfram|解方程|求解|积分|导数/i.test(s)) add("wolfram");
-  if (/youtube|油管/i.test(s)) add("youtube"); if (/vimeo/i.test(s)) add("vimeo"); if (/pinterest|灵感图|穿搭|家装/i.test(s)) add("pinterest");
-  if (/pixabay|免版权|免费图片|图片素材/i.test(s)) add("pixabay"); if (/unsplash/i.test(s)) add("unsplash");
-  if (/reddit|避坑|测评|评测/i.test(s)) add("reddit");
-  if (/archive\.org|互联网档案|数字档案|旧版网页|wayback/i.test(s)) add("archive");
-  if (/nasa|航天|太空|火星/i.test(s)) add("nasa");
-  if (/un\s*data|联合国数据|世界银行|world\s*bank/i.test(s)) add("worldstats");
-  if (/futurepedia/i.test(s)) add("futurepedia"); if (/ai产品库|aicpb/i.test(s)) add("aicpb");
-  if (/古籍/.test(s)) add("guji"); if (/国图公开课/.test(s)) add("nlcopen"); if (/国家图书馆|国图|线上图书馆|电子图书馆/.test(s)) add("nlc");
-  if (/国家标准|国标|\bGB\/?T\b/i.test(s)) add("openstd"); if (/学习强国/.test(s)) add("xuexi"); if (/科普中国/.test(s)) add("kepu"); if (/参考咨询/.test(s)) add("cankao");
-  if (/打字鸭|练打字|学拼音/.test(s)) add("dazi");
-  if (/东库/.test(s)) add("dongku"); if (/简创库/.test(s)) add("jianchuang"); if (/千料/.test(s)) add("qianliao"); if (/剪仓库/.test(s)) add("jiancang"); if (/按兵/.test(s)) add("anbing"); if (/牛部落/.test(s)) add("niubuluo");
-  if (/虚拟产品货源|虚拟资源|虚拟货源|货源/.test(s)) add("dongku", "jianchuang", "qianliao");
-  if (ids.includes("websearch")) { const hk = (k) => env && String(env[k] || "").trim(); if (["TAVILY_KEY", "EXA_KEY", "SERPER_KEY", "BRAVE_KEY"].some(hk)) add("searchpool"); add("marginalia"); }
-  if (/marginalia|小众网站|独立博客|个人博客/i.test(s)) add("marginalia"); if (/tavily/i.test(s)) add("tavily"); if (/\bexa\b/i.test(s) && /搜索|search|api/i.test(s)) add("exa"); if (/serper/i.test(s)) add("serper"); if (/brave\s*(search|搜索)?(\s*api)?/i.test(s) && /api|接口|搜索结果/i.test(s)) add("brave");
-  return ids.slice(0, 8);
-}
-const cGroupName = (g) => (CONN_GROUPS.find((x) => x.id === g) || {}).title || g;
-async function runConnectors(ids, text, env) {
-  const x = { qEn: text };
-  if (cIsCJK(text) && ids.some((i) => CONNECTORS[i] && CONNECTORS[i].academic) && !cDoi(text)) { try { const en = await mtText(env, cKeywords(text), "en"); if (en && en.trim()) x.qEn = cCl(en, 160); } catch {} }
-  const out = await Promise.all(ids.filter((i) => CONNECTORS[i]).map(async (id) => {
-    const c = CONNECTORS[id], base = { id, name: c.name, group: c.group, web: !!c.web, label: c.label || "", items: [], note: "", error: "" };
-    try {
-      const r = await Promise.race([c.run(text, env, x), new Promise((_, no) => setTimeout(() => no(new ConnErr("超时（12 秒没返回）", 504)), 12000))]);
-      base.items = (r.items || []).filter((i) => i && i.title && /^https?:\/\//i.test(String(i.url || ""))).map((i) => ({ ...i, title: cCl(i.title, 200) }));   // 没有链接 = 没查到
-      base.note = r.note || "";
-    } catch (e) { base.error = String(e && e.message || e).slice(0, 200); }
-    return base;
-  }));
-  for (const r of out) { r.items = r.items.map((i) => { const t = itemTier(r.id, i); return { ...i, tier: t, side: itemSide(t, i) }; }); }
-  const real = out.some((r) => r.items.some((i) => !cIsEntry(i)));
-  const kept = real ? out.map((r) => ({ ...r, items: r.items.filter((i) => !cIsEntry(i)) })).filter((r) => r.items.length || !r.items.length && !(["engines", "scholar", "wolfram"].includes(r.id))) : out;   // 有真结果就不再给“搜索入口”
-  return { results: kept, translated: x.qEn !== text ? x.qEn : "" };
-}
-const tierSort = (a, b) => a.i.tier - b.i.tier || ((a.i.ts && b.i.ts) ? b.i.ts - a.i.ts : 0) || (cIsCJK(a.i.title) ? 0 : 1) - (cIsCJK(b.i.title) ? 0 : 1) || a.k - b.k;   // 官方永远最前；同级中文来源在前
-function connSystem(res) {
-  const L = ["【连接器查到的真实资料（系统刚刚真实调用接口得到，不是你的记忆）。已按来源级别分成两栏：官方 / 可验证、网友说法 / 仅供参考；每条都标了第几级】"]; let n = 0;
-  const all = []; let k = 0; res.results.forEach((r) => r.items.slice(0, 5).forEach((i) => all.push({ r, i, k: k++ })));
-  const sec = (title, side) => {
-    const list = all.filter((x) => x.i.side === side).sort(tierSort); L.push(`\n## ${title}`);
-    if (!list.length) { L.push("（这一栏这次没有查到）"); return; }
-    list.forEach(({ r, i }) => L.push(`[${++n}] 【第${i.tier}级·${TIER_NAME[i.tier]}】${i.title}\n    来源：${i.src || i.mapSource || r.name}${i.extra ? "\n    " + i.extra : ""}${i.mapDetail ? `\n    位置：[📍 在高德地图打开](${i.url})` : `\n    链接：${i.url}`}${i.doi ? "\n    DOI：" + i.doi : ""}`));
-  };
-  sec("一、官方 / 可验证（官方为准，错了以这里为准）", "verified");
-  sec("二、网友说法 / 仅供参考（只能当线索，不能当事实）", "opinion");
-  const hasV = all.some((x) => x.i.side === "verified"), hasO = all.some((x) => x.i.side === "opinion");
-  L.push("");
-  for (const r of res.results) {
-    if (r.note && r.items.length) L.push(`说明（${r.name}）：${r.note}`);
-    if (C_REMIND[r.id] && r.items.length) L.push(`提醒（回答里要带上，${r.name}）：${C_REMIND[r.id]}`);
-    if (!r.items.length) { L.push(`没查到：${r.name}（${r.error || r.note || "没有结果"}）`); if (r.note === "你要查哪个城市的军民农家乐？") L.push("回答限制：只能原样回复“你要查哪个城市的军民农家乐？”，不要编造城市、店铺或地址。"); }
-  }
-  if (res.translated) L.push(`（检索词已译成英文去查：${res.translated}）`);
-  L.push("回答规则：1) 涉及上面这些事实的部分，只能依据上面的内容，不要凭记忆补充或编造；2) 地图连接器只要返回了站点或 POI，就必须直接使用这些实测结果回答，不能改写成“资料缺失”“无法查询”或建议用户自己再搜；3) 引用时写明出处名称、第几级和链接；4) 没查到才直接说没查到，不要编；5) 回答也要分两栏：先写“官方 / 可验证”，再写“网友说法 / 仅供参考”，不能混在一起，官方永远排最前，博客和网友说法永远排最后；6) 如果官方和网友说法冲突，以官方为准，并写一句“官方说法和网友说法不一致”" + (hasV && hasO ? "（这次两栏都有内容，请对照一下有没有冲突）" : "") + "；7) 只给能直接点开看正文的链接，不要给搜索入口；8) 论文引用只用第 3 级和官方的链接；没有 DOI 的论文不要写 DOI，更不要编 DOI；9) 中文问题优先用中文来源，中文来源没有才用英文来源，并说明；10) 回答末尾的“来源”由系统自动附上，你不用再写来源列表。");
-  return L.join("\n");
-}
-function connFooter(res, query = "") {
-  const V = [], O = [], miss = [], verb = [], maps = []; let k = 0;
-  for (const r of res.results) {
-    const tag = r.label ? "（" + r.label + "）" : "";
-    if (!r.items.length) { miss.push(`未查到：${r.name}${tag}（${r.error || r.note || "没有结果"}；没有链接就是没查到）`); continue; }
-    if (r.id === "weather" && r.items.length >= 2) { const g = r.items[1], via = /百度地图/.test(g.src || "") ? "百度地图" : "Open-Meteo 地理编码"; V.push({ i: { tier: 1 }, k: k++, line: `来源：Open-Meteo${r.items[0].aqi ? "（天气 + 空气质量）" : ""} + ${via}（第1级·官方）- ${r.items[0].url}` }); continue; }
-    for (const i of r.items.slice(0, 3)) {
-      const lv = `（第${i.tier}级·${TIER_NAME[i.tier]}）`, line = i.mapDetail ? `来源：${i.src || i.mapSource || r.name}${lv} - [📍 在高德地图打开](${i.url})（接口时间 ${new Date(i.mapAt || Date.now()).toISOString()}）` : `来源：${i.src || i.mapSource || r.name}${lv}${tag} - ${i.url}${i.doi ? "（DOI " + i.doi + "）" : ""}`;
-      (i.side === "verified" ? V : O).push({ i, k: k++, line });
-      if (i.verbatim && i.extra) verb.push("```\n" + i.extra + "\n```"); if (i.mapDetail) maps.push({ title: i.title, url: i.url, source: i.mapSource || r.name, at: i.mapAt || Date.now(), ...i.mapDetail });
-    }
-  }
-  V.sort(tierSort); O.sort(tierSort);
-  const ms = (V.length || O.length) ? miss.map((m) => m.replace(/^未查到：/, "这次没查到：").replace("；没有链接就是没查到）", "）")) : miss;
-  const marker = maps.length ? "\n\n<!--MAP_DETAIL:" + JSON.stringify({ query, items: maps.slice(0, 10) }).replace(/-->/g, "") + "-->" : "";
-  const body = [V.length ? "**官方 / 可验证**\n" + V.map((x) => x.line).join("\n") : "", O.length ? "**网友说法 / 仅供参考**\n" + O.map((x) => x.line).join("\n") : "", ms.join("\n")].filter(Boolean).join("\n\n");
-  return body ? "\n\n" + body + (verb.length ? "\n\n自检原文：\n" + verb.join("\n") : "") + marker : "";
 }
 
 // ---------- v37 个人知识库 kb:{用户}（论文 / 链接 / 草稿 / 笔记）+ 反馈 fb:{用户}（对 / 错）----------
@@ -2606,60 +1785,9 @@ async function kaggleStream(agg, msgs, emit) {
   } finally { clearTimeout(timer); }
 }
 
-async function probe(label, fn) { try { return await fn(); } catch (e) { return { error: label + ": " + String(e) }; } }
-// v33 /debug 探针：旧版 max_tokens 只给 32，推理型模型把额度全花在“思考”上，正文是空的，会被误判成坏了。
-// 现在给 512，并多返回：是否有思考内容(reasoning_chars)、耗时(ms)、正文为空时的原始返回片段(raw)，能分清“模型坏了”和“只是思考太长”。
-async function chatProbe(url, key, model, extraHeaders = {}) {
-  const t0 = Date.now();
-  const r = await chatOpenAI(url, key, { model, messages: [{ role: "user", content: "请只回复两个字：在线" }], max_tokens: 512 }, extraHeaders, 30000);
-  const txt = await r.text().catch(() => ""); let j = {}; try { j = JSON.parse(txt); } catch {}
-  const msg = j.choices?.[0]?.message || {}, reply = String(msg.content || "").trim(), think = String(msg.reasoning || msg.reasoning_content || "");
-  const o = { hasKey: true, model, status: r.status, ms: Date.now() - t0, reply: reply.slice(0, 80), finish: j.choices?.[0]?.finish_reason, ctokens: j.usage?.completion_tokens, reasoning_chars: think.length, error: j.error?.message || (typeof j.error === "string" ? j.error : undefined) };
-  o.verdict = !r.ok ? "接口报错" : reply ? "正常" : think ? "只有思考没有正文（模型能用，但会慢/易空回复）" : "正文为空（可能被过滤或模型异常）";
-  if (!reply) o.raw = txt.slice(0, 300);
-  return o;
-}
 
-// ================= v99s：/debug 的 10 个 agent 走同一个结构：名字 / 是否在线 / 最后一次成功时间 / 最后一次报错。缺哪个补哪个的字段，不给每个 agent 单独写页面、不写死名字分支 =================
-const DBG_AGENTS = [
-  { id: "Groq", cn: "Groq", need: ["GROQ_KEYS"] },
-  { id: "OpenRouter", cn: "OpenRouter", need: ["OPENROUTER_KEYS"] },
-  { id: "Gemini", cn: "Gemini", need: ["GEMINI_KEYS"] },
-  { id: "Zhipu", cn: "智谱", need: ["ZHIPU_KEYS"] },
-  { id: "NVIDIA", cn: "英伟达 NVIDIA", need: ["NVIDIA_KEYS"] },
-  { id: "GitHubModels", cn: "GitHub Models", need: ["GITHUB_MODELS_TOKEN"] },
-  { id: "Poe", cn: "Poe", need: ["POE_API_KEY"] },
-  { id: "Coze", cn: "Coze 扣子", need: ["COZE_API_TOKEN", "COZE_BOT_ID"] },
-  { id: "Volcano", cn: "火山豆包", need: ["VOLCANO_API_KEY"] },
-  { id: "Dify", cn: "Dify", need: ["DIFY_APP_KEY"] },
-];
 const DBG_STAT = new Map();      // id → { ok_at, err, err_at }：真实聊天里每次成功 / 失败记一笔（只在内存，不占 KV）；/debug 探测结果也记一笔，并合并存 KV 一份（60 秒缓存，最多每分钟写 1 次）
 function dbgStat(id, ok, err) { try { const s = DBG_STAT.get(id) || {}; if (ok) s.ok_at = Date.now(); else { s.err = String(err || "失败").slice(0, 160); s.err_at = Date.now(); } DBG_STAT.set(id, s); } catch {} }
-const dbgTime = (ms) => ms ? fsFullStamp(ms) + "（北京时间）" : "";
-function dbgJudge(p) {      // 探针结果 → { ok, why }
-  if (!p) return { ok: false, why: "探针没有返回" };
-  if (p.error) return { ok: false, why: String(p.error).slice(0, 160) };
-  if (p.hasKey === false || p.configured === false) return { ok: false, why: "没配置" };
-  const v = String(p.verdict || "");
-  if (v) return /^正常|只有思考/.test(v) ? { ok: true } : { ok: false, why: v.slice(0, 160) };
-  const st = Number(p.status); if (st >= 200 && st < 300 && p.reply) return { ok: true };
-  return { ok: false, why: "状态 " + (p.status || "无") + (p.reply ? "" : "，没有回复") };
-}
-async function dbgAgents(env, probes) {      // probes：{ id → 探针结果 } → { rows, lines }
-  let old = {}; if (env.KV) { try { old = (await env.KV.get("debug:agent:stat", "json")) || {}; } catch {} }
-  const rows = [], save = {};
-  for (const d of DBG_AGENTS) {
-    const miss = d.need.filter((k) => !String(env[k] == null ? "" : env[k]).trim());
-    if (!miss.length) { const j = dbgJudge(probes[d.id]); if (j.ok) dbgStat(d.id, true); else dbgStat(d.id, false, j.why); }
-    const s = DBG_STAT.get(d.id) || {}, o = old[d.id] || {};
-    const ok_at = Math.max(s.ok_at || 0, o.ok_at || 0), err_at = Math.max(s.err_at || 0, o.err_at || 0), err = (s.err_at || 0) >= (o.err_at || 0) ? s.err : o.err;
-    save[d.id] = { ok_at, err, err_at };
-    const online = !miss.length && !!(DBG_STAT.get(d.id) && DBG_STAT.get(d.id).ok_at && (DBG_STAT.get(d.id).ok_at >= (DBG_STAT.get(d.id).err_at || 0)));
-    rows.push({ name: d.cn, online, status: online ? "在线" : "没接通", last_ok: ok_at ? dbgTime(ok_at) : "还没有成功记录", last_error: miss.length ? "没配置 " + miss.join(" / ") : (err_at ? dbgTime(err_at) + " " + String(err || "") : "没有报错记录") });
-  }
-  if (env.KV && JSON.stringify(save) !== JSON.stringify(old)) { try { await env.KV.put("debug:agent:stat", JSON.stringify(save)); } catch {} }
-  return { rows, lines: rows.map((r, i) => (i + 1) + ". " + r.name + " ｜ " + r.status + " ｜ 最后成功：" + r.last_ok + " ｜ 最后报错：" + r.last_error) };
-}
 
 // ---- 定时任务执行器（需要在 Cloudflare 给 Worker 配 Cron Trigger，例如 */5 * * * *）----
 const pad2 = (t) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t)); return m ? m[1].padStart(2, "0") + ":" + m[2] : ""; };
@@ -2725,353 +1853,16 @@ function stripApiLinks(text) {
 // ===== v86：今日热榜（糖果梦热榜开放平台 → KV 缓存）=====
 // Cron 每 5 分钟 POST https://api-open.tgmeng.com/v1/hot/search（Authorization: Bearer <TANG_HOT_KEY>，只放在 Worker 变量里）；前端只读 KV（GET /api/hot）。抓失败不报错、只保留上一次缓存。
 const HOT_KEY = "hot_list_cache", HOT_META = "hot_list_meta";
-// v90：平台集合完全动态，不再只认微博/百度/知乎/抖音/快手。key 优先使用 platformId，显示名使用 source。
-const hotBoardKey = (v) => { v = String(v == null ? "" : v).trim(); return v ? v.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff_-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80) : ""; };
-const hotBoardLabel = (x) => String(x && (x.source || x.platform || x.platformName || x.board || x.boardName || x.platformId) || "未知平台").trim().slice(0, 60);
 const bjStamp = (ms) => { const d = new Date(Number(ms) + 8 * 3600e3); return String(d.getUTCMonth() + 1).padStart(2, "0") + "-" + String(d.getUTCDate()).padStart(2, "0") + " " + String(d.getUTCHours()).padStart(2, "0") + ":" + String(d.getUTCMinutes()).padStart(2, "0"); };
-// 糖果梦返回结构我没拿到官方文档：这里按“字段名常见写法”宽松解析（找出所有带标题的列表，按平台名 / 键名归到微博、百度、知乎、抖音），解析不出的平台就是“缺”，不会编。
-// v86b：按糖果梦官方文档解析：data.items 是所有平台混在一起的平铺数组；兼容 platform / platformId / source / board / channel 等字段，最后用标题兜底识别平台。
-const hotItemTitle = (x) => String(x && (x.title ?? x.name ?? x.word ?? x.keyword ?? x.text ?? x.desc) || "").trim();
-function hotFromItems(items) {
-  const groups = {};
-  for (const x of items) {
-    const title = hotItemTitle(x); if (!x || !title) continue;
-    const platformId = String(x.platformId || x.platform || "").trim(), source = String(x.source || x.platformName || x.board || x.boardName || platformId || "").trim();
-    const key = hotBoardKey(platformId || source); if (!key) continue;
-    let group = groups[key] || (groups[key] = {name: source || platformId, channels: {}}), ch = String(x.channelId || x.channel || x.channelName || "main"), g = group.channels[ch] || (group.channels[ch] = []);
-    g.push(x);
-  }
-  const out = {};
-  for (const [key, group] of Object.entries(groups)) {
-    const chs = group.channels;
-    const names = Object.keys(chs); let ch = chs.main ? "main" : names.sort((a, b) => chs[b].length - chs[a].length)[0]; const seen = new Set(), list = [];
-    let upd = 0;
-    for (const x of chs[ch].slice().sort((a, b) => (Number(a.rank) || 1e9) - (Number(b.rank) || 1e9))) {
-      const title = hotItemTitle(x); if (!title || seen.has(title)) continue; seen.add(title);
-      const t = Date.parse(x.observedAt || ""); if (Number.isFinite(t) && t > upd) upd = t;
-      list.push({ rank: Number(x.rank) > 0 ? Number(x.rank) : list.length + 1, title: title.slice(0, 120), url: /^https:\/\//i.test(String(x.url || "")) ? String(x.url) : "", hot: x.hotScore == null ? "" : String(x.hotScore).slice(0, 20), cat: String(x.category || "").slice(0, 60) });
-      if (list.length >= 50) break;
-    }
-    if (list.length) out[key] = { name: group.name || key, items: list, upd: upd || null, channel: ch };
-  }
-  return out;
-}
-function hotNormalize(j) {
-  if (j && j.data && Array.isArray(j.data.items)) return hotFromItems(j.data.items);
-  const TF = ["title", "name", "word", "keyword", "query", "text", "desc"], UF = ["url", "link", "href", "mobileUrl", "mobile_url", "wapUrl", "uri"], HF = ["hot", "hotValue", "hot_value", "heat", "hotScore", "hot_score", "score", "num", "popularity", "value"], RF = ["rank", "ranking", "position", "index"];
-  const PF = ["platform", "platformName", "platform_name", "source", "sourceName", "site", "siteName", "board", "boardName", "type", "category", "label"], NF = [...PF, "name", "title"], UPF = ["updateTime", "update_time", "updatedAt", "updated_at", "fetchTime", "fetch_time", "time", "timestamp"];
-  const pick = (o, ks) => { for (const k of ks) { const v = o[k]; if (v != null && v !== "" && typeof v !== "object") return v; } return null; };
-  const toMs = (v) => { if (v == null) return null; let n = Number(v); if (Number.isFinite(n) && String(v).trim() !== "") { if (n > 1e12) {} else if (n > 1e9) n *= 1000; else return null; return n > 1.5e12 && n < 4.1e12 ? n : null; } const str = String(v).trim(); const t = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(str) ? str : str.replace(" ", "T") + "+08:00"); return Number.isFinite(t) ? t : null; };
-  const isItem = (o) => o && typeof o === "object" && !Array.isArray(o) && pick(o, TF) != null;
-  const boards = {};
-  const put = (key, o) => {
-    const b = boards[key] || (boards[key] = { items: [], seen: new Set(), upd: null }), title = String(pick(o, TF)).trim();
-    if (!title || b.seen.has(title) || b.items.length >= 50) return; b.seen.add(title);
-    let rk = Number(pick(o, RF)); if (!(Number.isFinite(rk) && rk > 0)) rk = b.items.length + 1;
-    const u = String(pick(o, UF) || ""), hv = pick(o, HF);
-    b.items.push({ rank: rk, title: title.slice(0, 120), url: /^https:\/\//i.test(u) ? u : "", hot: hv == null ? "" : String(hv).slice(0, 20) });
-  };
-  const walk = (node, ctx, depth) => {
-    if (node == null || depth > 7) return;
-    if (Array.isArray(node)) {
-      const objs = node.filter((x) => x && typeof x === "object" && !Array.isArray(x));
-      const nested = objs.some((o) => ["items", "list", "data", "hotList", "hot_list", "result", "results"].some((k) => Array.isArray(o[k])));
-      if (objs.length && !nested && objs.filter(isItem).length >= objs.length * 0.6) { for (const o of objs) { if (!isItem(o)) continue; const key = hotBoardKey(pick(o, PF)) || hotBoardKey(pick(o, TF)) || hotBoardKey(ctx); if (key) put(key, o); } return; }
-      node.forEach((x) => walk(x, ctx, depth + 1)); return;
-    }
-    if (typeof node === "object") {
-      const own = pick(node, NF), ownKey = hotBoardKey(own);
-      if (ownKey) { const u = toMs(pick(node, UPF)); if (u) (boards[ownKey] || (boards[ownKey] = { items: [], seen: new Set(), upd: null })).upd = u; }
-      for (const [k, v] of Object.entries(node)) if (v && typeof v === "object") walk(v, ownKey ? own : (hotBoardKey(k) ? k : ctx), depth + 1);
-    }
-  };
-  walk(j, "", 0);
-  const out = {}; for (const [k, b] of Object.entries(boards)) if (b.items.length) out[k] = { items: b.items, upd: b.upd };
-  return out;
-}
-async function refreshHotList(env) {
-  const kv = env && env.KV, key = String(env && (env.TANG_HOT_KEY || env.TGMENG_KEY) || "").trim();
-  console.log("[hot] refresh start", JSON.stringify({ has_kv: !!kv, has_key: !!key, at: new Date().toISOString() }));
-  if (!kv || !key) { const error = !kv ? "KV 未绑定" : "TANG_HOT_KEY/TGMENG_KEY 未配置"; console.error("[hot] refresh skipped", error); if (kv) { const meta = { last_try_at: Date.now(), last_error: error }; try { await kv.put(HOT_META, JSON.stringify(meta)); console.log("[hot] KV write success", HOT_META, JSON.stringify({ last_error: error, last_try_at: meta.last_try_at })); } catch (e) { console.error("[hot] KV write failed", HOT_META, e && e.message || e); } } return { ok: false, skipped: true, error }; }
-  const now = Date.now(); let prev = null, pm = null; try { prev = await kv.get(HOT_KEY, "json"); } catch {} try { pm = await kv.get(HOT_META, "json"); } catch {}
-  const meta = { ...(pm || {}), last_try_at: now };
-  try {
-    // 官方文档：REALTIME 一次最多 500 条、所有平台混在一起；四个榜任何一个不到 20 条且还有更多时才翻页（最多 3 页），一般 1 次请求
-    let raw = "", all = [], got = {}, ok = false, scanned = false, firstItemLogged = false;
-    // 平台集合未知，不能按固定榜名提前停止；最多按接口分页规则抓 3 页。
-    for (let page = 0; page < 3; page++) {
-      const endpoint = tangBase(env) + "/v1/hot/search";
-      const r = await fetch(endpoint, { method: "POST", headers: tangHeaders(key), body: JSON.stringify({ mode: "REALTIME", limit: 500, offset: page * 500 }), signal: T(15000) });
-      const rt = await r.text(); console.log("[hot] tgmeng response", JSON.stringify({ page, endpoint, status: r.status, ok: r.ok, body_head: rt.slice(0, 500) })); if (!raw) raw = rt; let j = null; try { j = JSON.parse(rt); } catch {}
-      if (!r.ok || !j) { const why = r.status === 403 ? "（上游拒绝请求：可能是 API Key 无效/未开通，或 Cloudflare Worker 出口 IP 被拦截；需糖果梦给出口 IP 加白或配置 TGMENG_API_BASE 授权中转，不是解析问题）" : ""; throw new Error("HTTP " + r.status + why + (j ? "" : "（不是 JSON）")); }
-      const arr = (j.data && Array.isArray(j.data.items)) ? j.data.items : null;
-      if (!arr) { got = hotNormalize(j); ok = true; scanned = true; break; }   // 结构和文档不同：退回宽松解析
-      all = all.concat(arr); if (!firstItemLogged && arr.length) { console.log("[hot] first item", JSON.stringify(arr[0]).slice(0, 3000)); firstItemLogged = true; } got = hotNormalize({ data: { items: all } }); ok = true;
-      console.log("[hot] parsed page", JSON.stringify({ page, items: arr.length, recognized: Object.fromEntries(Object.entries(got).map(([k, b]) => [k, {name: b.name || k, items: b.items.length}])) }));
-      if (!arr.length || !(j.data.summary && j.data.summary.hasMore)) { scanned = true; break; }
-      // 动态平台无法预先知道是否已经齐全，继续根据 hasMore 翻页。
-    }
-    const cache = { fetched_at: (prev && prev.fetched_at) || 0, boards: {} }, missing = []; let okN = 0;
-    for (const [k, b] of Object.entries(got)) { if (b && b.items.length) { cache.boards[k] = { name: b.name || k, items: b.items, fetched_at: now, source_updated_at: b.upd || null }; okN++; } }
-    meta.missing = missing; if (missing.length) meta.raw_head = raw.slice(0, 1500); else delete meta.raw_head;
-    if (!okN) throw new Error("没解析出任何受支持平台榜单（返回结构和平台字段与预期不同）");
-    cache.fetched_at = now;
-    try { await kv.put(HOT_KEY, JSON.stringify(cache)); console.log("[hot] KV write success", HOT_KEY, JSON.stringify({ fetched_at: now, boards: Object.keys(cache.boards) })); }
-    catch (e) { console.error("[hot] KV write failed", HOT_KEY, e && e.message || e); throw new Error("写 KV " + HOT_KEY + " 失败：" + (e && e.message || e)); }
-    meta.last_ok_at = now; meta.last_error = "";
-  } catch (e) { meta.last_error = String(e && e.message || e).slice(0, 500); if (!meta.raw_head) meta.raw_head = ""; console.error("[hot] refresh failed", meta.last_error); }   // 失败只记一笔，不动缓存
-  try { await kv.put(HOT_META, JSON.stringify(meta)); console.log("[hot] KV write success", HOT_META, JSON.stringify({ last_error: meta.last_error || "", last_try_at: meta.last_try_at })); }
-  catch (e) { console.error("[hot] KV write failed", HOT_META, e && e.message || e); }
-  return { ok: !meta.last_error, error: meta.last_error || "", meta };
-}
-async function hotDigest(env, n = 10) {   // 给“新闻早报”等任务直接用缓存，不调模型
-  if (!env.KV) return null; let c = null; try { c = await env.KV.get(HOT_KEY, "json"); } catch {}
-  if (!c || !c.boards || !Object.keys(c.boards).length) return null;
-  const entries = Object.entries(c.boards).filter(([, b]) => b && b.items && b.items.length), L = ["**今日热榜**（" + entries.map(([, b]) => b.name || "未知平台").join(" / ") + "，各榜独立排名，不做全网混排）"];
-  for (const [, b] of entries) { const name = b.name || "未知平台"; L.push(`\n**${name}**（抓取于 ${bjStamp(b.fetched_at)}${b.source_updated_at ? "；榜单更新 " + bjStamp(b.source_updated_at) : ""}）`); b.items.slice(0, n).forEach((x, i) => L.push(`${i + 1}. ${x.url ? `[${x.title}](${x.url})` : x.title}${x.hot ? "（热度 " + x.hot + "）" : ""}`)); }
-  const age = Date.now() - (c.fetched_at || 0); if (age > 3 * 3600e3) L.push(`\n（提示：热榜缓存已 ${Math.floor(age / 3600e3)} 小时没更新，抓取可能暂时失败）`);
-  L.push("\n来源：糖果梦热榜"); return L.join("\n");
-}
-// v88：聊天问热搜/热榜时直接读 KV 缓存，不再把这类问题交给网页搜索或模型；
-// 同时包含“新闻”时，在热榜后追加今天的 Tavily 新闻，避免把两个来源混成一份榜单。
-// v96：热榜类回答的链接保险。模型回答里每条列表项必须带 [来源名](链接) 或写“没查到链接”，且链接只能来自热榜材料；
-// 不合格 → 重跑 1 次；还不合格 → 直接给热榜原文（带真实链接），不放没链接的版本出去
-async function hotGuard(env, msgs, ctx, requested, model, mem) {
-  const norm = (u) => String(u || "").replace(/\/$/, "");
-  const allowed = new Set((ctx.match(/https?:\/\/[^\s)\]]+/g) || []).map(norm));
-  const check = (t) => {
-    t = String(t || ""); if (!t.trim()) return { ok: false, why: "空回复", n: 0 };
-    const links = [...t.matchAll(/\]\((https?:\/\/[^)\s]+)\)/g)].map((m) => norm(m[1]));
-    const items = t.split("\n").filter((l) => /^\s*(?:[-•*]|\d+[.、])\s/.test(l));
-    const bare = items.filter((l) => !/\]\(https?:\/\//.test(l) && !/没查到链接/.test(l));
-    if (allowed.size && links.length < Math.min(3, allowed.size)) return { ok: false, why: "链接太少", n: links.length };
-    if (bare.length) return { ok: false, why: "有 " + bare.length + " 条没带链接", n: links.length };
-    if (links.some((u) => !allowed.has(u))) return { ok: false, why: "出现材料里没有的链接", n: links.length };
-    return { ok: true, why: "", n: links.length };
-  };
-  let r = await tryAllFree(msgs, env, async () => {}, false, requested, { model, memory: mem }), c = r && r.text ? check(r.text) : { ok: false, why: "没有返回", n: 0 };
-  if (c.ok) return { ...r, streamed: false, text: r.text + "\n\n（链接检查：通过，" + c.n + " 条带链接）" };
-  const msgs2 = mergeSys(msgs, "上一版回答不合格（" + c.why + "）。重写：每条必须是“- 标题 一句话 [来源名](链接)”；链接原样取自热榜材料，不许省略、不许改写、不许编；材料里该条没有链接就在后面写“没查到链接”；不要写材料里没有的栏目（天气、待办）。");
-  const r2 = await tryAllFree(msgs2, env, async () => {}, false, requested, { model, memory: mem }), c2 = r2 && r2.text ? check(r2.text) : { ok: false, why: "没有返回", n: 0 };
-  if (c2.ok) return { ...r2, streamed: false, text: r2.text + "\n\n（链接检查：第一次" + c.why + "，已重跑，" + c2.n + " 条带链接）" };
-  return { text: ctx + "\n\n（链接检查：模型两次都没按格式带链接（" + c2.why + "），已直接给出热榜原文，链接都是真实的）", from: (r2 && r2.from) || (r && r.from) || "热榜原文", streamed: false, err: "" };
-}
-async function hotNewsReply(env, includeNews) {
-  const hot = await hotDigest(env, 10);
-  let result = hot;
-  if (!result) {
-    let m = null; try { if (env.KV) m = await env.KV.get(HOT_META, "json"); } catch {}
-    const reason = m && m.last_error ? m.last_error : "暂无可用缓存，Worker 尚未成功抓取糖果梦热榜";
-    result = "**糖果梦热榜暂不可用**\n原因：" + reason + "。请点击首页热榜面板中的“刷新”重试。";
-  }
-  if (!includeNews) return result;
-  let news = "";
-  try {
-    const ls = await newsToday(env, 6);
-    if (ls.length) news = "\n\n**今日新闻**（Tavily 新闻模式，仅最近 24 小时，按时间倒序）\n" + ls.map((n, i) => `${i + 1}. [${n.ago}] [${n.title}](${n.url})`).join("\n");
-    else news = "\n\n**今日新闻**\nTavily 最近 24 小时没有返回带发布时间的新闻。";
-  } catch (e) {
-    news = "\n\n**今日新闻**\n暂时没查到今日新闻（新闻接口不可用或未配置 TAVILY_KEY）。";
-  }
-  return result + news;
-}
-// ===== v87：糖果梦「糖果指数」+「招采」（和热榜共用同一个 TANG_HOT_KEY，只放在 Worker 变量里）=====
-// 糖果指数：Cron 每 15 分钟抓 all / technology / ai 三个分类 → KV candy_cache；热榜页只读缓存。聊天问“科技圈什么最热”：缓存 20 分钟内就读缓存，否则现查。
-// 招采：只在聊天里按需现查（省份 + 关键词，sort=PUBLISHED_AT_DESC），按来源平台分组、组内按发布时间从新到旧，不进缓存。
-// 官方文档没写 candy / procurement 单条数据的字段名：按 hot 同款字段（title / url / hotScore / publishedAt / source…）宽松取值，取不到就不显示、不编；解析不出时会把返回开头原样给你看。
-const TANG_BASE = "https://api-open.tgmeng.com", TANG_HOME = "https://tgmeng.com";
-// 糖果梦官方要求 API Key 放在请求头，不拼到 URL。TGMENG_API_BASE 可指向经糖果梦授权的国内中转/白名单网关。
-function tangHeaders(key) { return { "Content-Type": "application/json", "Accept": "application/json", "User-Agent": "Mozilla/5.0 (compatible; OpenManus/90; +https://openmanus.pages.dev)", "Referer": "https://open.tgmeng.com/", "Origin": "https://open.tgmeng.com", Authorization: "Bearer " + key, "X-API-Key": key }; }
-function tangBase(env) { return String(env && env.TGMENG_API_BASE || TANG_BASE).trim().replace(/\/$/, ""); }
-const CANDY_KEY = "candy_cache", CANDY_META = "candy_meta", CANDY_CRON = ["all", "technology", "ai"], CANDY_EVERY = 14 * 60e3, CANDY_FRESH = 20 * 60e3;
-const CANDY_NAMES = { all: "全部", technology: "科技", ai: "AI", finance: "财经", entertainment: "娱乐", car: "汽车", sports: "体育", game: "游戏", livelihood: "民生", sideline: "副业", education: "教育" };
-const candyLabel = (c) => CANDY_NAMES[String(c == null ? "" : c).toLowerCase()] || String(c == null ? "" : c);
-const tangKey = (env) => String(env && (env.TANG_HOT_KEY || env.TGMENG_KEY) || "").trim();
-const tangPick = (o, ks) => { for (const k of ks) { const v = o && o[k]; if (v != null && v !== "" && typeof v !== "object") return v; } return ""; };
-const tangItems = (j) => (j && j.data && Array.isArray(j.data.items)) ? j.data.items : (j && Array.isArray(j.items)) ? j.items : (j && Array.isArray(j.data)) ? j.data : null;
-const bjDay = (ms) => new Date(Number(ms) + 8 * 3600e3).toISOString().slice(0, 10);
-const bjFull = (ms) => new Date(Number(ms) + 8 * 3600e3).toISOString().slice(0, 16).replace("T", " ");
-function tangTs(v) {
-  if (v == null || v === "") return null;
-  const n = Number(v); if (Number.isFinite(n) && String(v).trim() !== "") return n > 1e12 ? n : n > 1e9 ? n * 1000 : null;
-  let s = String(v).trim(); if (/^\d{4}-\d\d-\d\d$/.test(s)) s += "T00:00:00+08:00"; else if (!/[zZ]|[+-]\d\d:?\d\d$/.test(s)) s = s.replace(" ", "T") + "+08:00";
-  const t = Date.parse(s); return Number.isFinite(t) ? t : null;
-}
-async function tangPost(env, path, body, ms = 15000) {
-  const key = tangKey(env); if (!key) throw new ConnErr("Worker 变量 TANG_HOT_KEY 没配置", 500);
-  const r = await fetch(tangBase(env) + path, { method: "POST", headers: tangHeaders(key), body: JSON.stringify(body), signal: T(ms) });
-  const raw = await r.text(); let j = null; try { j = JSON.parse(raw); } catch {}
-  if (!r.ok || !j) {
-    const e = j && j.error, code = String((j && j.code) || (e && typeof e === "object" ? e.code : e) || "").slice(0, 40);
-    const why = { 400: "参数不被接受", 401: "API Key 缺失或无效", 403: "Key 被禁用 / 过期，或套餐没开放这个功能", 429: code === "QUOTA_EXCEEDED" ? "今日额度用完" : "每分钟请求过多", 502: "糖果梦上游服务异常", 503: "糖果梦开放平台暂不可用" }[r.status] || "";
-    const err = new ConnErr("糖果梦接口 HTTP " + r.status + (code ? " " + code : "") + (why ? "（" + why + "）" : "") + (j ? "" : "（返回不是 JSON）"), r.status); err.raw = raw; throw err;
-  }
-  return { j, raw };
-}
-// ---- 糖果指数 ----
-const candyNum = (v) => { const n = Number(String(v == null ? "" : v).replace(/[,，\s]/g, "")); return String(v == null ? "" : v).trim() !== "" && Number.isFinite(n) ? n : null; };
-function candyParse(j, cat) {
-  const arr = tangItems(j); if (!arr) return null;
-  const seen = new Set(), out = [];
-  for (const x of arr) {
-    const title = cCl(tangPick(x, ["title", "name", "keyword"]), 120); if (!title || seen.has(title)) continue; seen.add(title);
-    const u = String(tangPick(x, ["url", "link"]) || ""), hs = tangPick(x, ["hotScore", "hot_score", "hot"]);
-    const rc = cat === "all" ? tangPick(x, ["categoryName", "category", "categoryId", "rootCategory"]) : cat;
-    out.push({ title, url: /^https:\/\//i.test(u) ? u : "", hot: hs === "" ? "" : String(hs).slice(0, 20), n: candyNum(hs), cat: candyLabel(rc) });
-  }
-  if (out.length && out.filter((o) => o.n != null).length >= out.length / 2) out.sort((a, b) => (b.n == null ? -Infinity : b.n) - (a.n == null ? -Infinity : a.n));   // hotScore 越大越热
-  return out.slice(0, 50).map((o, i) => ({ rank: i + 1, ...o }));
-}
-async function candyFetch(env, cat, limit = 50) {
-  const { j, raw } = await tangPost(env, "/v1/candy/search", { categories: [cat], limit, distinct: true });
-  const items = candyParse(j, cat), tag = (m) => { const e = new ConnErr(m, 200); e.raw = raw; return e; };
-  if (!items) throw tag("返回里没有 data.items 数组");
-  if (!items.length && (tangItems(j) || []).length) throw tag("有数据但解析不出标题（字段名和预期不同）");
-  return { items, raw };
-}
-async function refreshCandy(env) {
-  const kv = env && env.KV; if (!kv || !tangKey(env)) return { ok: false, skipped: true };
-  const now = Date.now(); let prev = null, pm = null; try { prev = await kv.get(CANDY_KEY, "json"); } catch {} try { pm = await kv.get(CANDY_META, "json"); } catch {}
-  if (pm && pm.last_try_at && now - pm.last_try_at < CANDY_EVERY) return { ok: true, skipped: true };   // Cron 是 5 分钟一次，糖果指数 15 分钟一次，省额度
-  const meta = { ...(pm || {}), last_try_at: now }, cache = { fetched_at: 0, cats: {} };
-  const rs = await Promise.allSettled(CANDY_CRON.map((c) => candyFetch(env, c, 50))), errs = []; let okN = 0, raw = "";
-  rs.forEach((r, i) => {
-    const c = CANDY_CRON[i];
-    if (r.status === "fulfilled" && r.value.items.length) { cache.cats[c] = { items: r.value.items, fetched_at: now }; okN++; return; }
-    errs.push(candyLabel(c) + "：" + (r.status === "rejected" ? String((r.reason && r.reason.message) || r.reason).slice(0, 80) : "没有数据"));
-    if (!raw) raw = String(r.status === "rejected" ? (r.reason && r.reason.raw) || "" : r.value.raw || "");
-  });
-  if (okN) { cache.fetched_at = now; try { await kv.put(CANDY_KEY, JSON.stringify(cache)); meta.last_ok_at = now; } catch (e) { errs.push("写缓存失败：" + String(e && e.message || e).slice(0, 60)); } }
-  else { try { await kv.delete(CANDY_KEY); } catch (e) { errs.push("清理旧缓存失败：" + String(e && e.message || e).slice(0, 60)); } }
-  meta.last_error = errs.join("；").slice(0, 300); meta.raw_head = errs.length ? raw.slice(0, 1500) : "";
-  try { await kv.put(CANDY_META, JSON.stringify(meta)); } catch {}
-  return { ok: !errs.length };
-}
-// 聊天用：缓存新鲜就读缓存，不新鲜就现查；现查失败退回旧缓存（并标出时间）
-async function candyGetCats(env, cats) {
-  let cc = null; try { cc = env.KV && await env.KV.get(CANDY_KEY, "json"); } catch {}
-  const now = Date.now(), per = {}, errs = [];
-  await Promise.all(cats.map(async (c) => {
-    const b = cc && cc.cats && cc.cats[c], have = !!(b && b.items && b.items.length);
-    if (have && now - b.fetched_at < CANDY_FRESH) { per[c] = { items: b.items, at: b.fetched_at, live: false }; return; }
-    try { const r = await candyFetch(env, c, 20); per[c] = { items: r.items, at: now, live: true }; }
-    catch (e) { const m = String(e && e.message || e).slice(0, 100); if (have) { per[c] = { items: b.items, at: b.fetched_at, live: false }; errs.push(candyLabel(c) + " 现查失败，用的是 " + bjStamp(b.fetched_at) + " 的缓存（" + m + "）"); } else errs.push(candyLabel(c) + " 没查到：" + m); }
-  }));
-  return { per, errs };
-}
-async function candyReply(env, cats) {
-  const { per, errs } = await candyGetCats(env, cats), got = cats.filter((c) => per[c]);
-  if (!got.length) return "糖果指数没查到：" + (errs.join("；") || "没有数据") + "。我不会编榜单。";
-  const seen = new Map();
-  for (const c of got) for (const x of per[c].items) { const o = seen.get(x.title); if (!o || (x.n || 0) > (o.n || 0)) seen.set(x.title, x); }
-  let list = [...seen.values()]; if (list.filter((x) => x.n != null).length >= list.length / 2) list.sort((a, b) => (b.n == null ? -Infinity : b.n) - (a.n == null ? -Infinity : a.n));
-  list = list.slice(0, 15);
-  const at = Math.max(...got.map((c) => per[c].at)), live = got.some((c) => per[c].live), names = cats.map(candyLabel).join(" / ");
-  const L = [`**糖果指数（AI 汇总）· ${names}**（${live ? "刚刚现查" : "缓存"}，${bjStamp(at)}；按 hotScore 从高到低，数值越大越热）`, ""];
-  list.forEach((x, i) => L.push(`${i + 1}. ${x.url ? `[${x.title.replace(/[\[\]]/g, "")}](${x.url})` : x.title}｜hotScore ${x.hot || "未提供"}${x.cat ? "｜" + x.cat : ""}`));
-  if (errs.length) L.push("", "（" + errs.join("；") + "）");
-  L.push("", `来源：糖果梦·糖果指数（AI 汇总，非官方榜单）- ${TANG_HOME}`); return L.join("\n");
-}
-// ---- 招采 ----
-const PROV = ["黑龙江", "内蒙古", "北京", "天津", "上海", "重庆", "河北", "山西", "辽宁", "吉林", "江苏", "浙江", "安徽", "福建", "江西", "山东", "河南", "湖北", "湖南", "广东", "海南", "四川", "贵州", "云南", "陕西", "甘肃", "青海", "台湾", "广西", "西藏", "宁夏", "新疆"];
-function tangIntent(s) {
-  s = String(s || "").trim(); if (!s || s.length > 120) return null;
-  const how = /怎么|如何|怎样|模板|范文|流程|教程|是什么|什么是|区别|写一|代码|脚本|合同|法律|法规|条例/.test(s);
-  if (/招标|招采|采购|中标|投标|招投标|比选|磋商|公共资源交易/.test(s) && !how) {
-    const provinces = PROV.filter((p) => s.includes(p));
-    const kw = s.replace(new RegExp(PROV.join("|") + "|自治区|省|市", "g"), " ").replace(/近\s*\d+\s*天|本周|这周|最近|这几天|本月|这个月|昨天|今天|今日|最新|帮我|请|麻烦|查询|查一下|查查|查|搜索|搜|找|看看|看下|有没有|有哪些|有什么|吗|呢|吧|一下|相关|关于|项目|信息|公告|结果|政府采购|公共资源交易|招投标|招标|招采|采购|中标|投标|比选|磋商|的|和|与|及|在|给我|列出|所有/g, " ");
-    const keywords = [...new Set(kw.split(/[\s,，、;；。？?！!]+/).map((x) => x.trim()).filter((x) => x.length >= 2))].slice(0, 2);
-    const m = s.match(/近\s*(\d+)\s*天/); let rangeDays = 0;
-    if (m) rangeDays = Math.min(31, Math.max(1, Number(m[1]))); else if (/本周|这周|最近|这几天/.test(s)) rangeDays = 7; else if (/昨天/.test(s)) rangeDays = 2; else if (/本月|这个月/.test(s)) rangeDays = 31;
-    return { type: "procure", provinces, keywords, rangeDays };
-  }
-  const ci = /糖果指数/.test(s), hot = /最热|热门|热点|热搜|热榜|热议|什么火|火什么|排行|榜单|热度/.test(s) && !/新闻|报道|快讯|头条|要闻|微博|抖音|快手|百度|知乎/.test(s);
-  if (ci || hot) {
-    const c = [];
-    if (/科技|数码|互联网/.test(s)) c.push("technology", "ai"); else if (/(?<![A-Za-z])AI(?![A-Za-z])|人工智能|大模型/i.test(s)) c.push("ai");
-    for (const [re, k] of [[/财经|股市|股票|金融|经济|基金/, "finance"], [/娱乐|明星|综艺|影视/, "entertainment"], [/汽车|车圈|新能源车/, "car"], [/体育|足球|篮球|NBA/i, "sports"], [/游戏|电竞/, "game"], [/民生/, "livelihood"], [/教育|高考|考研/, "education"], [/副业|兼职/, "sideline"]]) if (re.test(s)) c.push(k);
-    if (c.length) return { type: "candy", cats: [...new Set(c)] };
-    if (ci) return { type: "candy", cats: ["all"] };
-  }
-  return null;
-}
-function procureParse(j) {
-  const arr = tangItems(j); if (!arr) return null;
-  const out = [];
-  for (const x of arr) {
-    const title = cCl(tangPick(x, ["title", "noticeTitle", "projectName", "name"]), 160); if (!title) continue;
-    const u = String(tangPick(x, ["url", "link", "detailUrl", "noticeUrl"]) || ""), pr = tangPick(x, ["publishedAt", "publishTime", "publishDate", "publishedTime", "pubTime", "publishAt"]);
-    out.push({ title, url: /^https?:\/\//i.test(u) ? u : "", pubRaw: String(pr || ""), ts: tangTs(pr), plat: cCl(tangPick(x, ["sourceName", "source", "sourceGroup", "platformName", "platform", "sourceCode"]), 40) || "其他平台", type: cCl(tangPick(x, ["rawType", "noticeType", "type"]), 20), purchaser: cCl(tangPick(x, ["purchaser", "buyer", "purchaserName", "tenderee"]), 40), amount: cCl(tangPick(x, ["amount", "budget", "budgetAmount", "amountText"]), 24), deadline: cCl(tangPick(x, ["deadline", "deadlineAt", "bidDeadline", "deadlineTime"]), 24) });
-  }
-  return { items: out, rawCount: arr.length };
-}
-async function procureFetch(env, p, hist) {
-  const body = { mode: hist ? "HISTORY" : "TODAY", sort: "PUBLISHED_AT_DESC", limit: 100, distinct: true };
-  if (p.keywords.length) body.keywords = p.keywords; if (p.provinces.length) body.provinces = p.provinces;
-  let r;
-  if (hist) {
-    const today = bjDay(Date.now()), ms = tangTs(today) , monthStart = today.slice(0, 8) + "01", d = Math.max(1, p.rangeDays || 31);
-    let start = bjDay(ms - (d - 1) * 86400e3); if (start < monthStart) start = monthStart;   // HISTORY 要求同一自然月
-    try { r = await tangPost(env, "/v1/procurement/search", { ...body, startTime: start + " 00:00:00", endTime: today + " 23:59:59" }); }
-    catch (e) { if (e && e.status === 400) r = await tangPost(env, "/v1/procurement/search", { ...body, startTime: start, endTime: today }); else throw e; }
-    r.start = start; r.end = today;
-  } else r = await tangPost(env, "/v1/procurement/search", body);
-  const parsed = procureParse(r.j); r.parsed = parsed; r.total = r.j && r.j.data && r.j.data.summary && r.j.data.summary.total;
-  return r;
-}
-function procureRender(r, p, note) {
-  const items = r.parsed.items.slice().sort((a, b) => (b.ts == null ? -Infinity : b.ts) - (a.ts == null ? -Infinity : a.ts));   // 再按发布时间倒序排一遍（没时间的排最后）
-  const groups = new Map(); for (const x of items) { if (!groups.has(x.plat)) groups.set(x.plat, []); groups.get(x.plat).push(x); }
-  const gl = [...groups.entries()].sort((a, b) => (b[1][0].ts == null ? -Infinity : b[1][0].ts) - (a[1][0].ts == null ? -Infinity : a[1][0].ts));
-  const where = (p.provinces.length ? p.provinces.join("、") : "全国") + (p.keywords.length ? "｜关键词：" + p.keywords.join("、") : ""), when = r.start ? `${r.start} 至 ${r.end}` : "今天";
-  const L = [`**招采公告**（${where}｜${when}｜按来源平台分组，组内按发布时间从新到旧${r.total != null ? "；接口共 " + r.total + " 条" : ""}）`];
-  if (note) L.push(note);
-  let shown = 0;
-  for (const [plat, arr] of gl.slice(0, 8)) {
-    L.push("", `**${plat}**（${arr.length} 条）`);
-    arr.slice(0, 8).forEach((x, i) => {
-      const meta = [x.ts ? "发布 " + bjFull(x.ts) : x.pubRaw ? "发布 " + x.pubRaw : "", x.type, x.purchaser ? "采购人 " + x.purchaser : "", x.amount ? "金额 " + x.amount : "", x.deadline ? "截止 " + x.deadline : ""].filter(Boolean).join("｜");
-      L.push(`${i + 1}. ${x.url ? `[${x.title.replace(/[\[\]]/g, "")}](${x.url})` : x.title}${meta ? "｜" + meta : ""}`); shown++;
-    });
-    if (arr.length > 8) L.push(`（${plat} 另有 ${arr.length - 8} 条没列出）`);
-  }
-  if (gl.length > 8) L.push("", `（还有 ${gl.length - 8} 个平台没列出，换更具体的关键词可以缩小范围）`);
-  L.push("", `来源：糖果梦·招采数据（政府采购 / 公共资源交易 / 央国企采购公告的聚合，以公告原文为准）- ${TANG_HOME}`); return L.join("\n");
-}
-async function procureReply(env, p) {
-  if (!p.provinces.length && !p.keywords.length) return "想查哪个省份、什么关键词的招采公告？比如“吉林 教育 招标”。";
-  let hist = !!p.rangeDays, note = "", r = await procureFetch(env, p, hist);
-  if (r.parsed && !r.parsed.items.length && !r.parsed.rawCount && !hist) { hist = true; r = await procureFetch(env, p, true); note = "今天还没有符合条件的公告，改查本月 1 日到今天："; }
-  if (!r.parsed) return "招采接口通了，但返回里没有 data.items 数组，我按文档字段没法解析，不会编。返回开头：\n```\n" + r.raw.slice(0, 900) + "\n```";
-  if (!r.parsed.items.length) return r.parsed.rawCount ? "招采接口有 " + r.parsed.rawCount + " 条数据，但取不到标题（字段名和我按文档猜的不一致），不会编。返回开头：\n```\n" + r.raw.slice(0, 900) + "\n```" : `没有查到：${p.provinces.join("、") || "全国"}${p.keywords.length ? " · " + p.keywords.join("、") : ""}（${r.start ? r.start + " 至 " + r.end : "今天"}）暂无符合的招采公告。`;
-  return procureRender(r, p, note);
-}
 // ===== /v87 =====
 async function execTaskPrompt(t, env) {
-  // v81：和聊天一样先自动选连接器查真实资料（天气 / 新闻 / 搜索…），再让模型回答，并附“来源”。以前定时任务只问模型，查天气会编。
+  // 就医版：定时提醒任务直接让模型按 prompt 回答（已去掉热榜 / 连接器抓取）
   let text = "", status = "ok";
   const q = String(t.prompt || t.title).slice(-12000);
-  // v86：热榜 / 新闻早报：直接读热榜缓存（不调模型、不编榜单），再附今天的新闻（Tavily 新闻模式，带发布时间）
-  if (/热榜|热搜|新闻早报/.test(q) && q.length <= 300) {
-    try {
-      const dg = await hotDigest(env, 10);
-      if (dg) {
-        let news = ""; try { const ls = await newsToday(env, 6); if (ls.length) news = "\n\n**今日新闻**（Tavily 新闻模式，仅最近 24 小时，按时间倒序）\n" + ls.map((n, i) => `${i + 1}. [${n.ago}] [${n.title}](${n.url})`).join("\n"); } catch {}
-        const sk = stripApiLinks(dg + news); return { text: sk.text, status: "ok", links: sk.links };
-      }
-    } catch {}
-  }
   try {
-    let msgs = [{ role: "user", content: q }], connRes = null;
-    try {
-      if (q.length <= 300 && !/```/.test(q)) {
-        const cids = routeConnectors(q, env);
-        if (cids.length) { connRes = await runConnectors(cids, q, env); msgs = mergeSys(msgs, connSystem(connRes)); }
-      }
-    } catch {}
+    const msgs = [{ role: "user", content: q }];
     const r = await tryAllFree(msgs, env, async () => {}, false); text = r ? r.text : "";
     if (!text) status = "failed";
-    else if (connRes) { try { text += connFooter(connRes, q); } catch {} }
   } catch (e) { status = "failed"; text = String(e.message || e); }
   const sk = stripApiLinks(text);
   return { text: sk.text, status, links: sk.links };
@@ -4247,29 +3038,12 @@ const WORKER_DEFAULT = {
   },
   async scheduled(event, env, ctx) {
     const e2 = { ...env, KV: safeKV(env.KV) };
-    const cronMin = new Date(event && event.scheduledTime || Date.now()).getUTCMinutes(), fiveMin = cronMin % 5 === 0;
-    if (fiveMin) console.log("[cron] start", JSON.stringify({ scheduled: true, has_kv: !!env.KV, has_hot_key: !!String(env.TANG_HOT_KEY || env.TGMENG_KEY || "").trim(), at: new Date().toISOString() }));
     ctx.waitUntil((async () => {
       try { const r = await agCronReminders(e2); if (r.sent || r.msg) console.log("[cron] reminders", JSON.stringify({ sent: r.sent || 0, pending: r.pending || 0, msg: r.msg || "" })); }
       catch (e) { console.error("[cron] reminders failed", e && e.message || e); }
-      try {      // v99k：早报——北京时间（UTC+8）08 点这一小时内每分钟都会尝试，morning:<北京日期> 防重复；没日程 / 没待办也发；成败都写日志
-        const bj = agParts(event && event.scheduledTime || Date.now());
-        if (bj.h === 8) {
-          const r = await agMorningBrief(e2);
-          if (r.skipped) console.log("[cron] morning skip", JSON.stringify({ msg: r.msg || "" }));
-          else if (r.ok) console.log("[cron] morning done", JSON.stringify({ ok: true, bj: `${bj.y}-${agPad(bj.mo)}-${agPad(bj.d)} 08:${agPad(bj.mi)}` }));
-          else console.log("[cron] morning fail", JSON.stringify({ ok: false, reason: r.msg || "未知" }));
-        }
-      }
-      catch (e) { console.error("[cron] morning fail", String(e && e.message || e).slice(0, 160)); }
-      if (!fiveMin) return;                                           // v90：Cron 改成每分钟一次后，热榜 / 定时任务 / 糖果指数仍然只在整 5 分钟跑，额度不变
-      try { const r = await refreshHotList(e2); console.log("[cron] hot done", JSON.stringify({ ok: r.ok, skipped: !!r.skipped, error: r.error || "" })); }
-      catch (e) { console.error("[cron] hot uncaught", e && e.stack || e); }
       try { const n = await runDueTasks(e2); console.log("[cron] tasks done", n); } catch (e) { console.error("[cron] tasks failed", e && e.stack || e); }
-      try { const r = await refreshCandy(e2); console.log("[cron] candy done", JSON.stringify({ ok: r.ok, skipped: !!r.skipped })); } catch (e) { console.error("[cron] candy failed", e && e.stack || e); }
-      console.log("[cron] finish", new Date().toISOString());
     })());
-  }   // v89：Cron 先真实刷新热榜并记录每一步，再执行其他任务
+  }   // 就医版：Cron 只跑到点提醒 + 定时任务（热榜 / 糖果指数 / 早报已移除）
 };
 // ================= v90：Dify 主 Agent 工具层 + Worker Cron 到点提醒（推飞书）=================
 // 变量：FEISHU_APP_ID / FEISHU_APP_SECRET（飞书应用 openmanus，到点提醒用它换 token 再发群消息）、FEISHU_CHAT_ID（可选，指定群；不填则自动用机器人所在的唯一一个群）、AGENT_TOOL_KEY（手动触发 /api/agent/cron/run 用的密钥）、AGENT_USER（你的登录用户名，工具读写的就是这个人的数据）、
@@ -4326,120 +3100,10 @@ async function agTodoLoad(env, user) { try { const v = await env.KV.get("todos:"
 const agTodoSave = (env, user, a) => env.KV.put("todos:" + user, JSON.stringify(a.slice(0, 300)));
 const agTodoView = (t) => ({ id: t.id, text: t.text, due: t.due_at ? agFmt(t.due_at) : "", done: !!t.done });
 
-// ---- 联网搜索：新闻走 Tavily 新闻模式（只要最近 24 小时、带发布时间）；行情走免费行情；其余走搜索池（Tavily → Exa → Serper → Brave）----
-async function agSearch(env, b) {
-  const q = String(b.query || "").trim().slice(0, 200); if (!q) throw Object.assign(new Error("缺少 query"), { status: 400 });
-  const max = Math.min(10, Math.max(1, parseInt(b.max, 10) || 10));   // v92：默认 10 条
-  let type = ["web", "news", "quote"].includes(b.type) ? b.type : "";
-  if (!type) type = /金价|黄金|汇率|兑|股价|股票|指数|行情|大盘|A股|港股|沪指|美元|日元|欧元|英镑/.test(q) ? "quote" : /新闻|头条|要闻|快讯|今日|今天发生|最新消息|热点/.test(q) ? "news" : "web";
-  const out = { type, query: q, items: [], quote: [], note: "" };
-  if (type === "quote") {
-    const qq = /金价|黄金|gold/i.test(q) ? "金价" : /汇率|兑|美元|日元|欧元|英镑|港币|换/.test(q) ? q.replace(/汇率|是多少|多少|现在|今天|最新|查一下|查|的|吗|？|\?/g, "").trim() : (/大盘|指数|A股|沪指|行情$/.test(q) && !/\d{5,6}/.test(q) ? "" : q.replace(/股价|股票|行情|是多少|多少|现在|今天|最新|查一下|查|的|吗|？|\?/g, "").trim());
-    try {
-      const r = await infoQuote(qq);
-      for (const blk of r.blocks || []) out.quote.push({ title: blk.title, error: blk.err || "", asof: blk.asof || "", note: blk.note || "", source: blk.source || null, rows: (blk.rows || []).map((x) => ({ name: x.name, price: x.price, change: x.change, pct: x.pct, extra: x.extra })) });
-    } catch (e) { out.note = "行情接口没取到：" + String(e && e.message || e).slice(0, 100); }
-    if (!out.quote.some((x) => x.rows.length)) { type = out.type = "web"; }       // 行情没取到：退回网页搜索
-  }
-  if (type === "news") {
-    try {   // v92：只取最近 24 小时（Tavily time_range=day + 发布时间过滤），按发布时间倒序；不够条数就换个说法再查一次，合并后再去重
-      const base = q.replace(/今天|今日|最新|有什么|有哪些|新闻|的/g, "").trim() || "今日要闻";
-      let list = await tavilyNewsList(base, env, 15);
-      if (list.length < max + 3) {
-        try { const seen = new Set(list.map((n) => n.url)); (await tavilyNewsList(base === "今日要闻" ? "热点 头条" : base + " 热点", env, 15)).forEach((n) => { if (!seen.has(n.url)) { seen.add(n.url); list.push(n); } }); } catch {}
-      }
-      list.sort((x, y) => y.ts - x.ts);
-      out.items = list.map((n) => ({ title: n.title, url: n.url, time: n.ago, snippet: n.snippet }));
-    }
-    catch (e) { out.note = String(e && e.message || e).slice(0, 100); }
-    if (!out.items.length) type = out.type = "web";                              // 24 小时内没有带时间的新闻：退回网页搜索，并写明
-  }
-  if (type === "web") {
-    const r = await cSearchPool(q, env); out.items = (r.items || []).slice(0, Math.min(13, max + 3)).map((x) => ({ title: x.title, url: x.url, snippet: x.extra || "", source: x.src || "" }));
-    if (r.note) out.note = [out.note, r.note].filter(Boolean).join("；");
-  }
-  out.fetched_at = agFmt(Date.now()) + "（北京时间）";
-  out.tip = "回答时只用这里返回的内容；行情要写出时间和来源；没有结果就直说没查到，不要编。";
-  if (out.items.length) out.items = agDedupe(out.items).slice(0, max);   // v92：同站、简繁标题相同的只留一条
-  if (out.items.length) {   // v92：新闻 / 网页结果同时给一份现成的 markdown，每条 = 标题 + 一句话 + [来源名](链接)。模型照抄，比让它自己拼可靠得多
-    out.markdown = out.items.map(agMdLine).join("\n");
-    out.tip = "回答时先写一句总结，然后把 markdown 字段原样贴出来：每条一行，不许改写、不许省略链接、不许把链接改成（域名）或“来源：域名”，也不许写“详情见上述链接”。只用这里返回的内容，不要编。没有链接的那条已经写了“没查到链接”。";
-  }
-  return out;
-}
-// 网站“废话”：导航 / 下载 / 二维码 / 站点名（搜索结果的标题、摘要里经常夹带）
-const AG_NOISE = /(扫描二维码|下载\s*[\w一-龥]{0,12}\s*APP|[\w一-龥]{0,12}首页|中国游戏门户站|游戏门户站|门户站|更多新闻短片|一贴睇晒|Tweet|Share|分享到|关注我们|立即下载|点击查看|登录|注册)/gi;
-// v93：洗掉标题 / 摘要后面混进来的网站导航栏。一句话（以 。！？ 或换行为界）里：
-//  ① 遇到“强导航词”（北大主页、头条新闻纵横…）就从它开始往后全删；
-//  ② “弱导航词”（资讯 军事 汽车 游戏 科技 旅游 热点 财经 体育 首页 导航 菜单）出现 3 个或以上不同的，就从第一个开始往后全删（只出现 1~2 个的是正常标题，不动）。
-const AG_NAV_STRONG = ["北大主页", "头条新闻纵横", "学术科研", "德赛论坛", "媒体北大"];
-const AG_NAV_WEAK = ["资讯", "军事", "汽车", "游戏", "科技", "旅游", "热点", "财经", "体育", "首页", "导航", "菜单"];
-function agCutNav(t) {
-  const src = String(t || "");
-  const out = src.split(/(?<=[。！？!?\n])/).map((seg) => {
-    let cut = -1; const mark = (i) => { if (i >= 0 && (cut < 0 || i < cut)) cut = i; };
-    for (const w of AG_NAV_STRONG) mark(seg.indexOf(w));
-    const hits = AG_NAV_WEAK.map((w) => seg.indexOf(w)).filter((i) => i >= 0);
-    if (hits.length >= 3) mark(Math.min(...hits));
-    return cut >= 0 ? seg.slice(0, cut).trim() : seg;
-  }).filter(Boolean).join(" ").trim();
-  return out || src;
-}
-function agCleanTitle(t, host) {
-  let s = agCutNav(String(t || "")).replace(/\s+/g, " ").replace(/[\[\]]/g, "").trim();
-  const seg = s.split(/\s*[_|｜]\s*|\s+[-–—]\s+/).map((x) => x.trim()).filter(Boolean);
-  if (seg.length > 1 && seg[0].length >= 4) s = seg[0];                    // 只留新闻标题本身：_游戏新闻_17173.com…、｜即时新闻｜on.cc东网 这类后缀全丢
-  s = s.replace(AG_NOISE, "").replace(host ? new RegExp(host.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\S*", "gi") : /$^/, "").replace(/\s+/g, " ").trim();
-  return s.slice(0, 80);
-}
-function agCleanSnippet(sn, title) {       // 一句话：只留第一句完整的话；是网站废话 / 只是把标题再说一遍的，就不写
-  let s = agCutNav(String(sn || "").replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")).replace(/https?:\/\/\S+/g, " ").replace(/[#*>`]+/g, " ").replace(/\s+/g, " ").trim();
-  s = s.replace(AG_NOISE, " ").replace(/\S{0,12}APP/gi, " ").replace(/\d{4}年\d{1,2}月\d{1,2}日|\d{1,2}:\d{2}/g, " ").replace(/(\S{2,30})(\s+\1)+/g, "$1");
-  const norm = (x) => String(x).replace(/[\s\p{P}\p{S}]/gu, ""), core = norm(title), len = (x) => norm(x).length;
-  const pieces = s.split(/(?<=[。！？!?])/).map((x) => (title ? x.replace(title, "") : x).replace(/\s+/g, " ").trim()).filter((x) => {
-    const n = norm(x); return n.length >= 4 && !(core.length >= 6 && core.includes(n));   // 去掉照抄标题（含被截断的标题开头）的部分
-  });
-  for (const x of pieces) {
-    const cjk = /[一-龥]/.test(x);
-    if (/[。！？!?]$/.test(x) && len(x) >= (cjk ? 6 : 25)) return x.slice(0, 60);
-  }
-  const rest = pieces.join(" ").replace(/\s*[-–—|｜]+\s*/g, " ").replace(/\s+/g, " ").trim();
-  return len(rest) >= 20 && /[一-龥]/.test(rest) ? rest.slice(0, 40) + "…" : "";
-}
-function agSrcName(u) {                    // 来源名：news.17173.com → 17173.com，hk.on.cc → on.cc，www.bbc.co.uk → bbc.co.uk
-  try {
-    const p = new URL(u).hostname.replace(/^www\./, "").split(".");
-    const n = p.length > 2 && p[p.length - 1].length === 2 && ["com", "co", "net", "org", "gov", "edu"].includes(p[p.length - 2]) ? 3 : 2;
-    return p.slice(-n).join(".");
-  } catch { return "来源"; }
-}
 // ---- 去重：同一网站、标题简繁相同的只留一条（优先留简体那条）----
 const AG_T2S = (() => { const P = "東东報报聞闻時时間间線线國国為为這这個个們们來来說说對对會会學学長长開开關关門门問问題题員员無无麼么點点見见現现實实從从後后與与電电話话書书買买賣卖讀读寫写車车馬马鳥鸟魚鱼貝贝氣气愛爱傳传億亿萬万單单條条產产業业專专兩两臺台灣湾區区島岛張张強强發发經经濟济貿贸統统計计議议約约黨党團团體体組组織织華华陸陆運运動动賽赛場场際际隊队戰战勝胜負负擊击進进處处壓压價价銀银貨货幣币財财稅税額额債债項项險险監监證证務务協协辦办總总頭头據据導导機机構构權权則则類类種种樣样標标準准網网絡络視视頻频節节廣广藝艺術术戲戏劇剧樂乐畫画啟启獎奖歷历過过還还當当夠够幾几許许應应該该讓让請请謝谢隨随環环備备齊齐聯联繫系係系營营貸贷輸输態态內内載载錄录記记憶忆級级認认識识設设號号稱称檢检驗验護护鐘钟鎮镇鐵铁鋼钢錢钱錯错鏡镜陰阴陽阳隱隐難难雙双雜杂離离雲云靈灵靜静頁页頂顶順顺須须預预頓顿領领顯显風风飛飞飲饮館馆驚惊髮发鬥斗鬧闹魯鲁鳳凤鴻鸿鹽盐麗丽黃黄齡龄龍龙龜龟觀观親亲規规覺觉訊讯訪访評评詞词試试詩诗誠诚語语誤误誰谁課课調调談谈論论變变讚赞譯译貴贵費费賓宾資资賬账贏赢趕赶轉转軍军輕轻輛辆較较農农週周達达遠远選选遺遗邊边鄉乡醫医釋释鑒鉴閃闪閱阅階阶陣阵雖虽響响顧顾養养鳴鸣檔档樓楼歐欧殺杀毀毁決决滿满漢汉濃浓熱热爾尔牆墙獨独獲获瑪玛盜盗眾众禮礼穩稳窮穷競竞筆笔築筑糧粮紀纪紅红納纳純纯紙纸紛纷細细終终結结絕绝絲丝綠绿維维緊紧編编縣县績绩繼继續续罰罚習习聖圣聽听聲声職职肅肃腦脑臉脸艦舰蘭兰衛卫補补製制複复詳详輯辑邁迈郵邮鄭郑", m = {}; for (let i = 0; i < P.length; i += 2) m[P[i]] = P[i + 1]; return m; })();
 const agToSimp = (t) => String(t || "").replace(/[一-鿿]/g, (c) => AG_T2S[c] || c);
 const agKey = (t) => agToSimp(t).toLowerCase().replace(/[^一-鿿a-z0-9]/g, "");
-function agDedupe(items) {
-  const out = [];
-  for (const x of items) {
-    let host = ""; try { host = new URL(x.url).hostname.replace(/^www\./, ""); } catch {}
-    const site = host ? agSrcName(x.url) : "", title = agCleanTitle(x.title, host), key = agKey(title);
-    const hit = out.findIndex((o) => {
-      if (o.site !== site || !key) return false;
-      if (o.key === key) return true;
-      if (o.key.length !== key.length || key.length < 6) return false;                 // 简繁转换表里没有的字：同站、同长度、80% 以上位置相同也算重复
-      let same = 0; for (let i = 0; i < key.length; i++) if (o.key[i] === key[i]) same++;
-      return same / key.length >= 0.8;
-    });
-    if (hit < 0) { out.push({ x, site, key, simp: title === agToSimp(title) }); continue; }
-    if (!out[hit].simp && title === agToSimp(title)) out[hit] = { x, site, key, simp: true };   // 已有的是繁体、新的是简体：换成简体
-  }
-  return out.map((o) => o.x);
-}
-function agMdLine(x) {      // 一条结果 → "- 标题 一句话 [来源名](链接)"；没有链接就写“没查到链接”，不编
-  const url = String(x.url || "").trim(); let host = ""; try { host = new URL(url).hostname.replace(/^www\./, ""); } catch {}
-  const title = agCleanTitle(x.title, host), one = agCleanSnippet(x.snippet, title), mid = title + (one ? " " + one : "");
-  if (!/^https?:\/\//i.test(url)) return "- " + mid + " 没查到链接";
-  return "- " + mid + " [" + agSrcName(url) + "](" + url.replace(/\(/g, "%28").replace(/\)/g, "%29").replace(/\s/g, "%20") + ")";
-}
 
 // ---- 提醒 / 待办 ----
 async function agTodo(env, user, action, b) {
@@ -4478,29 +3142,6 @@ async function agTodo(env, user, action, b) {
   throw Object.assign(new Error("action 只能是 add / list / done / delete / clear"), { status: 400 });
 }
 
-// ---- 收藏 / 笔记（复用个人知识库 kb:{用户}，和网页里的“资料库”是同一份）----
-async function agNote(env, user, action, b) {
-  if (action === "save") {
-    const url = String(b.url || "").trim(), text = String(b.text || "").trim(), title = String(b.title || "").trim();
-    if (!url && !text && !title) throw Object.assign(new Error("标题、链接、内容至少给一个"), { status: 400 });
-    const r = await kbAdd(env, user, [{ type: /^https?:\/\//i.test(url) ? "link" : "note", title: title || url || text.slice(0, 40), url, text, src: "Dify 收藏" }], false);
-    if (!r.ok) throw Object.assign(new Error("资料库满了（超过 4MB），先删掉一些再存"), { status: 413 });
-    await lmSyncNote(env, user);
-    return { ok: true, added: r.added, msg: r.added ? "已收藏" : "这条已经收藏过了" };
-  }
-  if (action === "find") {
-    const all = await kbLoad(env, user), q = String(b.query || "").trim().toLowerCase(), ty = b.type === "link" || b.type === "note" ? b.type : "";
-    let items = all.slice().reverse().filter((x) => (!ty || x.type === ty) && (x.src === "Dify 收藏" || x.type === "link" || x.type === "note"));
-    if (q) { const hit = items.filter((x) => (x.title + " " + x.text + " " + x.url).toLowerCase().includes(q)); items = hit.length ? hit : (kbSearch(items, q, 20).map((h) => items.find((x) => x.id === h.id)).filter(Boolean)); }
-    return { total: items.length, items: items.slice(0, 20).map((x) => ({ id: x.id, type: KB_TYPES[x.type] || x.type, title: x.title, url: x.url, text: cCl(x.text || "", 200), saved_at: agFmt(x.at) })) };
-  }
-  if (action === "delete") {
-    const all = await kbLoad(env, user), id = String(b.id || ""), n = all.filter((x) => x.id !== id);
-    if (n.length === all.length) throw Object.assign(new Error("没找到这条收藏"), { status: 404 });
-    await kbPut(env, user, n, false); await lmSyncNote(env, user); return { ok: true, msg: "已删除" };
-  }
-  throw Object.assign(new Error("action 只能是 save / find / delete"), { status: 400 });
-}
 
 // ---- Cron：每分钟查一次到期的待办，用飞书应用 openmanus（FEISHU_APP_ID / FEISHU_APP_SECRET）换 tenant_access_token，再发到群里。
 //      推送成功才标记已推（notified），失败下一分钟再试，不会丢也不会重复 ----
@@ -4550,119 +3191,7 @@ async function agCronReminders(env, opts = {}) {
   return { ok: !last, sent, pending: due.length - sent, msg: last };
 }
 
-// ================= v94：每日早报（天气 + 新闻 + 待办，拼成 1 条推飞书群）=================
-// 触发：现有 Cron（每分钟一次）里，北京时间 08:00~08:09 之间、当天还没推过就推（KV brief:sent:日期 防重复；推失败会删掉标记，下一分钟再试）；聊天口令“测试早报”随时马上推 1 条，不占当天名额。
-// 变量：BRIEF_CITY（天气城市，默认 上海）、BRIEF_CHAT_ID（可选，早报单独推到另一个群；不填就和提醒用同一个群）。飞书用的还是提醒那套 FEISHU_APP_ID / FEISHU_APP_SECRET / FEISHU_CHAT_ID。
-async function agFeishuCard(env, title, md) {      // 飞书“文本消息”不认 [来源](链接)，所以早报用卡片（lark_md）发，链接才点得开
-  try {
-    const fixed = String(env.BRIEF_CHAT_ID || "").trim(), my = fixed ? "" : String(env.KV ? await env.KV.get("fsmychat").catch(() => "") : "") || "";      // v99k：没配 BRIEF_CHAT_ID 时优先推和用户的私聊（fsmychat：用户给机器人发过私聊消息就存），私聊没有再退回群
-    const ch = fixed ? { id: fixed } : my ? { id: my } : await agFeishuChat(env); if (ch.err) return ch.err;
-    const card = { config: { wide_screen_mode: true }, header: { title: { tag: "plain_text", content: title }, template: "blue" }, elements: [{ tag: "div", text: { tag: "lark_md", content: md } }] };
-    const r = await feishuCall(env, feishuBase("open.feishu.cn"), "/open-apis/im/v1/messages?receive_id_type=chat_id", { method: "POST", body: JSON.stringify({ receive_id: ch.id, msg_type: "interactive", content: JSON.stringify(card) }) });
-    if (r.a && r.a.err) return r.a.err;
-    const j = r.j || {}; if (j.code === 0) return "";
-    return "飞书发消息失败（" + j.code + "：" + String(j.msg || ("状态 " + r.status)).slice(0, 120) + "）。常见原因：应用没开通 im:message:send_as_bot 权限、机器人不在这个群";
-  } catch (e) { return "飞书推送失败：" + String(e && e.message || e).slice(0, 80); }
-}
-// 早报新闻：不再搜“今天最新新闻”这种泛抓（会抓回 pku.edu.cn / 17173 / pudong.gov.cn / china.com 的杂页）。只留 3 类：
-// ① 用户最近 3 天主动问过的话题 ② 用户收藏过的主题 ③ 用户所在城市的本地新闻；都没有结果就不写新闻段，只推天气 + 待办
-const BRIEF_BLOCK_RE = /(^|\.)(pku\.edu\.cn|17173\.com|pudong\.gov\.cn|china\.com)$/i;
-const BRIEF_SKIP_Q = /测试|提醒|早报|天气|气温|待办|你好|谢谢|在吗|翻译|帮我(写|改|翻)|【文件/;
-const agBigrams = (t) => { const k = agKey(t), o = new Set(); for (let i = 0; i < k.length - 1; i++) o.add(k.slice(i, i + 2)); return o; };
-function agSameStory(a, b) {      // 同一个事：标题互相包含，或字的重合度 ≥ 45%
-  const ka = agKey(a), kb = agKey(b); if (!ka || !kb) return false;
-  if (ka === kb || (Math.min(ka.length, kb.length) >= 8 && (ka.includes(kb) || kb.includes(ka)))) return true;
-  const x = agBigrams(a), y = agBigrams(b); let n = 0; for (const g of x) if (y.has(g)) n++;
-  return n / Math.max(1, x.size + y.size - n) >= 0.45;
-}
-async function agBriefNews(env, user, city) {      // v97：固定搜今日新闻，和网页“今日早报”同一份；不用聊天里的词
-  const ls = await newsToday(env, 6);
-  return ls.map((x) => `• ${x.title} [${agSrcName(x.url)}](${x.url.replace(/\(/g, "%28").replace(/\)/g, "%29").replace(/\s/g, "%20")})`).join("\n");
-}
-function agTodoDisplay(list) {      // 显示待办：内容相同的只留 1 条，留下时间离现在最近的那条
-  const now = Date.now(), by = new Map();
-  for (const x of list) {
-    const k = agKey(x.text) || String(x.text || ""), ms = x.due ? agParseWhen(x.due, now) : null, dist = ms == null ? Infinity : Math.abs(ms - now), cur = by.get(k);
-    if (!cur || dist < cur.dist) by.set(k, { x, dist });
-  }
-  return [...by.values()].map((o) => o.x);
-}
-async function agBriefParts(env) {
-  const city = String(env.BRIEF_CITY || "上海").trim() || "上海", user = String(env.AGENT_USER || "").trim();
-  const [w, n, t] = await Promise.allSettled([
-    infoWeather({ place: city }),
-    agBriefNews(env, user, city),
-    (async () => { if (!user) throw new Error("没配置 AGENT_USER，读不了待办"); const v = await agTodoLoad(env, user); return v.filter((x) => x && !x.done).map((x) => ({ id: x.id, text: x.text, due: x.due_at ? agFmt(x.due_at) : "" })); })()
-  ]);
-  let weather;   // 天气：今天天气 + 温度
-  if (w.status === "fulfilled") {
-    const d = w.value.days[0], c = w.value.now, r0 = (x) => (x == null || !Number.isFinite(Number(x)) ? "—" : Math.round(Number(x)));
-    weather = `${city} 今天${d.text}，${r0(d.min)}~${r0(d.max)}°C（现在 ${r0(c.temp)}°C，体感 ${r0(c.feels)}°C）` + (d.pop != null ? `，降水概率 ${d.pop}%` : "") + (w.value.aqi ? `，空气质量 AQI ${w.value.aqi.us}` : "");
-  } else weather = "天气没取到：" + String(w.reason && w.reason.message || w.reason).slice(0, 80);
-  const news = n.status === "fulfilled" ? n.value : "";      // 没有用户关心的新闻（或新闻接口没配好）就不写新闻段，不凑数
-  let todo;      // 待办：mem:todo 里没做完的，相同内容只显示 1 条
-  if (t.status === "fulfilled") {
-    const a = agTodoDisplay(t.value); todo = a.length ? a.slice(0, 15).map((x) => `• ${String(x.text || "").slice(0, 80)}${x.due ? `（${x.due}）` : ""}`).join("\n") + (a.length > 15 ? `\n…还有 ${a.length - 15} 条` : "") : "没有未完成的待办";
-  } else todo = "待办没读到：" + String(t.reason && t.reason.message || t.reason).slice(0, 80);
-  let cal = "", leftover = "";      // v99k：早报加“今天日程”和“还没办完的事”；没有也照写一句，不准空着跳过
-  const pp = agParts(Date.now()), day0 = agMs(pp.y, pp.mo, pp.d, 0, 0);
-  if (feishuHasEnv(env)) {
-    try { const cid = await fsCalId(env), cl = await fsCalList(env, cid, day0, day0 + 86400e3);
-      cal = cl.ok ? (cl.items.length ? cl.items.slice(0, 15).map((x) => "• " + (x.start ? agFmt(x.start) + " " : "全天 ") + String(x.summary || "").slice(0, 60)).join("\n") : `今天（${pp.y}-${agPad(pp.mo)}-${agPad(pp.d)}）没有安排日程`) : "日程没取到：" + String(cl.err || "").slice(0, 80);
-    } catch (e) { cal = "日程没取到：" + String(e && e.message || e).slice(0, 80); }
-  } else cal = "日程没取到：没配置 FEISHU_APP_ID / FEISHU_APP_SECRET";
-  try {
-    if (env.KV) { const lr = await env.KV.list({ prefix: "fstask:" }), now = Date.now(), lines = [];
-      for (const k of ((lr && lr.keys) || []).slice(0, 20)) { const v = await env.KV.get(k.name, "json").catch(() => null); if (v && Array.isArray(v.items) && v.items.length && now - Number(v.at || 0) < 86400e3) lines.push(...v.items.slice(0, 2).map((x) => "• " + String(x).slice(0, 80))); }
-      leftover = lines.length ? lines.slice(0, 6).join("\n") : "没有没办完的事";
-    }
-  } catch {}
-  return [`**天气**\n${weather}`, news ? `**新闻**\n${news}` : "", `**今天日程**\n${cal}`, `**待办**\n${todo}`, leftover ? `**还没办完的事**\n${leftover}` : ""].filter(Boolean).join("\n\n");
-}
-async function agMorningBrief(env, opts = {}) {
-  if (!feishuHasEnv(env)) return { ok: false, msg: "没配置 FEISHU_APP_ID / FEISHU_APP_SECRET" };
-  const p = agParts(Date.now()), day = `${p.y}-${agPad(p.mo)}-${agPad(p.d)}`, mk = "morning:" + day;      // v99k：morning:<北京日期>，替代旧 brief:sent:<日期>
-  if (!opts.force) {
-    let v = null; try { v = await env.KV.get(mk); } catch {}
-    if (v && v !== "failed") return { ok: true, skipped: true, msg: "今天已经推过" };      // "failed" = 上一分钟没推成，这一分钟继续重试
-    try { await env.KV.put(mk, String(Date.now()), { expirationTtl: 3 * 86400 }); } catch {}   // 占位防重；KV 429 占位失败也照发（最坏同分钟多推 1 条，好过整天没早报）
-  }
-  const title = `【早报】${day}`;
-  let md = "", err = "";
-  try { md = await agBriefParts(env); err = await agFeishuCard(env, title, md); }      // 没日程 / 没待办也照发：agBriefParts 会写“没有安排日程 / 没有未完成的待办”，不 skipped
-  catch (e) { err = "早报生成失败：" + String(e && e.message || e).slice(0, 100); }
-  if (err && md && /飞书发消息失败/.test(err)) { const e2 = await agFeishu(env, title + "\n\n" + md.replace(/\*\*/g, "")); if (!e2) err = ""; }   // 卡片被拒时退回纯文本
-  if (err && !opts.force) { try { await env.KV.put(mk, "failed", { expirationTtl: 600 }); } catch {} }   // v99k：没推成把标记写成 failed（不用 delete，避开 KV 429 期间删不掉卡死一整天），下一分钟重试
-  if (err) {      // v99k：失败要分类，给 [cron] morning fail 记日志用
-    const m = String(err);
-    const reason = /limit exceeded|429/i.test(m) ? "KV 429（配额超限）" : /鉴权失败|invalid access token|app_access_token|token.?expire|9999166\d|10003/i.test(m) ? "令牌过期 / 鉴权失败" : /不在任何群|多个群|机器人不在/i.test(m) ? "找不到推送的会话（没配 BRIEF_CHAT_ID / FEISHU_CHAT_ID，或机器人被移出）" : m.slice(0, 120);
-    return { ok: false, msg: reason, preview: md };
-  }
-  return { ok: true, sent: 1, msg: "早报已推送", preview: "**" + title + "**\n\n" + md };
-}
 
-// ================= v95：飞书群里能回话（事件订阅回调 POST /api/feishu/event）=================
-// 飞书开放平台 → 事件与回调 → 订阅方式选“将事件发送至开发者服务器”，请求地址填 https://你的Worker域名/api/feishu/event，添加事件 im.message.receive_v1，并开通权限 im:message.group_at_msg（收群里 @机器人 的消息）。
-// 变量：FEISHU_VERIFY_TOKEN（必填，飞书“事件与回调→加密策略”里的 Verification Token；事件的 token 对不上就回 403）、FEISHU_ENCRYPT_KEY（同一个页面里的 Encrypt Key；开了加密就必须配，否则回调解不开）、FEISHU_BOT_NAME（机器人名，默认 openmanus）。两个值都用蓝色那套，不要换成别的应用。
-// 浏览器直接打开这个地址（GET）会返回一段 JSON，用来确认 Worker 里确实有这个接口；飞书用 POST。
-// 规则：先把消息里所有 @（@_user_1、@机器人名、@openmanus、@蓝色）全部去掉，再判断：有“测试飞书” / 有“提醒我” / 群里 @了机器人 才处理；“提醒我”→ 建待办（走 agTodo = todo_add），到点由现有提醒推；其它 → 走 Worker 聊天（/v1/chat/completions）→ 回到同一个群。
-async function fsSend(env, chatId, msgType, content) {      // 发到指定群；成功返回 ""，失败返回原因
-  try {
-    const r = await feishuCall(env, feishuBase("open.feishu.cn"), "/open-apis/im/v1/messages?receive_id_type=chat_id", { method: "POST", body: JSON.stringify({ receive_id: chatId, msg_type: msgType, content: JSON.stringify(content) }) });
-    if (r.a && r.a.err) return r.a.err;
-    const j = r.j || {}; return j.code === 0 ? "" : "飞书发消息失败（" + j.code + "：" + String(j.msg || ("状态 " + r.status)).slice(0, 100) + "）";
-  } catch (e) { return "飞书推送失败：" + String(e && e.message || e).slice(0, 80); }
-}
-function fsUserClean(t) {
-  // 内部信息必须在生成阶段与外部回复分离；这里仅处理结构化内部标记，不维护词语黑名单。
-  return String(t || "").replace(/〔内部〕[\s\S]*?〔\/?内部〕/g, "").replace(/\n{3,}/g, "\n\n").trim();
-}
-async function fsReply(env, chatId, text) {                  // 回答用卡片（lark_md，链接点得开）；卡片被拒就退回纯文本
-  const t = fsSafeReply(String(text || "")).trim().slice(0, 3000) || "（没有内容）";      // v99s：出群前统一脱敏
-  const md = t.replace(/^#{1,6}\s*(.+)$/gm, "**$1**");
-  const err = await fsSend(env, chatId, "interactive", { config: { wide_screen_mode: true }, elements: [{ tag: "div", text: { tag: "lark_md", content: md } }] });
-  return err ? await fsSend(env, chatId, "text", { text: t }) : "";
-}
 async function fsAsk(request, env, ctx, q, sys) {      // 走 Worker 自己的聊天接口（和网页聊天同一条链路：连接器 / 记忆 / 模型轮换），进程内调用，不走外网；v98：可传 sys 换掉默认的群聊 system（建文档写正文用）
   const req = new Request(new URL("/v1/chat/completions", request.url).href, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stream: false, provider: "zhipu", messages: [{ role: "system", content: sys || FS_SYS }, { role: "user", content: q }] }) });
   const res = await Promise.race([handle(req, { ...env, REQUIRE_LOGIN: "0" }, ctx), new Promise((r) => setTimeout(() => r(null), 25000))]);   // 事件处理在 waitUntil 里，最多再跑 30 秒，所以 25 秒没回就放弃
@@ -4677,7 +3206,6 @@ async function fsAsk(request, env, ctx, q, sys) {      // 走 Worker 自己的�
 // 可选变量：FEISHU_DOC_FOLDER（建到哪个文件夹，填 folder_token；不填 = 应用自己的根目录）、FEISHU_DOC_DOMAIN（取不到真实链接时用它拼，如 xxx.feishu.cn；默认 feishu.cn）、FEISHU_DOC_SHARE=tenant（额外把文档设为“组织内获得链接可阅读”，默认不开）。
 // 说明：应用用 tenant_access_token 建的文档，归应用所有，提问的人默认打不开，所以建完会把文档“可管理”权限授权给发消息的人（open_id）；授权失败会在回复里写明，不假装能打开。
 const FS_BUILD = "v99y-one-brain";
-const FS_WIKI_SPACE_EXAMPLES = ["7709826700074306586", "7706168498141039868"]; // 不透明字符串回归样例，禁止数值化。      // 部署后打开 /api/feishu/logs 或 /api/feishu/selftest 能看到这个值，没有 = 新代码没部署到收飞书事件的那个 Worker
 function fsInline(s) {      // 行内：**加粗** 和 [文字](链接) → 飞书 text_run（链接要 url_encode）
   const els = [], re = /\*\*([^*]+)\*\*|\[([^\]]+)\]\((https?:\/\/(?:[^\s()]|\([^\s()]*\))+)\)/g;      // 链接里带一层括号（如 …/wiki/A_(b)）也认
   const push = (c, st) => { c = String(c || ""); for (let i = 0; i < c.length; i += 1800) { const run = { content: c.slice(i, i + 1800) }; if (st) run.text_element_style = st; els.push({ text_run: run }); } };
@@ -4703,22 +3231,6 @@ function fsMdBlocks(md) {      // Markdown → 飞书块：# 标题(1-3 级)、-
     else { blocks.push({ block_type: 2, text: { elements: fsInline(line) } }); plain.push(strip(line)); }
   }
   return { blocks, plain };
-}
-const FS_SEEN = new Map();      // message_id 去重：内存是第一层（同一实例），KV 是第二层（跨实例，见 fsClaim）
-async function fsClaim(env, mid) {      // 认领这条消息：已被认领 → dup；KV 任何一步出错 → 当没去重、继续处理（不抛）
-  const now = Date.now(), seen = FS_SEEN.get(mid);
-  if (seen && now - seen < 86400000) return { dup: true, by: "内存" };
-  FS_SEEN.set(mid, now); if (FS_SEEN.size > 500) { const it = FS_SEEN.keys(); for (let i = 0; i < 100; i++) FS_SEEN.delete(it.next().value); }
-  if (!env.KV) return { dup: false, nonce: "" };
-  try {
-    const k = "fsseen:" + mid;
-    if (await env.KV.get(k)) return { dup: true, by: "KV" };
-    const n = rand(6); await env.KV.put(k, n, { expirationTtl: 300 });      // 5 分钟（KV 最小 60 秒）
-    await fsSleep(120);      // 等一下再读回：两个实例同时抢时，后写的覆盖先写的，读回不是自己的那个就退出
-    const back = await env.KV.get(k);
-    if (back && back !== n) return { dup: true, by: "KV·抢占输了" };
-    return { dup: false, nonce: n };
-  } catch { return { dup: false, nonce: "" }; }
 }
 async function fsOwns(env, msg) {      // 建文档 / 写表 / 建日程等动作执行前再查一次：认领记录被别的实例改掉了就放弃；读不到 / 出错当作还是自己的
   const mid = String(msg && msg.message_id || ""), n = String(msg && msg._claim || "");
@@ -4758,7 +3270,6 @@ async function fsZhipu(env, msgs, ms) {      // 智谱直连（关掉“深度�
   }
   return { text: "", why };
 }
-async function fsLLM(env, sys, user, info, total) { return await fsLLMMsgs(env, [{ role: "system", content: sys }, { role: "user", content: user }], info, total || 15000); }
 async function fsLLMMsgs(env, msgs, info, total, accept) {      // 多轮 messages；accept(text) 不通过算这家失败、换下一家（Agent 用它要求输出合法 JSON）。原 fsLLM：写文档正文 / 总结专用：不合并 WORK_SYSTEM_PROMPT、不带记忆、不走天气/热榜拦截；info 里带回“谁出的 / 各家为什么没成”
   info = info || {}; info.tried = []; info.from = "";
   total = total || 15000; const t0 = Date.now();
@@ -4791,23 +3302,6 @@ async function fsLLMMsgs(env, msgs, info, total, accept) {      // 多轮 messag
     };
     launch();
   });
-}
-// ===== v99z 模型探针：/api/debug/llmprobe?token=REG_TOKEN —— 对每个已配密钥的模型源各发一条“在线?”，逐个报谁通 / 耗时 / 为什么空；不返回任何密钥值 =====
-async function llmProbeReport(env, url) {
-  const tok = String(url.searchParams.get("token") || "").trim(), want = String(env.REG_TOKEN || "").trim();
-  if (!want || tok !== want) return json({ ok: false, msg: "token 不对：要 ?token=REG_TOKEN（Worker 没配 REG_TOKEN 就用不了）" }, 403);
-  const names = fsLlmPlan(env).filter((n) => fsHasKey(env, n));
-  if (!names.length) return json({ ok: false, msg: "一个模型源都没配密钥（GROQ_KEYS / ZHIPU_KEYS / …）" });
-  const rows = [];
-  for (const name of names) {
-    const t0 = Date.now(); let r = null;
-    try { r = await tryAllFree([{ role: "user", content: "请只回复两个字：在线" }], env, async () => {}, false, name, { raw: true, noBreaker: true, skip: SRC_ORDER.filter((x) => x !== name) }); } catch (e) { r = { text: "", err: String(e && e.message || e).slice(0, 80) }; }
-    const row = { source: name, ok: !!(r && r.text), ms: Date.now() - t0, from: (r && r.from) || "", reply: String((r && r.text) || "").replace(/\s+/g, " ").slice(0, 40) };
-    if (!row.ok) row.why = (r && r.err) || "没有返回内容（空回复 / 超时 / 报错），详见 /debug 里对应源的 detail";
-    dbgStat(name, row.ok, row.ok ? "" : row.why); rows.push(row);
-  }
-  const okN = rows.filter((x) => x.ok).length;
-  return json({ ok: true, at: new Date().toISOString(), summary: okN + "/" + rows.length + " 个源能回话", per_source_budget_ms: 30000, rows });
 }
 // 热榜：只取缓存里的前 n 条（各平台按名次轮流取，保证每个平台都有），给模型总结 / 写进文档的都是这一份
 async function hotTop(env, n) {
@@ -5067,13 +3561,6 @@ async function fsTurnGet(env, key) {
   return null;
 }
 async function fsTurnSet(env, key, rec) { FS_TURN.set(key, rec); if (env.KV) { try { await env.KV.put(key, JSON.stringify(rec), { expirationTtl: 660 }); } catch {} } }
-async function fsTurnDel(env, key) { FS_TURN.delete(key); if (env.KV) { try { await env.KV.delete(key); } catch {} } }
-const FS_ERRSEEN = new Map();      // 同一对话里同一条报错，1 分钟内只回 1 次（数字 / 空白不参与比较）
-function fsErrSeen(chat, text) {
-  const now = Date.now(), k = String(chat) + "|" + String(text).replace(/[\d\s]+/g, "").slice(0, 80);
-  for (const [kk, v] of FS_ERRSEEN) if (now - v > 60000) FS_ERRSEEN.delete(kk);
-  const t = FS_ERRSEEN.get(k); if (t && now - t < 60000) return true; FS_ERRSEEN.set(k, now); return false;
-}
 const FS_PEND = new Map();
 const fsPendKey = (chat, who) => "fspend:" + chat + ":" + who;
 async function fsPendGet(env, key) {
@@ -5092,8 +3579,6 @@ async function fsTaskGet(env, key) {
   try { const v = await env.KV.get(key, "json"); if (v && Array.isArray(v.items) && Date.now() - Number(v.at || 0) < FS_TASK_TTL) return v; } catch {}
   return null;
 }
-async function fsTaskSet(env, key, rec) { FS_TASK.set(key, rec); if (env.KV) { try { await env.KV.put(key, JSON.stringify(rec), { expirationTtl: 1860 }); } catch {} } }
-async function fsTaskDel(env, key) { FS_TASK.delete(key); if (env.KV) { try { await env.KV.delete(key); } catch {} } }
 
 function fsPickMany(list, spec) {      // tables 参数：缺省 / "all" / "all_8" / 全部 / 表名 / 组名 / 数组 → { tables } 或 { err }
   if (!list.length) return { err: "多维表格没读到：FEISHU_BITABLE_TABLES 没配置，或里面没有一条格式对的（Worker 日志 [tables] 里有逐条原因）" };      // v99w
@@ -5689,7 +4174,6 @@ const FS_UGROUP_DEF = {
   wiki: ["wiki:wiki", "wiki:wiki:readonly", "wiki:space:retrieve"],   // v99n：重新授权固定覆盖 Wiki 三项 scope；变量可覆盖，未配置时不能退回两项
 };
 const fsUScopes = (env, g) => { const def = Array.isArray(FS_UGROUP_DEF[g]) ? FS_UGROUP_DEF[g] : [], o = String(env["FEISHU_USER_SCOPES_" + String(g).toUpperCase()] || "").trim(), base = o ? o.split(/\s+/).filter(Boolean) : def.slice(); return g === "wiki" ? [...new Set([...base, ...def])] : base; };
-const fsOAuthScopes = (st) => { const a = Array.isArray(st && st.scopes) ? st.scopes : fsUScopes({}, "wiki"); return a.map((x) => String(x || "").trim()).filter(Boolean); };
 const FS_UTOK_BAD = new Set([99991668, 99991677, 20005, 20037]), FS_UTOK_SCOPE = new Set([99991679]);
 const FS_UFLIGHT = new Map();
 const fsUKey = (open) => "fsuser:" + open;
@@ -5710,7 +4194,6 @@ async function fsUOpen(env, raw) {
 async function fsUGet(env, open) { if (!env.KV || !open) return null; try { return await fsUOpen(env, await env.KV.get(fsUKey(open))); } catch { return null; } }
 async function fsUPut(env, open, rec) { if (!env.KV) return false; try { await env.KV.put(fsUKey(open), await fsUSeal(env, rec), { expirationTtl: 35 * 86400 }); return true; } catch { return false; } }
 async function fsUDel(env, open) { if (env.KV) { try { await env.KV.delete(fsUKey(open)); } catch {} } }
-const fsOAuthHost = (env) => String(env.FEISHU_OAUTH_HOST || "https://accounts.feishu.cn").replace(/\/$/, "");
 const fsOrigin = (env, request) => { try { return String(env.PUBLIC_BASE_URL || (request && new URL(request.url).origin) || "").replace(/\/$/, ""); } catch { return ""; } };
 async function fsOAuthToken(env, body) {      // 授权码换令牌 / 刷新令牌：POST /open-apis/authen/v2/oauth/token（刷新要在授权时带 offline_access；刷新令牌一次性，刷完要立刻存新的）
   try {
@@ -5784,31 +4267,6 @@ async function fsUserCtx(cx, group) {      // → { call, need } ；call(method,
   }, tok: () => tok };
 }
 const fsUFail = async (cx, group, u, x, what) => x.reauth ? await fsNeedAuth(cx, group, u.rec) : { ok: false, text: what + "失败：" + fsApiErr(x) };
-function fsHtml(title, msg, status) {
-  const e = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
-  return new Response("<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>" + e(title) + "</title><body style='font-family:-apple-system,sans-serif;max-width:460px;margin:15vh auto;padding:0 20px;line-height:1.6'><h2>" + e(title) + "</h2><p>" + e(msg) + "</p>", { status: status || 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
-}
-async function feishuOAuthStart(request, env) {
-  const n = new URL(request.url).searchParams.get("n") || "", st = env.KV && n ? await env.KV.get("fsoauth:" + n, "json") : null;
-  if (!st) return fsHtml("授权链接已过期", "回飞书，把刚才的话再发一次，机器人会给你新的授权链接。", 400);
-  const q = new URLSearchParams({ client_id: String(env.FEISHU_APP_ID || "").trim(), response_type: "code", redirect_uri: fsOrigin(env, request) + "/api/feishu/oauth/callback", scope: fsOAuthScopes(st).join(" "), state: n });
-  return Response.redirect(fsOAuthHost(env) + "/open-apis/authen/v1/authorize?" + q.toString(), 302);
-}
-async function feishuOAuthCallback(request, env, ctx) {
-  const u = new URL(request.url), code = u.searchParams.get("code") || "", n = u.searchParams.get("state") || "", er = u.searchParams.get("error") || "";
-  const st = env.KV && n ? await env.KV.get("fsoauth:" + n, "json") : null;
-  if (!st) return fsHtml("授权链接已过期", "回飞书，把刚才的话再发一次，机器人会给你新的授权链接。", 400);
-  if (er || !code) return fsHtml("没有授权成功", er === "access_denied" ? "你点了拒绝。需要时回飞书再说一次，会给新的链接。" : "飞书返回：" + (er || "没有授权码") + "。如果提示应用没开通某权限，到开放平台给应用开通并发布版本：" + fsOAuthScopes(st).join("、"), 400);
-  const r = await fsOAuthToken(env, { grant_type: "authorization_code", code, redirect_uri: fsOrigin(env, request) + "/api/feishu/oauth/callback" });
-  if (!r.ok) return fsHtml("换令牌失败", r.msg + "（检查：重定向 URL 是否已在开放平台登记为 " + fsOrigin(env, request) + "/api/feishu/oauth/callback）", 502);
-  const me = await fsUApi(env, r.rec.access_token, "GET", "/open-apis/authen/v1/user_info"), open = me.ok && me.data && me.data.open_id;
-  if (!open) return fsHtml("没认出授权的是谁", "授权拿到了，但读不到你的身份信息，没有保存。", 502);
-  if (st.who && open !== st.who) return fsHtml("授权账号不对", "你用另一个飞书账号授权了，和发消息的不是同一个人，没有保存。请用发消息的那个账号重新点链接。", 403);
-  if (!(await fsUPut(env, open, { ...r.rec, open_id: open, name: String(me.data.name || "") }))) return fsHtml("没存上", "令牌没能写入 KV，稍后再试。", 502);
-  try { await env.KV.delete("fsoauth:" + n); } catch {}
-  // v99p：不在 OAuth callback 主动往群里发第二条消息；后续由 Agent 继续原任务。
-  return fsHtml("授权成功", "授权已完成，可以返回对话。");
-}
 // ---------- 15 号：读用户个人日历 ----------
 async function fsTMyCal(cx, a) {
   const f = a.from ? fsParseStamp(a.from, false) : null; let to = a.to ? fsParseStamp(a.to, false) : null;
@@ -5862,22 +4320,6 @@ function fsSafeOut(o) {
   const c = (v) => String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, 80);
   return { space_name: c(o.space_name), title: c(o.title), file_name: c(o.file_name) };
 }
-// 统一脱敏输出（二）：所有发到飞书的回复出群前最后过一遍（fsReply 里调）。链接是接口返回的、要点得开，原样保留；链接以外的文字里，去掉“带标签的 ID”（space_id / file_token / file_key / message_id / node_token / token = 值）和“ID 形态的串”。只看形态，不看内容，不写死任何库名 / 标题
-function fsSafeReply(text) {
-  const scrub = (seg) => seg
-    .replace(/\[\s*(?:token|space_id|file_token|file_key|message_id)\s+[^\]\n]*\]/gi, "")
-    .replace(/(?:space_id|file_token|file_key|message_id|node_token|obj_token|minute_token|access_token|token)\s*[:：=]\s*[`"'“]?[A-Za-z0-9_\-]{6,}[`"'”]?/gi, "")
-    .replace(/\bfile_v\d_[A-Za-z0-9_\-]{6,}/g, "")
-    .replace(/\bo[umcnd]_[A-Za-z0-9]{10,}\b/g, "")
-    .replace(/\b(?:box|doc|dox|sht|bas|wik|fld|nod|obc|bmn|sld|ssh)[a-z]?cn[A-Za-z0-9]{8,}\b/g, "")
-    .replace(/\b[tu]-[A-Za-z0-9_\-]{24,}/g, "")
-    .replace(/\b\d{19,}\b/g, "")
-    .replace(/`\s*`/g, "").replace(/[（(]\s*[)）]/g, "").replace(/\[\s*\]/g, "");
-  return String(text == null ? "" : text).split("\n").map((ln) => {
-    const out = ln.split(/(https?:\/\/[^\s)）\]>"']+)/).map((seg, k) => k % 2 ? seg : scrub(seg)).join("");      // 奇数下标 = 链接，原样保留
-    return ln.trim() && !out.trim() ? null : out;      // 这一行本来有字、脱敏后什么都不剩 → 整行丢掉
-  }).filter((x) => x !== null).join("\n");
-}
 function fsWikiLabel(cx, a) {      // 知识库名：先用模型带的 space_name，没有就从刚查到的列表里按 id 找；只返回名字，不返回 id
   const sid = fsWikiSid(a && a.space_id), hit = ((cx && cx.wikiSpaces) || []).find((x) => x.id === sid);
   return fsSafeOut({ space_name: (a && a.space_name) || (hit && hit.name) }).space_name;
@@ -5886,7 +4328,6 @@ function fsWikiLabel(cx, a) {      // 知识库名：先用模型带的 space_na
 // ---------- 聊天里直接上传的文件：登记 → 定位 → 走聊天接口下载 → 走原来那套解析 ----------
 const FS_CHATFILE = new Map(), FS_CHATFILE_TTL = 86400000;      // chat_id → { message_id, file_key, file_name, from, at }；file_key / message_id 只在 Worker 内部用，不会出现在回复里
 const fsChatFileKey = (chat) => "fschatfile:" + String(chat || "");
-async function fsChatFilePut(env, chat, rec) { FS_CHATFILE.set(String(chat), rec); if (env.KV) { try { await env.KV.put(fsChatFileKey(chat), JSON.stringify(rec), { expirationTtl: 86400 }); } catch {} } }
 async function fsChatFileGet(env, chat) {
   if (!chat) return null;
   const m = FS_CHATFILE.get(String(chat)); if (m && Date.now() - m.at < FS_CHATFILE_TTL) return m;
@@ -6139,360 +4580,6 @@ async function fsAgentExec(cx, tool, args, confirmed) {      // → { ok, text, 
   // v99p：不发送处理中间消息，整条事件只由 fsAgentRun 最后统一回复一次。
   try { return await tool.run(cx, args); } catch (e) { return { ok: false, text: "出错：" + String(e && e.message || e).slice(0, 200) }; }
 }
-async function fsAgentRun(request, env, ctx, chat, tag, p, sid, msg, rec) {      // → { err }（"" = 已发出）
-  const t0 = Date.now(), openId = String(sid.open_id || "").trim(), who = openId || String(sid.user_id || "") || "anon", T = fsTables(env), pkey = fsPendKey(chat, who);
-  rec.tools = [];
-  const cx = { request, env, ctx, chat, tag, msg, openId, T, userText: p.text, deadline: t0 + FS_AGENT_TOTAL_MS, materials: [], links: [], pkey, tkey: fsTurnKey(chat, who), last: await fsTurnGet(env, fsTurnKey(chat, who)), pend: await fsPendGet(env, pkey), task: await fsTaskGet(env, fsTaskKey(chat, who)), taskKey: fsTaskKey(chat, who), wikiSpaces: [], pendNew: false, pendUsed: false, confirmQ: "", ack: null, aborted: false, steps: [], left: (reserve, cap) => Math.max(3000, Math.min(cap, cx.deadline - Date.now() - reserve)) };
-  for (const st of ((cx.task && cx.task.steps) || []).slice().reverse()) if (Array.isArray(st.wikiSpaces) && st.wikiSpaces.length) { cx.wikiSpaces = st.wikiSpaces.map((x) => ({ id: fsWikiSid(x.id), name: String(x.name || ""), desc: String(x.desc || "") })); break; }
-  try {      // 读文件按来源分流：先看这条消息里有没有飞书链接（走云盘接口），没有再看聊天里有没有上传的文件（走聊天接口）；不看关键词
-    cx.link = null; for (const u of (String(p.text || "").match(/https?:\/\/[^\s)）\]>"']+/g) || [])) { const f0 = feishuParse(u); if (f0) { cx.link = f0; cx.linkUrl = u; break; } }
-    const cf = cx.link ? null : await fsChatFileFind(cx, false); cx.chatFile = cf && (cf.via === "quoted" || Date.now() - (cf.at || 0) < 1800000) ? cf : null;
-  } catch { cx.chatFile = null; }
-  // ===== v99x：这里不再有“先猜意图”。飞书收到的什么，就直接交给前端 /api/chat 用的同一个 runWorkChat =====
-  const r = await runWorkChat({ env, request, ctx, text: p.text, cx }).catch((e) => ({ reply: "", modelFail: String(e && e.message || e).slice(0, 160), steps: cx.steps || [], decided: true }));
-  if (r.aborted) { if (cx.ack) await cx.ack; return { err: "", skipped: true }; }
-  rec.tools = (r.steps || []).map((s) => s.tool + (s.held ? "(待确认)" : s.ok ? "✓" : "✗"));
-  let reply = String(r.reply || ""), direct = !!r.direct;
-  if (r.decided && cx.pend && !cx.pendNew && !cx.pendUsed) await fsPendDel(env, pkey);      // 用户这句没确认：待确认作废（只确认一次，不循环问）
-  const taskLost = !reply;
-  const taskFin = !!r.taskDone || (!taskLost && !r.awaiting && !r.taskNote && !cx.confirmQ && (r.steps || []).some((s) => s.w && s.ok) && (r.steps || []).every((s) => s.ok));
-  if (taskFin && !taskLost) await fsTaskDel(env, cx.taskKey);
-  else if (taskLost || r.awaiting || r.taskNote || cx.confirmQ) {      // 没办完：保存结构化 intent、已做步骤和卡住的那一步
-    const t = cx.task ? { ...cx.task } : { steps: [] }, real = (r.steps || []).filter((s) => !s.held), bf = real.filter((s) => !s.ok).pop();
-    if (r.taskIntent) t.intent = { goal: String(r.taskIntent.goal || ""), title: String(r.taskIntent.title || ""), content: String(r.taskIntent.content || ""), step: String(r.taskIntent.step || ""), missing: String(r.taskIntent.missing || "") };
-    if (!t.intent) t.intent = { goal: "", title: "", content: "", step: "", missing: r.taskNote ? String(r.taskNote).slice(0, 300) : "" };
-    if (real.length) {
-      const oldSnap = (t.steps || []).find((s) => Array.isArray(s.wikiSpaces) && s.wikiSpaces.length);
-      const nowSteps = real.map((s) => ({ tool: s.tool, ok: s.ok, args: s.args, wikiSpaces: s.wikiSpaces, text: String(s.text || "").slice(0, 300) }));
-      t.steps = (oldSnap && !nowSteps.some((s) => Array.isArray(s.wikiSpaces) && s.wikiSpaces.length) ? [oldSnap] : []).concat(nowSteps).slice(-4);
-    }
-    t.retry = taskLost && bf ? { tool: bf.tool, args: bf.args } : null; t.fail = taskLost ? String(r.modelFail || "").slice(0, 200) : ""; t.at = Date.now();
-    await fsTaskSet(env, cx.taskKey, t);
-  }
-  if (!direct) for (const l of cx.links) if (l && l.url && !reply.includes(l.url)) reply += "\n[" + String(l.title || "链接").replace(/[\[\]]/g, " ") + "](" + l.url + ")";
-  if (r.awaiting && reply) await fsTurnSet(env, cx.tkey, { user: p.text, reply: reply.slice(0, 400), at: Date.now() }); else if (cx.last) await fsTurnDel(env, cx.tkey);      // 我这轮在问用户 → 记下；否则清掉上一条
-  if (cx.ack) await cx.ack;
-  rec.reply_text = reply.slice(0, 300);
-  if (fsErrSeen(chat, reply)) { rec.reply_text = "（同一错误 1 分钟内已回过，这次不重复）"; return { err: "", deduped: true }; }
-  return { err: await fsReply(env, chat, tag + fsUserClean(reply)) };      // 出群前统一过滤内部话术，一次只发这一条
-}
-async function feishuAgentPlan(request, env, ctx, url) {      // /api/feishu/agent-plan?text=明天3点再约个会（按意思测）：和群里同一套提示词、同一个循环；读类工具（查日历 / 查待办 / 搜索 / 热榜…）真执行并把结果喂回模型，直到模型给出 reply 或要调写类工具；写类工具（建日程 / 写表 / 清表 / 建文档 / 改待办）只记下“会这样调”，不执行、不发飞书消息
-  const text = String(url.searchParams.get("text") || "").trim(); if (!text) return json({ ok: false, msg: "加 ?text=你想测的话，例如 ?text=明天3点再约个会" });
-  const t0 = Date.now(), cx = { request, ctx, env, T: fsTables(env), pend: null, last: null, userText: text, openId: "plan-test", chat: "", tag: "", msg: {}, deadline: t0 + 55000, materials: [], links: [], left: (reserve, cap) => Math.max(3000, Math.min(cap, cx.deadline - Date.now() - reserve)) };
-  const msgs = [{ role: "system", content: WORK_SYSTEM_PROMPT + workRuntime() + "\n\n" + fsAgentSystem(cx) }, { role: "user", content: text }], trace = []; let final = null, stopped = "";
-  for (let step = 0; step < FS_AGENT_MAX_STEPS; step++) {
-    const info = {}, tt = Date.now(), raw = await fsLLMMsgs(env, msgs, info, 25000, (x) => !!fsAgentParse(x));
-    if (!raw) { stopped = "模型没接上（" + (info.tried || []).join("；") + "）"; break; }
-    const d = fsAgentParse(raw), item = { step: step + 1, model: info.from || "", ms: Date.now() - tt, raw, decision: d }; trace.push(item); msgs.push({ role: "assistant", content: raw });
-    if (!d) { msgs.push({ role: "user", content: "[系统] 你的输出不是合法 JSON。只输出一个 JSON 对象。" }); continue; }
-    if (!d.tool) { final = d; break; }
-    const tool = FS_TOOLS.find((x) => x.name === d.tool);
-    if (!tool) { item.error = "没有这个工具"; msgs.push({ role: "user", content: "[系统] 没有叫 " + d.tool + " 的工具。可用：" + FS_TOOLS.map((x) => x.name).join(" / ") }); continue; }
-    if (fsIsWrite(tool, d.args)) { item.executed = false; item.note = "写类工具：agent-plan 只记录会这样调，不执行" + ((typeof tool.danger === "function" ? tool.danger(d.args) : tool.danger) ? "（危险操作，真实对话里会先问确认）" : ""); stopped = "停在写类工具 " + tool.name; break; }
-    let res; try { res = await tool.run(cx, d.args || {}); } catch (e) { res = { ok: false, text: "出错：" + String(e && e.message || e).slice(0, 200) }; }
-    item.executed = true; item.result = { ok: !!res.ok, text: String(res.text).slice(0, 1500) };
-    if (res.direct && res.ok) { final = { reply: res.text }; break; }
-    msgs.push({ role: "user", content: "[工具结果] " + tool.name + "：" + (res.ok ? "成功" : "失败") + "\n" + String(res.text).slice(0, res.keep || 2500) + (res.links && res.links.length ? "\n可用链接（回复时用 Markdown 链接，自行决定标题，不要裸 URL）：" + res.links.map((l) => String(l.url || "")).filter(Boolean).join("\n") : "") + "\n（请继续：调下一个工具，或输出 {\"reply\":\"…\"} 回用户。）" });
-  }
-  const first = trace[0] && trace[0].decision;
-  return json({ ok: !!trace.length, build: FS_BUILD, text, first_step: first ? (first.tool ? { tool: first.tool, args: first.args } : { reply_only: first.reply }) : null, final, stopped, ms: Date.now() - t0, trace });
-}
-// ---------- 只读自检：/api/feishu/toolcheck（不创建任何东西；看每个工具的配置、各张表的结构、日历是否通）----------
-async function feishuToolCheck(env, request) {
-  const T = fsTables(env);
-  const out = { build: FS_BUILD, agent_tools: FS_TOOLS.map((x) => x.name + (x.danger ? "（需确认）" : "")), config: { app_id_secret: feishuHasEnv(env), bitable_tables: T.err ? "配置有误：" + T.err : T.list.map((x) => (x.group ? x.group + "/" : "") + x.name), calendar_id: fsCfg(env, "CALENDAR_ID") || "primary", agent_user: !!String(env.AGENT_USER || "").trim(), tavily_key: !!String(env.TAVILY_KEY || "").trim(), llm_plan: fsLlmPlan(env).filter((n) => fsHasKey(env, n)) } };
-  if (!feishuHasEnv(env)) return json({ ok: false, ...out, msg: "没配置 FEISHU_APP_ID / FEISHU_APP_SECRET" });
-  { const b = await fsBotInfo(env); out.bot = { open_id: b.id || "", name: b.name || "", err: b.id ? "" : b.err }; }      // 机器人自己的 open_id（用来判断群里 @ 的是不是我）
-  const apps = [...new Set(T.list.map((x) => x.app_token))];
-  const [lists, c] = await Promise.all([Promise.all(apps.map((a) => fsListTables(env, a, true))), fsApi(env, "POST", "/open-apis/calendar/v4/calendars/primary", {})]);
-  out.bases = apps.map((a, i) => ({ app_token: a, ok: lists[i].ok, err: lists[i].ok ? undefined : lists[i].err, real_tables: lists[i].items }));      // 每个 base 下真实的 tbl ID，一眼看出哪个配错
-  out.bitable = T.err ? [{ ok: false, err: T.err }] : await Promise.all(T.list.map(async (x) => {
-    const rt = await fsResolveTable(env, x), base = { name: x.name, group: x.group, configured_table_id: x.table_id };
-    if (!rt.ok) return { ...base, ok: false, id_status: "配错：" + rt.msg };
-    const f = await fsApi(env, "GET", "/open-apis/bitable/v1/apps/" + encodeURIComponent(x.app_token) + "/tables/" + encodeURIComponent(rt.table_id) + "/fields?page_size=100");
-    const st = rt.fixed ? "配错了（不是 tbl 开头），写入时自动改用 " + rt.table_id + "，请改变量" : rt.listErr ? "没能列出 base 下的表，按配置试" : "对";
-    return f.ok ? { ...base, ok: true, id_status: st, used_table_id: rt.table_id, fields: ((f.data && f.data.items) || []).map((y) => ({ name: y.field_name, type: y.type, primary: !!y.is_primary })) } : { ...base, ok: false, id_status: st, used_table_id: rt.table_id, err: fsApiErr(f) };
-  }));
-  const c0 = c.ok && c.data && c.data.calendars && c.data.calendars[0]; out.calendar = c.ok ? { ok: true, primary_calendar_id: c0 && c0.calendar && c0.calendar.calendar_id || "" } : { ok: false, err: fsApiErr(c) };
-  { const P = async (p) => { const r = await fsApi(env, "GET", p); return r.ok ? { ok: true } : { ok: false, err: fsApiErr(r) }; };      // v99f 第 1 批：只读探针，看每类权限开了没
-    const [dr, dl, ws, ct, ch] = await Promise.all([P("/open-apis/drive/explorer/v2/root_folder/meta"), P("/open-apis/drive/v1/files?page_size=1"), P("/open-apis/wiki/v2/spaces?page_size=5"), P("/open-apis/contact/v3/users/find_by_department?department_id=0&department_id_type=open_department_id&user_id_type=open_id&page_size=1"), P("/open-apis/im/v1/chats?page_size=5")]);
-    out.batch1 = { drive_root: dr, drive_list: dl, wiki_spaces: ws, contact: ct, chats: ch }; }
-  out.oauth = { redirect_uri_to_register: fsOrigin(env, request) + "/api/feishu/oauth/callback", kv_bound: !!env.KV, token_encrypted: !!env.FEISHU_TOKEN_KEY, scopes: { cal: fsUScopes(env, "cal"), drive: fsUScopes(env, "drive") }, note: "把 redirect_uri_to_register 登记到开放平台“安全设置 → 重定向 URL”；给应用开通 scopes 里的用户身份权限并发布版本；没设 FEISHU_TOKEN_KEY 时令牌明文存在 KV" };
-  out.ok = out.bitable.every((x) => x.ok) && out.calendar.ok;
-  return json(out);
-}
-// ================= v96：飞书收消息（@ 清洗 / 加密回调解密 / 收消息日志 / 调试页）=================
-// 蓝色那套照旧用环境变量，不写死在代码里：FEISHU_VERIFY_TOKEN、FEISHU_ENCRYPT_KEY（值必须等于蓝色后台“事件与回调→加密策略”里的那两个）
-// 调试页：/feishu/logs（最近 5 条收到的消息 + relay 转发结果）；JSON：/api/feishu/logs；自检：/api/feishu/selftest
-const fsEnc = new TextEncoder(), fsDec = new TextDecoder();
-const fsB64d = (s) => { const t = atob(String(s || "").replace(/-/g, "+").replace(/_/g, "/")); const u = new Uint8Array(t.length); for (let i = 0; i < t.length; i++) u[i] = t.charCodeAt(i); return u; };
-const fsB64e = (u) => { let s = ""; for (let i = 0; i < u.length; i++) s += String.fromCharCode(u[i]); return btoa(s); };
-async function fsKeyBytes(k) {                       // Encrypt Key → AES-256 key = SHA256(key)
-  const s = String(k || "").trim(); if (!s) return null;
-  return new Uint8Array(await crypto.subtle.digest("SHA-256", fsEnc.encode(s)));
-}
-async function fsDecryptText(k, enc) {               // 飞书加密回调 → 明文；解不开返回 ""
-  try {
-    const key = await fsKeyBytes(k); if (!key) return "";
-    const buf = fsB64d(enc); if (buf.length <= 16 || (buf.length - 16) % 16) return "";
-    const ck = await crypto.subtle.importKey("raw", key, "AES-CBC", false, ["decrypt"]);
-    const out = await crypto.subtle.decrypt({ name: "AES-CBC", iv: buf.slice(0, 16) }, ck, buf.slice(16));
-    return fsDec.decode(out).replace(/[\u0000-\u001f]+$/, "").trim();
-  } catch (e) { console.warn("[feishu] 解密失败：" + String(e && e.message || e)); return ""; }
-}
-async function fsEncryptText(k, plain) {             // 只给自检用：随机 IV + AES-256-CBC
-  try {
-    const key = await fsKeyBytes(k); if (!key) return "";
-    const iv = crypto.getRandomValues(new Uint8Array(16));
-    const ck = await crypto.subtle.importKey("raw", key, "AES-CBC", false, ["encrypt"]);
-    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-CBC", iv }, ck, fsEnc.encode(String(plain))));
-    const all = new Uint8Array(16 + ct.length); all.set(iv); all.set(ct, 16);
-    return fsB64e(all);
-  } catch { return ""; }
-}
-async function fsSha256Hex(s) { const b = new Uint8Array(await crypto.subtle.digest("SHA-256", fsEnc.encode(String(s)))); return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join(""); }
-function fsStripAt(text, mentions) {                 // 去掉所有 @：mention 占位 / @_user_1 / @机器人名 / 任意 @xxx
-  let t = String(text || "");
-  const names = [];
-  for (const m of mentions || []) { if (m && m.key) t = t.split(String(m.key)).join(" "); if (m && m.name) names.push(String(m.name)); }
-  t = t.replace(/[@＠]_user_\d+/g, " ").replace(/[@＠]user_\d+/g, " ");
-  for (const n of names) { t = t.split("@" + n).join(" "); t = t.split("＠" + n).join(" "); }
-  t = t.replace(/(^|\s)[@＠][A-Za-z0-9_.\-]{1,32}(?=\s|$)/g, " ");                    // @openmanus / @blue_bot
-  t = t.replace(/(^|\s)[@＠][\u4e00-\u9fa5A-Za-z0-9_\-]{1,20}(?=\s|$)/g, " ");        // @蓝色
-  t = t.replace(/[@＠]\s*/g, " ");
-  return t.replace(/[\u200b-\u200d\ufeff]/g, "").replace(/\s+/g, " ").trim();
-}
-function fsMsgText(msg) {                            // text / post（富文本）都取成纯文本
-  let c = {}; try { c = JSON.parse(msg.content || "{}"); } catch { return ""; }
-  if (msg.message_type === "text") return String(c.text || "");
-  if (msg.message_type === "post") {
-    const body = c.post || c, k0 = Object.keys(body || {})[0], lang = Array.isArray(body.content) ? body : (body.zh_cn || body.en_us || (k0 && body[k0] && typeof body[k0] === "object" ? body[k0] : {}) || {});      // v98b：收到的富文本多半是平铺的 {title, content:[[…]]}，没有 zh_cn 外层；以前这种会被读成空消息
-    const lines = (lang.content || []).map((ln) => (ln || []).map((it) => !it ? "" : it.tag === "text" ? String(it.text || "") : it.tag === "a" ? String(it.text || it.href || "") : it.tag === "at" ? "@" + String(it.user_name || it.user_id || "") : "").join(""));
-    return [String(lang.title || ""), ...lines].filter(Boolean).join("\n");
-  }
-  return "";
-}
-const FS_BOT = { id: "", name: "", at: 0, failAt: 0, err: "" };
-async function fsBotInfo(env) {      // 机器人自己的 open_id：先看变量 FEISHU_BOT_OPEN_ID，再看内存 / KV 缓存，最后调 GET /open-apis/bot/v3/info（返回里的 bot 在顶层，不在 data 里）
-  const ov = String(env.FEISHU_BOT_OPEN_ID || "").trim(); if (ov) { FS_BOT.id = ov; return FS_BOT; }
-  if (FS_BOT.id) return FS_BOT;
-  if (env.KV) { try { const v = await env.KV.get("feishu:botinfo", "json"); if (v && v.id) { FS_BOT.id = String(v.id); FS_BOT.name = String(v.name || ""); return FS_BOT; } } catch {} }
-  if (Date.now() - FS_BOT.failAt < 60000) return FS_BOT;      // 刚失败过，1 分钟内不重复调
-  try {
-    const r = await fsApi(env, "GET", "/open-apis/bot/v3/info"), b = r.raw && r.raw.bot;
-    if (r.ok && b && b.open_id) { FS_BOT.id = String(b.open_id); FS_BOT.name = String(b.app_name || ""); FS_BOT.err = ""; if (env.KV) { try { await env.KV.put("feishu:botinfo", JSON.stringify({ id: FS_BOT.id, name: FS_BOT.name }), { expirationTtl: 86400 }); } catch {} } }
-    else { FS_BOT.failAt = Date.now(); FS_BOT.err = fsApiErr(r); }
-  } catch (e) { FS_BOT.failAt = Date.now(); FS_BOT.err = String(e && e.message || e).slice(0, 80); }
-  return FS_BOT;
-}
-async function fsAtInfo(env, msg, raw) {      // 判断是不是 @ 我：私聊直接算；群里看 mentions 列表里有没有机器人（open_id / 名字），再看文字里有没有 @机器人名；返回写清楚原因的 detail 给日志
-  const ml = (msg.mentions || []).map((m) => ({ key: String(m && m.key || ""), name: String(m && m.name || ""), open_id: String(m && m.id && m.id.open_id || ""), user_id: String(m && m.id && m.id.user_id || "") }));
-  const brief = ml.map((m) => (m.name || m.key || "?") + "(" + ((m.open_id || m.user_id || "无id").slice(0, 16)) + ")");
-  const ct = String(msg.chat_type || ""), bot = await fsBotInfo(env), text = String(raw || "").toLowerCase();
-  const names = [String(env.FEISHU_BOT_NAME || "openmanus"), bot.name, "openmanus"].map((x) => String(x || "").trim().toLowerCase()).filter(Boolean);
-  const byId = bot.id ? ml.find((m) => m.open_id === bot.id || m.user_id === bot.id) : null, byName = ml.find((m) => m.name && names.includes(m.name.toLowerCase())), inText = names.find((n) => text.includes("@" + n) || text.includes("＠" + n));
-  let atBot = false, reason = "";
-  if (ct === "p2p") { atBot = true; reason = "私聊，不用 @ 也处理"; }
-  else if (byId) { atBot = true; reason = "mentions 里有机器人（open_id 对上）"; }
-  else if (byName) { atBot = true; reason = "mentions 里有机器人名「" + byName.name + "」"; }
-  else if (!bot.id && ml.length) { atBot = true; reason = "没取到机器人 open_id（" + (bot.err || "未知原因") + "），mentions 里有 " + ml.length + " 个 @，群里推到这里的 @ 消息当作 @ 到我"; }
-  else if (inText) { atBot = true; reason = "文字里有 @" + inText; }
-  else reason = ml.length ? "群里 mentions 有 " + ml.length + " 个人，但都不是我" : "群里 mentions 是空的，文字里也没有 @我";
-  const detail = "聊天类型=" + (ct || "?") + "；文字=「" + String(raw || "").slice(0, 80) + "」；mentions=" + (brief.join("、") || "空") + "；机器人 open_id=" + (bot.id ? bot.id.slice(0, 16) : "没取到（" + (bot.err || "?") + "）") + "；判断：" + reason;
-  return { atBot, reason, brief, detail };
-}
-function fsParseCmd(raw, mentions) {                 // → { text, isTest, atBot, names }
-  const names = (mentions || []).map((m) => String(m && m.name || "")).filter(Boolean);
-  const atBot = (mentions || []).length > 0 || /[@＠]/.test(String(raw || ""));      // 群消息能推到这里 = 一定 @ 了机器人
-  let text = fsStripAt(raw, mentions);
-  const i = text.indexOf("测试飞书"), isTest = i >= 0;
-  if (isTest) text = text.slice(i + 4).replace(/^[\s:：,，。.、!！]+/, "").trim() || "你好";
-  return { text, isTest, atBot, names };
-}
-const FS_MEM = { logs: [], relays: [], lastFlush: 0, flushing: false }, FS_LOGBUF_KEY = "feishu:logbuf:v1", FS_FLUSH_MS = 300000;
-const fsLogKey = (x) => String(x && x.at_ms || 0) + ":" + String(x && x.msg_id || "");
-function fsMemPut(arr, rec, keyOf, max) {      // 同一条记录（同 key）覆盖更新，新的在前
-  const k = keyOf(rec), i = arr.findIndex((x) => keyOf(x) === k); if (i >= 0) arr.splice(i, 1);
-  arr.unshift(rec); if (arr.length > max) arr.length = max;
-}
-async function fsFlushLogs(env) {      // KV 免费版每天只有 1000 次写入：日志不再每条写一次，改成内存里攒着，最多每 5 分钟合并写 1 次；写失败只记 console，绝不影响收消息
-  const now = Date.now(); if (!env.KV || FS_MEM.flushing || now - FS_MEM.lastFlush < FS_FLUSH_MS) return;
-  FS_MEM.lastFlush = now; FS_MEM.flushing = true;
-  try {
-    let old = {}; try { old = JSON.parse((await env.KV.get(FS_LOGBUF_KEY)) || "{}") || {}; } catch {}
-    const merge = (a, b, kf, tf, max) => { const m = new Map(); for (const x of [...(a || []), ...b]) m.set(kf(x), x); return [...m.values()].sort((x, y) => tf(y) - tf(x)).slice(0, max); };
-    const rk = (x) => String(x.t || "") + ":" + String(x.msg || "");
-    await env.KV.put(FS_LOGBUF_KEY, JSON.stringify({ logs: merge(old.logs, FS_MEM.logs, fsLogKey, (x) => Number(x.at_ms || 0), 30), relays: merge(old.relays, FS_MEM.relays, rk, (x) => Date.parse(x.t) || 0, 10) }), { expirationTtl: 3 * 86400 });
-  } catch (e) { console.warn("[feishu] 日志合并写 KV 失败，已忽略：", String(e && e.message || e).slice(0, 100)); }
-  finally { FS_MEM.flushing = false; }
-}
-async function fsLogBuf(env) { if (!env.KV) return {}; try { return JSON.parse((await env.KV.get(FS_LOGBUF_KEY)) || "{}") || {}; } catch { return {}; } }
-async function fsLogList(env, n) {      // 内存（当前实例）+ KV 合并缓冲，按时间倒序
-  const buf = await fsLogBuf(env), m = new Map();
-  for (const x of [...(buf.logs || []), ...FS_MEM.logs]) m.set(fsLogKey(x), x);
-  return [...m.values()].sort((x, y) => Number(y.at_ms || 0) - Number(x.at_ms || 0)).slice(0, n || 5);
-}
-async function fsRelayList(env) {
-  const buf = await fsLogBuf(env), m = new Map();
-  for (const x of [...(buf.relays || []), ...FS_MEM.relays]) m.set(String(x.t || "") + ":" + String(x.msg || ""), x);
-  return [...m.values()].sort((x, y) => (Date.parse(y.t) || 0) - (Date.parse(x.t) || 0)).slice(0, 5);
-}
-async function fsRelayLogPut(env, rec) { try { fsMemPut(FS_MEM.relays, rec, (x) => String(x.t || "") + ":" + String(x.msg || ""), 10); await fsFlushLogs(env); } catch {} }
-async function fsLogPut(env, rec, early) {                  // 记一条收到的消息：console + 内存，KV 最多每 5 分钟合并写一次（early=true 的“处理中”记录只进内存，不触发写 KV）；任何失败都吞掉
-  try { console.log("[feishu] 收到 " + JSON.stringify(rec).slice(0, 700)); } catch {}
-  try { fsMemPut(FS_MEM.logs, { ...rec }, fsLogKey, 30); if (!early) await fsFlushLogs(env); } catch {}
-}
-function fsEsc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
-function fsLogPage(env, items, relays) {
-  const chip = (b) => b ? '<b class="ok">已配置</b>' : '<b class="no">没配置</b>';
-  const cards = items.length ? items.map((r) => '<div class="c"><div class="h"><span>' + fsEsc(r.t) + '</span><span class="tag">' + fsEsc(r.action || "") + '</span></div>'
-    + '<div class="k">chat_id</div><div class="v">' + fsEsc(r.chat_id) + '</div>'
-    + '<div class="k">飞书给的原文</div><div class="v">' + fsEsc(r.raw) + '</div>'
-    + '<div class="k">@ 判断</div><div class="v sm">' + fsEsc(r.at_detail || "") + '</div>'
-    + '<div class="k">去掉 @ 之后</div><div class="v hi">' + fsEsc(r.text) + '</div>'
-    + '<div class="k">回复</div><div class="v">' + fsEsc(r.reply || r.error || "") + '</div>'
-    + '<div class="k">其它</div><div class="v sm">msg_id=' + fsEsc(r.msg_id) + ' · 类型=' + fsEsc(r.msg_type) + ' · 来源=' + fsEsc(r.via) + ' · 用时=' + fsEsc(r.ms || 0) + 'ms</div></div>').join("")
-    : '<p class="empty">还没有收到消息。去群里 @蓝色 发一句「测试飞书：你好」，5 秒后这页会自动刷新。</p>';
-  const rl = relays.length ? relays.map((r) => '<div class="r"><b class="' + (r.ok ? "ok" : "no") + '">' + (r.ok ? "转发成功" : "转发失败") + '</b> <span class="sm">' + fsEsc(r.t) + ' · HTTP ' + fsEsc(r.status) + ' · ' + fsEsc(r.ms) + 'ms · ' + fsEsc(r.msg || "") + '</span></div>').join("") : '<p class="empty">还没有 relay 转发记录。</p>';
-  return '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="5"><title>飞书收消息调试页</title><style>'
-    + 'body{margin:0;padding:16px;font:14px/1.55 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:#f5f7f6;color:#1d2b21}h1{font-size:17px;margin:0 0 4px}p.sub{margin:0 0 12px;color:#6b7a70;font-size:12px}'
-    + '.bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}.bar div{background:#fff;border:1px solid #e3ece4;border-radius:9px;padding:6px 10px;font-size:12px;color:#5b6b5f}.ok{color:#1a7f37}.no{color:#b3261e}'
-    + 'h2{font-size:14px;margin:18px 0 8px;color:#2d6a3f}.c{background:#fff;border:1px solid #e3ece4;border-radius:12px;padding:10px 12px;margin-bottom:10px}.c .h{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#6b7a70;margin-bottom:6px}'
-    + '.tag{background:#eef7ee;color:#2d6a3f;border-radius:6px;padding:1px 7px;font-weight:650}.k{font-size:11px;color:#8a978d;margin-top:6px}.v{font-size:13px;word-break:break-all}.v.hi{font-weight:650;color:#111}.v.sm,.sm{font-size:11px;color:#6b7a70}'
-    + '.r{background:#fff;border:1px solid #e3ece4;border-radius:9px;padding:7px 10px;margin-bottom:6px}.empty{color:#6b7a70;font-size:13px;background:#fff;border:1px dashed #d8e3d6;border-radius:12px;padding:14px}'
-    + '</style></head><body><h1>飞书收消息调试页</h1><p class="sub">每 5 秒自动刷新 · 时间 ' + fsEsc(new Date().toISOString()) + '</p>'
-    + '<div class="bar"><div>VERIFY_TOKEN：' + chip(!!String(env.FEISHU_VERIFY_TOKEN || "").trim()) + '</div><div>ENCRYPT_KEY：' + chip(!!String(env.FEISHU_ENCRYPT_KEY || "").trim()) + '</div><div>机器人名：' + fsEsc(String(env.FEISHU_BOT_NAME || "openmanus")) + '</div><div>KV：' + chip(!!env.KV) + '</div></div>'
-    + '<h2>最近 ' + (items.length || 5) + ' 条收到的消息</h2>' + cards
-    + '<h2>relay 转发到 Worker 的结果</h2>' + rl
-    + '<p class="sub">自检（不用去群里试）：<a href="/api/feishu/selftest">/api/feishu/selftest</a> · JSON：<a href="/api/feishu/logs">/api/feishu/logs</a></p>'
-    + '</body></html>';
-}
-async function feishuLogs(request, env, url) {
-  const n = Math.min(20, Math.max(1, parseInt(url.searchParams.get("n") || "5", 10) || 5));
-  const items = await fsLogList(env, n);
-  let relays = [];
-  try { relays = await fsRelayList(env); } catch {}
-  const cfg = { ok: true, build: FS_BUILD, kv: !!env.KV, verify_token_configured: !!String(env.FEISHU_VERIFY_TOKEN || "").trim(), encrypt_key_configured: !!String(env.FEISHU_ENCRYPT_KEY || "").trim(), bot_name: String(env.FEISHU_BOT_NAME || "openmanus"), now: new Date().toISOString() };
-  if (url.pathname === "/api/feishu/logs") return json({ ...cfg, count: items.length, items, relay: relays });
-  return new Response(fsLogPage(env, items, relays), { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
-}
-async function feishuRelayLog(request, env) {
-  let b = {}; try { b = await request.json(); } catch {}
-  await fsRelayLogPut(env, { t: new Date().toISOString(), ok: !!b.ok, status: Number(b.status || 0), ms: Number(b.ms || 0), msg: String(b.msg || "").slice(0, 160), via: String(b.via || "relay").slice(0, 20) });
-  return json({ ok: true });
-}
-async function feishuSelfTest(env) {
-  const out = [], key = String(env.FEISHU_ENCRYPT_KEY || "").trim();
-  if (key) {
-    const enc = await fsEncryptText(key, JSON.stringify({ type: "url_verification", challenge: "selftest-123", token: "x" }));
-    const dec = enc ? await fsDecryptText(key, enc) : "";
-    let ok = false; try { ok = JSON.parse(dec).challenge === "selftest-123"; } catch {}
-    out.push({ name: "加解密（用 Worker 里的 FEISHU_ENCRYPT_KEY）", ok, detail: ok ? "加密 → 解密 → challenge 对上了" : "解不开：FEISHU_ENCRYPT_KEY 和蓝色那套可能不一致" });
-  } else out.push({ name: "加解密", ok: true, detail: "没配 FEISHU_ENCRYPT_KEY，按明文处理" });
-  const cases = [
-    ["@_user_1 测试飞书：你好", [{ key: "@_user_1", name: "蓝色" }], true, "你好"],
-    ["@openmanus 测试飞书：你好", [], true, "你好"],
-    ["@_user_1 @_user_2 测试飞书", [{ key: "@_user_1", name: "蓝色" }, { key: "@_user_2", name: "张三" }], true, "你好"],
-    ["@_user_1 今天天气怎么样", [{ key: "@_user_1", name: "蓝色" }], false, "今天天气怎么样"],
-    ["测试飞书", [], true, "你好"]
-  ];
-  for (const [raw, ms, wantTest, wantText] of cases) {
-    const r = fsParseCmd(raw, ms), ok = r.isTest === wantTest && r.text === wantText;
-    out.push({ name: "清洗：" + raw, ok, detail: "得到 text=「" + r.text + "」，isTest=" + r.isTest + (ok ? "" : "；期望 text=「" + wantText + "」，isTest=" + wantTest) });
-  }
-  { const P = fsAgentParse, c1 = P('{"tool":"clear_tables","args":{"tables":"all"}}'), c2 = P('```json\n{ "tool": "clear_tables", "tables": "all_8" }\n```'), c3 = P('{"reply":"好了"}'), c4 = P('{"tool":"create_doc","args":{"title":"a","content":"第一行\n第二行"}}'), c5 = P("你好"), c6 = P('{"tool":"clear_tables","args":{"tables":"all"},"confirmed":true}');
-    out.push({ name: "Agent 输出解析", ok: !!(c1 && c1.tool === "clear_tables" && c2 && c2.tool === "clear_tables" && c2.args.tables === "all_8" && c3 && c3.reply === "好了" && c4 && c4.args.content.includes("第二行") && c5 && c5.reply === "你好" && c6 && c6.confirmed === true), detail: "标准 / 带围栏 / 扁平 / reply / 裸换行 / 纯文本 / confirmed" }); }
-  { const tl = [{ name: "待办", group: "任务管理" }, { name: "加班", group: "任务管理" }, { name: "杂项", group: "" }], a1 = fsPickMany(tl, "all_8"), a2 = fsPickMany(tl, undefined), a3 = fsPickMany(tl, ["加班", "杂项"]), a4 = fsPickMany(tl, "不存在"), a5 = fsPickMany(tl, "任务管理");
-    out.push({ name: "tables 参数", ok: a1.tables.length === 3 && a2.tables.length === 3 && a3.tables.length === 2 && !!a4.err && a5.tables.length === 2, detail: "all_8 / 缺省 = 全部；按名；按组；不存在报错" });
-    const t1 = fsParseStamp("2026-11-19 15:00", true), t2 = fsParseStamp("2026-11-19", true), t3 = fsParseStamp("2026-11-19", false);
-    out.push({ name: "日程时间格式", ok: t1 != null && t2 === null && t3 != null && fsFullStamp(t1) === "2026-11-19 15:00", detail: "YYYY-MM-DD HH:mm 通过，只给日期建日程被拒" });
-    out.push({ name: "工具表", ok: ["create_doc", "write_tables", "clear_tables", "create_calendar_event", "list_calendar", "search", "translate", "hotlist", "todo"].every((n) => FS_TOOLS.some((x) => x.name === n)), detail: FS_TOOLS.map((x) => x.name).join(" / ") }); }
-  { const sv = FS_BOT.id; const g = (m, r) => fsAtInfo({ ...env, FEISHU_BOT_OPEN_ID: "ou_bot" }, m, r), a1 = await g({ chat_type: "group", mentions: [{ key: "@_user_1", name: "蓝色", id: { open_id: "ou_bot" } }] }, "@_user_1 你好"), a2 = await g({ chat_type: "group", mentions: [{ key: "@_user_1", name: "张三", id: { open_id: "ou_x" } }] }, "@_user_1 你好"), a3 = await g({ chat_type: "p2p", mentions: [] }, "你好"), a4 = await g({ chat_type: "group", mentions: [] }, "大家好"); FS_BOT.id = sv;
-    out.push({ name: "@ 判断（mentions / 私聊）", ok: a1.atBot && !a2.atBot && a3.atBot && !a4.atBot, detail: "群里@我=" + a1.atBot + "；群里@别人=" + a2.atBot + "；私聊=" + a3.atBot + "；群里没@=" + a4.atBot }); }
-  { const tl = [{ name: "待办", group: "任务管理" }, { name: "加班", group: "任务管理" }, { name: "杂项", group: "" }], g1 = fsPickTables(tl, "任务管理"), g2 = fsPickTables(tl, "任务管理-表2"), g3 = fsPickTables(tl, "加班"), g4 = fsPickTables(tl, ""), g5 = fsPickTables(tl, "不存在");
-    out.push({ name: "选表规则", ok: g1 && g1.tables.length === 2 && g2 && g2.tables[0].name === "加班" && g3 && g3.tables[0].name === "加班" && g4 && g4.tables[0].name === "待办" && g5 === null, detail: "整组 2 张 / 任务管理-表2=加班 / 按名 / 没说=第 1 张 / 找不到=null" });
-  }
-  return json({ ok: out.every((x) => x.ok), build: FS_BUILD, verify_token_configured: !!String(env.FEISHU_VERIFY_TOKEN || "").trim(), encrypt_key_configured: !!key, bot_name: String(env.FEISHU_BOT_NAME || "openmanus"), cases: out });
-}
-async function fsHandleMessage(request, env, ctx, ev) {
-  const t0 = Date.now(), msg = ev.message || {}, sender = ev.sender || {}, sid = sender.sender_id || {};
-  const rec = { at_ms: t0, t: new Date(t0).toISOString(), chat_id: String(msg.chat_id || ""), chat_type: String(msg.chat_type || ""), msg_id: String(msg.message_id || ""), msg_type: String(msg.message_type || ""), from: String(sid.open_id || sid.user_id || "").slice(0, 12), via: String(request.headers.get("x-feishu-relay") || "worker") };
-  try {
-    if (sender.sender_type && sender.sender_type !== "user") { rec.action = "跳过：机器人自己发的"; return await fsLogPut(env, rec); }
-    if (!msg.chat_id) { rec.action = "跳过：没有 chat_id"; return await fsLogPut(env, rec); }
-    if (msg.message_type === "file") {      // v99s：聊天里直接上传的文件：file_key 从 JSON.parse(message.content).file_key 解析；只登记（这个聊天最近一份），不回话，等用户说“读一下”
-      const fk = fsFileFromContent(msg.content);
-      if (fk && msg.message_id) { await fsChatFilePut(env, msg.chat_id, { message_id: String(msg.message_id), file_key: fk.file_key, file_name: fk.file_name, from: String(sid.open_id || ""), at: Date.now() }); rec.action = "记下聊天文件：" + (fk.file_name || "（没带文件名）"); } else rec.action = "跳过：文件消息里没解析出 file_key";
-      return await fsLogPut(env, rec);
-    }
-    if (msg.message_type !== "text" && msg.message_type !== "post") { rec.action = "跳过：不是文本（" + rec.msg_type + "）"; return await fsLogPut(env, rec); }
-    const raw = fsMsgText(msg); rec.raw = raw.slice(0, 300);
-    const p = fsParseCmd(raw, msg.mentions || []);
-    const at = await fsAtInfo(env, msg, raw); p.atBot = at.atBot; rec.mentions = at.brief.slice(0, 6); rec.at_detail = at.detail; rec.text = p.text.slice(0, 300); rec.is_test = p.isTest; rec.at_bot = p.atBot; rec.build = FS_BUILD;
-    if (!p.isTest && !p.atBot) { rec.action = "跳过：" + at.reason; rec.reply = at.detail; return await fsLogPut(env, rec); }
-    if (String(msg.chat_type || "") === "p2p" && msg.chat_id && env.KV) { try { await env.KV.put("fsmychat", String(msg.chat_id), { expirationTtl: 30 * 86400 }); } catch {} }      // v99k：记住和机器人的私聊，早报主动推这里（不用你先说话）
-    if (msg.message_id) {      // v98g：按 message_id 去重（内存 + KV 存 5 分钟）；第 2 次直接跳过；KV 出错就当没去重继续处理，不让请求失败
-      const c = await fsClaim(env, String(msg.message_id));
-      if (c.dup) { rec.action = "跳过：同一条 message_id 已处理过（" + c.by + "）"; return await fsLogPut(env, rec); }
-      msg._claim = c.nonce || "";
-    }
-    const chat = msg.chat_id, tag = p.isTest ? "【测试飞书】" : "";
-    let err = "";
-    if (!p.text) { rec.action = "空消息"; err = await fsReply(env, chat, "这条消息没有文字内容，直接发文字或文件就可以开始。"); }
-    else {      // v99：所有话（包括“测试飞书：…”）都走 Agent 循环：模型决定调哪个工具 → Worker 执行 → 结果喂回模型 → 回用户
-      rec.action = "Agent"; await fsLogPut(env, rec, true);
-      const r = await fsAgentRun(request, env, ctx, chat, tag, p, sid, msg, rec);
-      if (r.skipped) { rec.action = "跳过：另一个实例在处理同一条"; return await fsLogPut(env, rec); }
-      if (r.deduped) { rec.action = "Agent：同一错误 1 分钟内已回过，不重复"; rec.reply = "没再回"; return await fsLogPut(env, rec); }
-      err = r.err; rec.action = "Agent：" + (rec.tools.join(" → ") || "直接回复");
-    }
-    rec.reply = err ? "没发出去：" + err : "已回到群里";
-    rec.ms = Date.now() - t0;
-    return await fsLogPut(env, rec);
-  } catch (e) {
-    rec.action = "处理出错"; rec.error = String(e && e.message || e).slice(0, 200); rec.ms = Date.now() - t0;
-    console.error("[feishu] 处理失败", e && e.message || e);
-    // v99p：异常详情只记内部日志，统一包在〔内部〕语义中，绝不把 join 等实现错误发给用户。里，不许静默
-    return await fsLogPut(env, rec);
-  }
-}
-async function feishuEvent(request, env, ctx) {
-  const cfg = { build: FS_BUILD, endpoint: "/api/feishu/event", verify_token_configured: !!String(env.FEISHU_VERIFY_TOKEN || "").trim(), encrypt_key_configured: !!String(env.FEISHU_ENCRYPT_KEY || "").trim(), bot_name: String(env.FEISHU_BOT_NAME || "openmanus"), logs: "/feishu/logs", logs_json: "/api/feishu/logs", selftest: "/api/feishu/selftest" };
-  if (request.method === "GET") return json({ ok: true, ...cfg, msg: "飞书事件回调接口已就绪（飞书会用 POST 调用这个地址）" });
-  if (request.method !== "POST") return json({ ok: false, msg: "只接受 POST" }, 405);
-  const t0 = Date.now(), hd = request.headers, from = "国家=" + (hd.get("cf-ipcountry") || "?") + (hd.get("x-feishu-relay") ? " 经relay" : " 直连") + " UA=" + String(hd.get("user-agent") || "").slice(0, 40);
-  const raw = await request.text();
-  let body = {}; try { body = JSON.parse(raw); } catch {}
-  if (body && body.encrypt) {      // 蓝色开了 Encrypt Key：先用 FEISHU_ENCRYPT_KEY 解密
-    const plain = await fsDecryptText(env.FEISHU_ENCRYPT_KEY, body.encrypt);
-    if (!plain) {
-      console.warn("[feishu] 加密回调解不开 → 400，" + from);
-      await fsLogPut(env, { at_ms: t0, t: new Date(t0).toISOString(), chat_id: "", msg_id: "", msg_type: "event", via: String(hd.get("x-feishu-relay") || "worker"), raw: "（加密回调，解不开）", text: "", action: "拒收：解密失败", reply: "FEISHU_ENCRYPT_KEY 和蓝色那套不一致", ms: Date.now() - t0 });
-      return json({ code: 1, msg: "解密失败：检查 Worker 的 FEISHU_ENCRYPT_KEY 是否等于蓝色后台“加密策略”里的 Encrypt Key" }, 400);
-    }
-    try { body = JSON.parse(plain); } catch { body = {}; }
-  }
-  const sig = String(hd.get("x-lark-signature") || "");
-  if (sig && String(env.FEISHU_ENCRYPT_KEY || "").trim()) {      // 签名只做记录、不拦（拦错了整条链路就断）
-    const want = await fsSha256Hex(String(hd.get("x-lark-request-timestamp") || "") + String(hd.get("x-lark-request-nonce") || "") + String(env.FEISHU_ENCRYPT_KEY || "") + raw);
-    if (!sameStr(want, sig)) console.warn("[feishu] 签名对不上（不影响处理，只做提示）");
-  }
-  if (body.type === "url_verification" && body.challenge != null) {      // 保存回调地址时的连通校验：不查 KV、不调模型，立刻原样回 challenge
-    console.log("[feishu] url_verification 已回 challenge，用时 " + (Date.now() - t0) + "ms，" + from);
-    return json({ challenge: body.challenge });
-  }
-  const type = String(body.header && body.header.event_type || body.event && body.event.type || "");
-  const vt = String(env.FEISHU_VERIFY_TOKEN || "").trim(), token = String(body.header && body.header.token || body.token || "");   // 事件 token：v2 在 header 里，v1 在 body 里
-  if (!vt || !token || !sameStr(token, vt)) {
-    console.warn("[feishu] 事件 token 不对 → 403，" + from + "，收到 " + token.length + " 位 / 配置 " + vt.length + " 位");
-    const em = body.event && body.event.message || {};
-    await fsLogPut(env, { at_ms: t0, t: new Date(t0).toISOString(), chat_id: String(em.chat_id || ""), msg_id: String(em.message_id || ""), msg_type: String(em.message_type || "event"), via: String(hd.get("x-feishu-relay") || "worker"), raw: "（token 对不上，没处理）" + (type ? " 类型=" + type : ""), text: "", action: "拒收：token 不对", reply: "收到 " + token.length + " 位 / 配置 " + vt.length + " 位", ms: Date.now() - t0 });
-    return json({ code: 1, msg: "token 不对，或 Worker 没配置 FEISHU_VERIFY_TOKEN" }, 403);
-  }
-  if (type === "im.message.receive_v1" && body.event) ctx.waitUntil(fsHandleMessage(request, env, ctx, body.event).catch((e) => console.error("[feishu] 处理失败", e && e.message || e)));
-  console.log("[feishu] 事件 " + (type || "?") + " 已回 200，用时 " + (Date.now() - t0) + "ms，" + from);
-  return json({ code: 0 });      // 先回 200，真正的处理放后台；不是“@机器人 / 提醒我 / 测试飞书”的消息在 fsHandleMessage 里直接跳过
-}
 
 // ---- v91：输出时把露出来的含 % 的长链接藏起来（百分号编码的，如 hk01 那种）：裸链接 → [域名](链接)，链接还在只是不露；已经是 [来源名](链接) 的、不带 % 的短链接都不动 ----
 const _U = "[A-Za-z0-9\\-._~:/?#@!$&*+,;=%]";
@@ -6609,195 +4696,19 @@ async function lmSaveTurn(env, user, b, text) {   // 只在“这一轮最后一
 async function lmSyncTodo(env, user, all) {       // todo_add / todo_done 成功后：把“没做完的”整份镜像到 mem:todo:{user}
   try { if (!env.KV || !user) return; await env.KV.put("mem:todo:" + user, JSON.stringify((all || []).filter((t) => !t.done).slice(0, 100).map((t) => ({ id: t.id, text: t.text, due: t.due_at ? agFmt(t.due_at) : "", reminded: !!t.notified })))); } catch {}
 }
-async function lmSyncNote(env, user) {            // note_save 成功后：把 Dify 收藏的笔记镜像到 mem:note:{user}（最近 30 条）
-  try { if (!env.KV || !user) return; const all = await kbLoad(env, user); await env.KV.put("mem:note:" + user, JSON.stringify(all.filter((x) => x.src === "Dify 收藏").slice(-30).map((x) => ({ title: cCl(x.title, 80), url: x.url || "", text: cCl(x.text, 200) })))); } catch {}
-}
 
-// ---- Dify：把对话转给 Dify Agent（Agent 应用只支持流式，这里在服务端把流收完，再按 OpenAI 风格推给网页）----
-async function difyChat(env, user, query, convKey) { try { const r = await difyChat0(env, user, query, convKey); dbgStat("Dify", true); return r; } catch (e) { dbgStat("Dify", false, e && e.message); throw e; } }      // v99s：包一层，记 /debug 要的最后成功 / 最后报错
-async function difyChat0(env, user, query, convKey) {
-  const key = String(env.DIFY_APP_KEY || "").trim(); if (!key) throw Object.assign(new Error("Worker 还没配置 DIFY_APP_KEY"), { status: 501 });
-  const base = String(env.DIFY_API_BASE || "https://api.dify.ai/v1").trim().replace(/\/$/, "");
-  const ck = "dify:conv:" + user + ":" + String(convKey || "default").slice(0, 60);
-  let conv = ""; try { conv = (await env.KV.get(ck)) || ""; } catch {}
-  const r = await fetch(base + "/chat-messages", { method: "POST", headers: { Authorization: "Bearer " + key, "Content-Type": "application/json" }, body: JSON.stringify({ inputs: {}, query: String(query).slice(0, 30000), response_mode: "streaming", conversation_id: conv, user: String(user).slice(0, 60) }), signal: AbortSignal.timeout(110000) });
-  if (!r.ok) { const t = await r.text().catch(() => ""); if (r.status === 404 && conv) { try { await env.KV.delete(ck); } catch {} } throw Object.assign(new Error("Dify 返回 " + r.status + "：" + t.replace(key, "***").slice(0, 160)), { status: 502 }); }
-  const rd = r.body.getReader(), dec = new TextDecoder(); let buf = "", answer = "", newConv = conv; const tools = [];
-  for (;;) {
-    const { done, value } = await rd.read(); if (done) break; buf += dec.decode(value, { stream: true });
-    let i; while ((i = buf.indexOf("\n\n")) >= 0) {
-      const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
-      for (const ln of chunk.split("\n")) {
-        if (!ln.startsWith("data:")) continue; let ev; try { ev = JSON.parse(ln.slice(5).trim()); } catch { continue; }
-        if (ev.conversation_id) newConv = ev.conversation_id;
-        if (ev.event === "agent_message" || ev.event === "message") answer += ev.answer || "";
-        else if (ev.event === "agent_thought" && ev.tool) for (const nm of String(ev.tool).split(";")) if (nm && !tools.includes(nm)) tools.push(nm);
-        else if (ev.event === "error") throw Object.assign(new Error("Dify 出错：" + String(ev.message || ev.code || "").slice(0, 160)), { status: 502 });
-      }
-    }
-  }
-  if (newConv && newConv !== conv) { try { await env.KV.put(ck, newConv, { expirationTtl: 30 * 86400 }); } catch {} }
-  return { answer: answer.trim(), conversation_id: newConv, tools };
-}
 
-// ---- 地图（给 Dify 用：只传地名，坐标和高德 / 百度 / 腾讯的分工都在 Worker 里处理；附近查询沿用网页里同一套“按分类码搜 + 校验”）----
-async function agPlace(env, name) {
-  const q = String(name || "").trim().slice(0, 60); if (!q) throw Object.assign(new Error("缺少地名"), { status: 400 });
-  const found = await placeSuggest(env, q), pick = pickBestPlace(found.list, q, null), best = pick && pick.best;
-  if (!best) throw Object.assign(new Error(`没有找到“${q}”，请补充城市或更具体的地址`), { status: 404 });
-  return best;
-}
-async function agMap(env, action, b) {
-  if (action === "nearby") {
-    const c = await agPlace(env, b.place), kw = String(b.keyword || "").trim(); if (!kw) throw Object.assign(new Error("缺少 keyword，比如 公交站 / 地铁站 / 医院 / 银行"), { status: 400 });
-    const r = await placeNearby(env, kw, c, b.radius, "", b.limit);
-    return { center: { name: c.name, address: c.address || "" }, text: nearbyReply(r) };
-  }
-  if (action === "route") {
-    const a = await agPlace(env, b.from), t = await agPlace(env, b.to), mode = ["transit", "walking", "riding", "driving"].includes(b.mode) ? b.mode : "transit";
-    const r = await placeRoute(env, mode, a, t, "");
-    return { mode, from: a.name, to: t.name, link: r.link || "", routes: (r.routes || []).slice(0, 2).map((rt) => { const j = JSON.stringify(rt); return j.length > 2500 ? { truncated: j.slice(0, 2500) } : rt; }), tip: "按 routes 里的内容回答；没有的信息不要编。" };
-  }
-  throw Object.assign(new Error("action 只能是 nearby / route"), { status: 400 });
-}
-async function agentRoutes(request, env, url, path) {
-  if (!path.startsWith("/api/agent/")) return null;
-  let user = await userFromReq(request, env, url, "");
-  // 按你的要求：/api/agent/tool/* 不再要密钥，直接放行（读写的是 AGENT_USER 的数据）。想重新收紧：Worker 加变量 AGENT_OPEN=0，就恢复成必须带密钥
-  if (!user && path.startsWith("/api/agent/tool/") && String(env.AGENT_OPEN || "") !== "0" && env.AGENT_USER) user = String(env.AGENT_USER);
-  if (!user) return json({ ok: false, msg: path.startsWith("/api/agent/tool/") && !env.AGENT_USER ? "Worker 没配置 AGENT_USER" : "未登录或服务密钥不对" }, 401);
-  if (!env.KV) return json({ ok: false, msg: "KV 没有绑定" }, 500);
-  const b = request.method === "POST" ? await request.json().catch(() => ({})) : {};
-  try {
-    if (path === "/api/agent/tool/search" && request.method === "POST") return json({ ok: true, ...(await agSearch(env, b)) });
-    let m;
-    if ((m = /^\/api\/agent\/tool\/todo\/(add|list|done|delete|clear)$/.exec(path)) && request.method === "POST") return json({ ok: true, ...(await agTodo(env, user, m[1], b)) });
-    if ((m = /^\/api\/agent\/tool\/note\/(save|find|delete)$/.exec(path)) && request.method === "POST") return json({ ok: true, ...(await agNote(env, user, m[1], b)) });
-    if ((m = /^\/api\/agent\/tool\/map\/(nearby|route)$/.exec(path)) && request.method === "POST") return json({ ok: true, ...(await agMap(env, m[1], b)) });
-    if (path === "/api/agent/cron/run" && (request.method === "POST" || request.method === "GET")) return json(await agCronReminders(env, { test: b.test === true || url.searchParams.get("test") === "1" }));   // 手动触发一次（要 AGENT_TOOL_KEY）；test=1 只发一条测试消息
-    if (path === "/api/agent/chat" && request.method === "POST") {
-      const q = String(b.query || "").trim(); if (!q) return json({ ok: false, msg: "缺少 query" }, 400);
-      return json({ ok: true, ...(await difyChat(env, user, q, b.project_id)) });
-    }
-  } catch (e) { return json({ ok: false, msg: String(e && e.message || e).slice(0, 300) }, e && e.status || 502); }
-  return json({ ok: false, msg: "没有这个接口" }, 404);
-}
-// ---- v92：Dify 自定义工具的 OpenAPI 文件，公开链接 /openmanus_tools.yaml（Dify “从 URL 导入”用）。以后 yaml 改了，只改下面这份字符串，链接不变 ----
-const OPENMANUS_TOOLS_YAML = "openapi: 3.0.3\ninfo:\n  title: OpenManus 工具箱\n  description: Dify 主 Agent 调用的工具：联网搜索、提醒/待办、收藏/笔记、翻译（百度+有道）、地图（高德+百度+腾讯）。邮件/日程只起草、文件只读本次上传的内容，都不需要工具，写在 Agent 提示词里。\n  version: \"1.0.0\"\nservers:\n  - url: https://openmanus-gateway.tianxinyuan881.workers.dev\npaths:\n  /api/agent/tool/search:\n    post:\n      operationId: web_search\n      summary: 联网搜索（最新新闻、股票、汇率、金价、其他网页）\n      description: 用户问\"今天有什么新闻\"\"现在金价多少\"\"美元兑人民币汇率\"\"某股票多少钱\"或任何需要最新信息的问题时必须先调用。新闻只返回最近 24 小时、带发布时间的，按发布时间从新到旧排（第一条最新）；行情返回数值、时间和来源。没有结果就如实说没查到，不要编。新闻/网页结果里有一个现成的 markdown 字段（每条一行：标题 一句话 [来源名](链接)），回答时先写一句总结，再把 markdown 原样贴出来，不许改写、不许删链接、不许写“详情见上述链接”。\n      requestBody:\n        required: true\n        content:\n          application/json:\n            schema:\n              type: object\n              required: [query]\n              properties:\n                query:\n                  type: string\n                  description: 搜索内容，直接用用户的话，例如\"今天的财经新闻\"\"金价\"\"美元兑日元\"\"600519\"\"腾讯控股\"\n                type:\n                  type: string\n                  enum: [web, news, quote]\n                  description: 可不填（自动判断）。news=今日新闻，quote=股票/汇率/金价行情，web=普通网页搜索\n                max:\n                  type: integer\n                  description: 最多返回几条，默认 10，最大 10。调用时 max 填 10\n      responses:\n        \"200\":\n          description: 搜索结果\n          content:\n            application/json:\n              schema:\n                type: object\n                properties:\n                  ok: {type: boolean}\n                  type: {type: string}\n                  items:\n                    type: array\n                    description: 新闻 / 网页结果（title、url、time、snippet）\n                    items: {type: object}\n                  quote:\n                    type: array\n                    description: 行情结果（title、rows、asof、source、note）\n                    items: {type: object}\n                  markdown:\n                    type: string\n                    description: 现成的 markdown 列表，每条 = 标题 + 一句话 + [来源名](链接)，回答时原样贴出\n                  note: {type: string}\n                  fetched_at: {type: string}\n  /api/agent/tool/todo/add:\n    post:\n      operationId: todo_add\n      summary: 记一条提醒/待办\n      description: 用户说\"明天9点提醒我…\"\"记一下待办…\"时调用。when 必须原样抄用户说的时间原话（用户说“1分钟后”就传“1分钟后”，不要改成“5分钟后”），不要自己换算。返回里的 when 是收到的原文、due 是算出的提醒时间，对不上就说明传错了。没说时间就不填 when（只记待办，不提醒）。\n      requestBody:\n        required: true\n        content:\n          application/json:\n            schema:\n              type: object\n              required: [text]\n              properties:\n                text:\n                  type: string\n                  description: 要做的事，例如\"给客户回电话\"\n                when:\n                  type: string\n                  description: 提醒时间。必须原样抄用户说的时间，不要自己换算，不要把 1分钟 改成 5分钟，不要把 1分钟 改成 5分钟后。用户说 1分钟后，你就传 1分钟后。例如\"明天上午9点\"\"10分钟后\"\"今晚8点半\"\"下周五15:30\"\"12月3日9点\"\"2026-12-03 09:00\"\n      responses:\n        \"200\":\n          description: 已记下\n          content:\n            application/json:\n              schema:\n                type: object\n                properties:\n                  ok: {type: boolean}\n                  msg: {type: string}\n                  added: {type: object}\n  /api/agent/tool/todo/list:\n    post:\n      operationId: todo_list\n      summary: 查看待办/提醒清单\n      description: 用户问\"我有什么待办\"\"今天要做什么\"时调用。\n      requestBody:\n        required: false\n        content:\n          application/json:\n            schema:\n              type: object\n              properties:\n                status:\n                  type: string\n                  enum: [open, done, all]\n                  description: open=未完成（默认），done=已完成，all=全部\n      responses:\n        \"200\":\n          description: 待办清单\n          content:\n            application/json:\n              schema:\n                type: object\n                properties:\n                  ok: {type: boolean}\n                  now: {type: string}\n                  items:\n                    type: array\n                    items: {type: object}\n  /api/agent/tool/todo/done:\n    post:\n      operationId: todo_done\n      summary: 把一条待办标记为完成\n      description: 用户说\"某事做完了\"时调用。优先传 id（先用 todo_list 查）；也可只传 text 关键词。\n      requestBody:\n        required: true\n        content:\n          application/json:\n            schema:\n              type: object\n              properties:\n                id: {type: string, description: 待办 id}\n                text: {type: string, description: 待办内容里的关键词}\n      responses:\n        \"200\":\n          description: 结果\n          content:\n            application/json:\n              schema:\n                type: object\n                properties:\n                  ok: {type: boolean}\n                  msg: {type: string}\n  /api/agent/tool/todo/clear:\n    post:\n      operationId: todo_clear\n      summary: 清空全部待办和提醒\n      description: 用户说清待办、清空待办、把待办都删掉时直接调用，不需要再问用户，也不要让用户手动去清。会同时清掉待办主表和网页里的提醒任务。调完把返回的 msg 原样告诉用户。\n      requestBody:\n        required: false\n        content:\n          application/json:\n            schema:\n              type: object\n              properties: {}\n      responses:\n        \"200\":\n          description: 结果\n          content:\n            application/json:\n              schema:\n                type: object\n                properties:\n                  ok: {type: boolean}\n                  msg: {type: string}\n                  cleared: {type: integer}\n  /api/agent/tool/note/save:\n    post:\n      operationId: note_save\n      summary: 收藏一条链接或笔记\n      description: 用户说\"帮我收藏一下\"\"记个笔记\"时调用。有链接就填 url；title 用文章标题或一句话概括；text 放用户想记的内容或一两句摘要。\n      requestBody:\n        required: true\n        content:\n          application/json:\n            schema:\n              type: object\n              properties:\n                title: {type: string, description: 标题}\n                url: {type: string, description: 链接（可空）}\n                text: {type: string, description: 笔记内容或摘要（可空）}\n      responses:\n        \"200\":\n          description: 结果\n          content:\n            application/json:\n              schema:\n                type: object\n                properties:\n                  ok: {type: boolean}\n                  msg: {type: string}\n  /api/agent/tool/note/find:\n    post:\n      operationId: note_find\n      summary: 找出我收藏的内容\n      description: 用户说\"把我收藏的找出来\"\"我之前存的那个关于XX的\"时调用。不填 query 就列出最近收藏。\n      requestBody:\n        required: false\n        content:\n          application/json:\n            schema:\n              type: object\n              properties:\n                query: {type: string, description: 关键词（可空）}\n                type:\n                  type: string\n                  enum: [link, note]\n                  description: 只看链接或只看笔记（可空）\n      responses:\n        \"200\":\n          description: 收藏列表\n          content:\n            application/json:\n              schema:\n                type: object\n                properties:\n                  ok: {type: boolean}\n                  total: {type: integer}\n                  items:\n                    type: array\n                    items: {type: object}\n  /api/translate:\n    post:\n      operationId: translate_text\n      summary: 翻译（百度，备用有道）\n      description: 用户要翻译一段文字时调用。to 不填会自动判断（中文→英文，其他→中文）。\n      requestBody:\n        required: true\n        content:\n          application/json:\n            schema:\n              type: object\n              required: [text]\n              properties:\n                text: {type: string, description: 要翻译的原文}\n                to:\n                  type: string\n                  enum: [zh, en]\n                  description: 目标语言：zh 中文，en 英文\n      responses:\n        \"200\":\n          description: 译文\n          content:\n            application/json:\n              schema:\n                type: object\n                properties:\n                  ok: {type: boolean}\n                  text: {type: string}\n                  via: {type: string}\n  /api/agent/tool/map/nearby:\n    post:\n      operationId: map_nearby\n      summary: 查某地点附近的公交站、地铁站、医院、银行、加油站等\n      description: 用户问\"XX附近有什么…\"时调用。place 必须是用户说的具体地点（没说就先问用户在哪，不要猜）。结果已按真实分类校验，没有就是没有，不要补。\n      requestBody:\n        required: true\n        content:\n          application/json:\n            schema:\n              type: object\n              required: [place, keyword]\n              properties:\n                place: {type: string, description: 中心地点，例如\"人民广场\"\"浙大一院\"}\n                keyword: {type: string, description: 想找什么，例如\"地铁站\"\"公交站\"\"医院\"\"银行\"\"加油站\"}\n                radius: {type: integer, description: 半径（米），默认 500，最大 5000}\n      responses:\n        \"200\":\n          description: 附近结果\n          content:\n            application/json:\n              schema:\n                type: object\n                properties:\n                  ok: {type: boolean}\n                  text: {type: string}\n  /api/agent/tool/map/route:\n    post:\n      operationId: map_route\n      summary: 查路线（公交地铁、步行、骑行、驾车）\n      description: 用户问\"从A到B怎么走\"时调用。起点终点都要是具体地点名；没说起点就先问。\n      requestBody:\n        required: true\n        content:\n          application/json:\n            schema:\n              type: object\n              required: [from, to]\n              properties:\n                from: {type: string, description: 起点地名}\n                to: {type: string, description: 终点地名}\n                mode:\n                  type: string\n                  enum: [transit, walking, riding, driving]\n                  description: 出行方式，默认 transit（公交地铁）\n      responses:\n        \"200\":\n          description: 路线\n          content:\n            application/json:\n              schema:\n                type: object\n                properties:\n                  ok: {type: boolean}\n                  routes:\n                    type: array\n                    items: {type: object}\n";
 // ================= /v90 =================
 async function handle(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
     if (request.method === "OPTIONS") return new Response("", { headers: CORS });
-    if (path === "/api/feishu/event" && (request.method === "POST" || request.method === "GET")) return await feishuEvent(request, env, ctx);   // v95：飞书事件订阅回调（自己校验 token，不走登录）
-    if (path === "/api/feishu/relaylog" && request.method === "POST") return await feishuRelayLog(request, env);      // v96：relay 把“转给 Worker 成没成”回写到这里
-    if ((path === "/api/feishu/logs" || path === "/feishu/logs" || path === "/feishu/logs/") && request.method === "GET") return await feishuLogs(request, env, url);      // v96：调试页 /feishu/logs（最近 5 条收到的消息）
-    if (path === "/api/feishu/agent-plan" && request.method === "GET") return await feishuAgentPlan(request, env, ctx, url);      // 读类工具真执行、写类工具只记录；看模型的完整决策链
-    if (path === "/api/feishu/toolcheck" && request.method === "GET") return await feishuToolCheck(env, request);      // v98e-tools：只读自检（各张表结构 / 日历），不创建任何东西
-    if (path === "/api/feishu/oauth/start" && request.method === "GET") return await feishuOAuthStart(request, env);      // v99i：用户授权入口（链接由机器人发给用户，10 分钟有效）
-    if (path === "/api/feishu/oauth/callback" && request.method === "GET") return await feishuOAuthCallback(request, env, ctx);      // v99i：授权回调（开放平台“重定向 URL”要登记这个地址）
-    if (path === "/api/feishu/selftest" && request.method === "GET") return await feishuSelfTest(env);      // v96：不用去群里试，直接自检解密 + @ 清洗
-    if (path === "/api/debug/llmprobe" && request.method === "GET") return await llmProbeReport(env, url);      // v99z 模型探针：逐源试“在线?”，要 ?token=REG_TOKEN
-    if ((path === "/openmanus_tools.yaml" || path === "/openmanus_tools.yml") && (request.method === "GET" || request.method === "HEAD")) return new Response(request.method === "HEAD" ? null : OPENMANUS_TOOLS_YAML, { headers: { "Content-Type": "text/yaml; charset=utf-8", "Content-Disposition": "inline; filename=\"openmanus_tools.yaml\"", "Cache-Control": "no-cache", "Access-Control-Allow-Origin": "*" } });
 
     const stored = env.KV ? await env.KV.get("agg") : null;
     const AGG = (stored || env.AGG_URL || "").replace(/\/$/, "");
     const source = stored ? "kv" : (env.AGG_URL ? "env" : "none");
 
-    // ---- Kaggle 自动登记隧道 ----
-    if (path === "/register" && request.method === "POST") {
-      const auth = request.headers.get("Authorization") || "";
-      if (!env.REG_TOKEN || !sameStr(auth, "Bearer " + env.REG_TOKEN)) return json({ error: "unauthorized" }, 401);
-      if (!env.KV) return json({ error: "KV 没有绑定,变量名必须是 KV" }, 500);
-      const b = await request.json().catch(() => ({}));
-      const u = String(b.url || "").replace(/\/$/, "");
-      if (!/^https:\/\/(?!api\.)[a-z0-9-]+\.trycloudflare\.com$/.test(u)) return json({ error: "链接格式不对" }, 400);
-      await env.KV.put("agg", u);
-      return json({ ok: true, agg: u });
-    }
-    if (path === "/agg") return json({ agg: AGG, source });
 
-    // ---- 调试：Kaggle + 三家云端模型一起测（并行，各自有超时）----
-    if (path === "/debug") {
-      const dbgText = url.searchParams.get("format") === "text", dbgRes = (v) => dbgText ? new Response((v.agents_lines || ["（没有 agent 状态）"]).join("\n"), { headers: { ...CORS, "Content-Type": "text/plain; charset=utf-8" } }) : json(v);      // v99s：?format=text 一行一个
-      const dc = mcache.get("debug"); if (dc && !url.searchParams.get("feishu_doc") && Date.now() - dc.t < 60000) return dbgRes(dc.v);
-      // v21：用户要求 /debug 不上锁，直接就能看，不用 REG_TOKEN
-      // 注意：这里只返回每个模型通不通，不返回 Key 的值，不会泄露 Key
-      const kaggle = probe("kaggle", async () => {
-        if (!AGG) return { configured: false };
-        try {
-          const r = await fetch(AGG + "/api/tags", { signal: T(8000), headers: { "User-Agent": "Mozilla/5.0" } });
-          return { configured: true, source, agg: AGG, status: r.status, online: r.ok };
-        } catch (e) { return { configured: true, source, agg: AGG, online: false, error: e.name === "TimeoutError" ? "超时" : e.message }; }
-      });
-      const groq = probe("groq", async () => {
-        const keys = getKeys(env.GROQ_KEYS); if (!keys.length) return { hasKey: false };
-        const m = await getGroqModel(keys[0]);
-        const r = await chatOpenAI("https://api.groq.com/openai/v1/chat/completions", keys[0], groqBody(m, [{ role: "user", content: "hi" }], { max_tokens: 64 }));
-        const j = await r.json().catch(() => ({}));
-        return { hasKey: true, model: m, status: r.status, reply: (j.choices?.[0]?.message?.content || "").slice(0, 80), finish: j.choices?.[0]?.finish_reason, ctokens: j.usage?.completion_tokens, error: j.error?.message };
-      });
-      const openrouter = probe("openrouter", async () => {
-        const keys = getKeys(env.OPENROUTER_KEYS); if (!keys.length) return { hasKey: false };
-        const m = await getOpenRouterModel(keys[0]);
-        return await chatProbe("https://openrouter.ai/api/v1/chat/completions", keys[0], m);
-      });
-      const gemini = probe("gemini", async () => {
-        const keys = getKeys(env.GEMINI_KEYS); if (!keys.length) return { hasKey: false };
-        const t0 = Date.now(); let stage = "列模型";
-        try {
-          const { ver, model, all } = await getGeminiModel(keys[0]); stage = "生成(" + model + ")";
-          const callG = (mdl) => fetch(`https://generativelanguage.googleapis.com/${ver}/models/${mdl}:generateContent`, {
-            method: "POST", headers: { "x-goog-api-key": keys[0], "Content-Type": "application/json" }, signal: T(20000),
-            body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "请只回复两个字：在线" }] }], generationConfig: { maxOutputTokens: 256 } })
-          });
-          let usedModel = model, r = await callG(model), fellBack = "";
-          if ([429, 503].includes(r.status) && model !== "gemini-2.5-flash") { fellBack = "首选模型 " + model + " 返回 " + r.status + "（过载/限流），已改测 gemini-2.5-flash"; usedModel = "gemini-2.5-flash"; r = await callG(usedModel); }   // 聊天时也是这样自动降级的
-          const j = await r.json().catch(() => ({}));
-          const reply = String(j.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "").trim();
-          return { hasKey: true, ver, model: usedModel, ...(fellBack ? { fallback: fellBack } : {}), status: r.status, ms: Date.now() - t0, reply: reply.slice(0, 80), verdict: r.ok ? (reply ? "正常" : "正文为空") : "接口报错", available_models: all, error: j.error?.message };
-        } catch (e) { return { hasKey: true, error: "卡在【" + stage + "】：" + (e.name === "TimeoutError" ? "超时（" + (Date.now() - t0) + "ms）" : e.message), hint: "如果每次都超时，多半是 Gemini 在 Cloudflare 这个出口被限速/屏蔽，或 Key 无效；换 Key 或把 Gemini 排到最后" }; }
-      });
-      // v22：/debug 补上今天新加的 3 个：ZHIPU、NVIDIA、GITHUB_MODELS，不然 /debug 里看不到
-      const zhipu = probe("zhipu", async () => {
-        const keys = getKeys(env.ZHIPU_KEYS); if (!keys.length) return { hasKey: false };
-        return await chatProbe("https://open.bigmodel.cn/api/paas/v4/chat/completions", keys[0], "glm-4.7-flash");
-      });
-      const nvidia = probe("nvidia", async () => {
-        const keys = getKeys(env.NVIDIA_KEYS); if (!keys.length) return { hasKey: false };
-        return await chatProbe("https://integrate.api.nvidia.com/v1/chat/completions", keys[0], "nvidia/nemotron-3-ultra-550b-a55b");
-      });
-      const githubModels = probe("github_models", async () => {
-        const keys = getKeys(env.GITHUB_MODELS_TOKEN); if (!keys.length) return { hasKey: false };
-        return await chatProbe("https://models.github.ai/inference/chat/completions", keys[0], "openai/gpt-4o-mini");
-      });
-      // v99s：Poe / Coze / 火山豆包 / Dify 的探针（和其它 agent 同一个结构；Dify 只读应用信息，不消耗对话额度）
-      const poe = probe("poe", async () => { const keys = getKeys(env.POE_API_KEY); if (!keys.length) return { hasKey: false }; return await chatProbe("https://api.poe.com/v1/chat/completions", keys[0], poeModels(env)[0]); });
-      const volcano = probe("volcano", async () => { const keys = getKeys(env.VOLCANO_API_KEY); if (!keys.length) return { hasKey: false }; return await chatProbe("https://ark.cn-beijing.volces.com/api/v3/chat/completions", keys[0], volcanoModels(env)[0]); });
-      const coze = probe("coze", async () => { if (!(env.COZE_API_TOKEN && env.COZE_BOT_ID)) return { hasKey: false }; const t0 = Date.now(); const r = await Promise.race([cozeChat(env, [{ role: "user", content: "请只回复两个字：在线" }], null), new Promise((res) => setTimeout(() => res(null), 20000))]); return r && r.text ? { hasKey: true, status: 200, ms: Date.now() - t0, reply: String(r.text).slice(0, 80) } : { hasKey: true, error: (r && r.err) || "20 秒内没有回复（Key 不对 / 机器人没发布成 API / 超时）" }; });
-      const dify = probe("dify", async () => { const key = String(env.DIFY_APP_KEY || "").trim(); if (!key) return { hasKey: false }; const base = String(env.DIFY_API_BASE || "https://api.dify.ai/v1").trim().replace(/\/$/, ""); const t0 = Date.now(); const r = await fetch(base + "/info", { headers: { Authorization: "Bearer " + key }, signal: T(8000) }); return r.ok ? { hasKey: true, status: r.status, ms: Date.now() - t0, reply: "应用信息可读" } : { hasKey: true, status: r.status, error: "Dify 返回 " + r.status }; });
-      // v25：飞书探针——真换 token、真读文档。测试文档：?feishu_doc=<飞书文档链接或 doc_token>，或环境变量 FEISHU_TEST_DOC；两者都没有就只测 token。绝不返回 token 值和文档正文
-      const feishu = probe("feishu", async () => {
-        const out = { env: { FEISHU_APP_ID: !!String(env.FEISHU_APP_ID || "").trim(), FEISHU_APP_SECRET: !!String(env.FEISHU_APP_SECRET || "").trim() }, tenant_access_token: { ok: false }, raw_content: { ok: false, skipped: true } };
-        if (!feishuHasEnv(env)) { out.tenant_access_token.error = "变量没配全，没法换 token"; return out; }
-        const docIn = String(url.searchParams.get("feishu_doc") || env.FEISHU_TEST_DOC || "").trim();
-        let f = docIn ? (feishuParse(docIn) || (/^[A-Za-z0-9_-]{10,}$/.test(docIn) ? { kind: "docx", token: docIn, base: "https://open.feishu.cn" } : null)) : null;
-        const base = f ? f.base : "https://open.feishu.cn";
-        const a = await feishuToken(env, base, true);   // 跳过缓存，真去换
-        if (a.err) { out.tenant_access_token = { ok: false, error: a.err, feishu_code: a.feishuCode, http_status: a.status }; return out; }
-        out.tenant_access_token = { ok: true, expire_seconds: a.expire };
-        if (!docIn) { out.raw_content = { ok: false, skipped: true, hint: "没给测试文档：访问 /debug?feishu_doc=<文档链接>，或设置环境变量 FEISHU_TEST_DOC" }; return out; }
-        if (!f) { out.raw_content = { ok: false, error: "feishu_doc 不是有效的飞书文档链接或 token" }; return out; }
-        const res = await feishuRead(env, f);
-        out.raw_content = res.err ? { ok: false, step: res.step, error: res.err, feishu_code: res.feishuCode } : { ok: true, title: res.title, chars: res.content.length };
-        return out;
-      });
-      const [k, g, o, m, z, n, gm, fs, pe, vo, cz, df] = await Promise.all([kaggle, groq, openrouter, gemini, zhipu, nvidia, githubModels, feishu, poe, volcano, coze, dify]);
-      const ag = await dbgAgents(env, { Groq: g, OpenRouter: o, Gemini: m, Zhipu: z, NVIDIA: n, GitHubModels: gm, Poe: pe, Coze: cz, Volcano: vo, Dify: df });
-      const dv = { agents: ag.rows, agents_lines: ag.lines, kaggle: k, groq: g, openrouter: o, gemini: m, zhipu: z, nvidia: n, github_models: gm, poe: pe, coze: cz, volcano: vo, dify: df, feishu: fs, cooling_down: [...DOWN].filter(([, t]) => t > Date.now()).map(([x, t]) => x.split("|").slice(0, 2).join(" ") + "（还剩 " + Math.ceil((t - Date.now()) / 1000) + " 秒）"), cached_for_seconds: 60 };
-      if (!url.searchParams.get("feishu_doc")) mcache.set("debug", { t: Date.now(), v: dv });
-      return dbgRes(dv);
-    }
 
     // ---- 账号（v23：加限速，防撞库/刷注册）----
     if ((path === "/api/register" || path === "/api/login") && request.method === "POST") {
@@ -6931,18 +4842,6 @@ async function handle(request, env, ctx) {
       if (!user) return json({ ok: false, msg: "未登录，token失效" }, 401);
       const target = String(b.url||"");
       if (!/^https?:\/\//.test(target)) return json({ ok: false, msg: "链接格式不对" }, 400);
-      // v25：飞书链接不许走通用抓取（一定被拦），在这里兜底改走开放接口，旧前端/别的入口调进来也一样
-      let tu = null; try { tu = new URL(target); } catch {}
-      if (tu && FEISHU_HOST_RE.test(tu.hostname)) {
-        const f = feishuParse(target);
-        if (!f) return json({ ok: false, msg: "飞书链接只支持 /docx/、/wiki/、/file/，不能用通用抓取" }, 400);
-        try {
-          if (f.kind === "file") return json({ ok: true, url: target, source: "feishu-api", ...(await feishuReadFile(env, f, user)) });
-          const res = await feishuRead(env, f);
-          if (res.err) return json({ ok: false, msg: res.err, step: res.step }, res.code || 502);
-          return json({ ok: true, url: target, title: res.title, content: res.content.slice(0, 8000), source: "feishu-api" });
-        } catch(e) { return json({ ok: false, msg: "飞书连接器没调通：" + e.message }, 502); }
-      }
       try {
         const res = await readPage(target);
         if (res.ok === false) return json({ ok: false, msg: res.msg }, res.status || 502);
@@ -7005,39 +4904,6 @@ async function handle(request, env, ctx) {
         }
         return json({ ok: false, msg: "provider 只能是 amap 或 tencent" }, 400);
       } catch (e) { return json({ ok: false, msg: e && e.name === "AbortError" ? "高德地图请求超时（10 秒）" : "地图接口调用失败：" + e.message }, 502); }
-    }
-    // ---- v34：统一调用入口（面板测试 / 前端手动调用）：POST {id 或 ids, q} ----
-    if (path === "/api/connectors/run" && request.method === "POST") {
-      const b = await request.json().catch(() => ({}));
-      const user = await userFromReq(request, env, url, String(b.token || ""));
-      if (!user) return json({ ok: false, msg: "未登录，token失效" }, 401);
-      const q = String(b.q || b.query || "").slice(0, 300); if (!q) return json({ ok: false, msg: "缺少 q" }, 400);
-      const ids = (Array.isArray(b.ids) ? b.ids : b.id ? [b.id] : routeConnectors(q, env)).filter((i) => CONNECTORS[i]).slice(0, 8);
-      if (!ids.length) return json({ ok: true, ids: [], results: [], msg: "这句话没有匹配到任何连接器" });
-      const res = await runConnectors(ids, q, env);
-      return json({ ok: true, ids, results: res.results, translated: res.translated, footer: connFooter(res, q) });
-    }
-    // ---- 搜索：DuckDuckGo + Wikipedia，免费不用 Key ----
-    if (path === "/api/connectors/search/execute" && request.method === "POST") {
-      const b = await request.json().catch(()=>({}));
-      const user = await userFromReq(request, env, url, String(b.token||""));
-      if (!user) return json({ ok: false, msg: "未登录，token失效" }, 401);
-      const q = String(b.q||b.query||"");
-      if (!q) return json({ ok: false, msg: "缺少搜索词" }, 400);
-      try {
-        const r = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_html=1&skip_disambig=1`, { signal: T(8000) });
-        const j = await r.json().catch(()=>({}));
-        const results = [...(j.RelatedTopics||[]).slice(0,5).map(x=>({title: x.Text||"", url: x.FirstURL||""})), ...(j.Results||[]).slice(0,5).map(x=>({title: x.Text||"", url: x.FirstURL||""}))];
-        let wiki = null;
-        try { const w = await fetch(`https://zh.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(q)}`, { signal: T(8000) }); if (w.ok) { const wj = await w.json(); wiki = { title: wj.title, extract: wj.extract }; } } catch {}
-        return json({ ok: true, query: q, results, wiki });
-      } catch(e) { return json({ ok: false, msg: "搜索失败："+e.message }, 502); }
-    }
-    // ---- 连接器列表 ----
-    if (path === "/api/connectors" && request.method === "GET") {
-      const user = await userFromReq(request, env, url);
-      if (!user) return json({ ok: false, msg: "未登录，token失效" }, 401);
-      return json({ ok: true, connectors: [{id:"search", name:"搜索 DuckDuckGo", status:"connected"}, {id:"wiki", name:"百科 Wikipedia", status:"connected"}, {id:"fetch", name:"抓链接", status:"connected"}, {id:"github", name:"GitHub 仓库搜索", status: String(env.GH_PAT||"").trim() ? "connected" : "not_configured"}, {id:"figma", name:"Figma 设计稿", status: String(env.FIGMA_TOKEN||"").trim() ? "connected" : "not_configured"}, {id:"screenshot", name:"网页截图", status:"connected"}, {id:"feishu", name:"飞书文档", status: feishuHasEnv(env) ? "connected" : "not_configured", note: "仅检查变量是否配置，不代表 token 能拿到、文档能读；真实状态看 /debug 里的 feishu"}, ...Object.entries(CONNECTORS).map(([id, c]) => ({ id, name: c.name, group: c.group, status: id === "tencentmap" ? (String(env.TENCENT_MAP_KEY || "").trim() && String(env.TENCENT_MAP_SK || "").trim() ? "connected" : "not_configured") : c.env ? (String(env[c.env] || "").trim() ? "connected" : "not_configured") : "connected", ...(c.remind ? { remind: c.remind } : {}), ...(c.label ? { label: c.label } : c.group === "reference" ? { label: "网页搜索，非官方数据" } : c.web ? { label: "网页搜索，仅限官方域名" } : {}) }))], groups: CONN_GROUPS });
     }
 
 
@@ -7262,29 +5128,6 @@ async function handle(request, env, ctx) {
       } catch {}
       return json({ ok: true, id });
     }
-    // v89：手动刷新热榜，真实调用糖果梦并写入 KV；GET 仍然只读缓存。
-    if (path === "/api/hot" && request.method === "POST") {
-      const user = await userFromReq(request, env, url);
-      if (!user) return json({ ok: false, msg: "未登录，token失效" }, 401);
-      const r = await refreshHotList(env);
-      let m = null; try { m = await env.KV.get(HOT_META, "json"); } catch {}
-      return json({ ok: !!r.ok, refreshed: true, error: r.error || (m && m.last_error) || "", meta: m || null }, r.ok ? 200 : 502);
-    }
-    // v86：今日热榜（只读 KV 缓存；有 ?debug=1 时附上最近一次异常的返回开头，方便核对字段）
-    if (path === "/api/hot" && request.method === "GET") {
-      const user = await userFromReq(request, env, url);
-      if (!user) return json({ ok: false, msg: "未登录，token失效" }, 401);
-      let c = null, m = null; try { c = await env.KV.get(HOT_KEY, "json"); } catch {} try { m = await env.KV.get(HOT_META, "json"); } catch {}
-      const boards = Object.entries((c && c.boards) || {}).filter(([, b]) => b && Array.isArray(b.items) && b.items.length).map(([key, b]) => ({ key, name: b.name || key, items: b.items, fetched_at: b.fetched_at || null, source_updated_at: b.source_updated_at || null }));
-      const meta = { configured: !!String(env.TANG_HOT_KEY || env.TGMENG_KEY || "").trim(), last_try_at: (m && m.last_try_at) || null, last_ok_at: (m && m.last_ok_at) || null, stale: !!(m && m.last_try_at && (!m.last_ok_at || m.last_try_at > m.last_ok_at) && m.last_error), last_error: (m && m.last_error) || "", missing: (m && m.missing) || [] };
-      if (url.searchParams.get("debug") === "1") { meta.last_error = (m && m.last_error) || ""; meta.raw_head = (m && m.raw_head) || ""; }
-      // v87：糖果指数（AI 汇总）单独一栏，不混进各平台榜
-      let cc = null, cm = null; try { cc = await env.KV.get(CANDY_KEY, "json"); } catch {} try { cm = await env.KV.get(CANDY_META, "json"); } catch {}
-      const candyFailed = !!(cm && cm.last_try_at && (!cm.last_ok_at || cm.last_try_at > cm.last_ok_at) && cm.last_error);
-      const candy = { name: "糖果指数（AI 汇总）", fetched_at: candyFailed ? null : (cc && cc.fetched_at) || null, stale: candyFailed, last_error: (cm && cm.last_error) || "", cats: CANDY_CRON.map((k) => { const b = !candyFailed && cc && cc.cats && cc.cats[k]; return { key: k, name: candyLabel(k), items: (b && b.items) || [], fetched_at: (b && b.fetched_at) || null }; }) };
-      if (url.searchParams.get("debug") === "1") { candy.last_error = (cm && cm.last_error) || ""; candy.raw_head = (cm && cm.raw_head) || ""; }
-      return json({ ok: true, fetched_at: (c && c.fetched_at) || null, boards, candy, meta });
-    }
     if (path === "/api/tasks/recent" && request.method === "GET") {
       const user = await userFromReq(request, env, url);
       if (!user) return json({ ok: false, msg: "未登录，token失效" }, 401);
@@ -7335,129 +5178,6 @@ async function handle(request, env, ctx) {
       return page(s.title || "分享", "<h1>" + xmlEsc(s.title || "分享") + "</h1><small>只读分享 · " + xmlEsc(new Date(s.created_at).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })) + "</small><pre>" + xmlEsc(s.content) + "</pre>");
     }
 
-    // ---- GitHub 连接器：真调 GitHub API，不编数据 ----
-    if (path === "/api/connectors/github/execute" && request.method === "POST") {
-      const b = await request.json().catch(()=>({}));
-      const user = await userFromReq(request, env, url, String(b.token||""));
-      if (!user) return json({ ok: false, msg: "未登录，token失效" }, 401);
-      const q = String(b.q||b.query||"openmanus");
-      const pat = String(env.GH_PAT||"").trim();
-      if (!pat) return json({ ok: false, msg: "GH_PAT 没有配置，GitHub 连接器没调通" }, 500);
-      try {
-        const r = await fetch(`https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&per_page=5`, { headers: { Authorization: "Bearer "+pat, Accept: "application/vnd.github+json", "User-Agent": "OpenManus" }, signal: T(10000) });
-        if (!r.ok) return json({ ok: false, msg: "GitHub API 返回 "+r.status+"，GitHub 连接器没调通" }, 502);
-        const j = await r.json();
-        const results = (j.items||[]).map(x=>({ full_name: x.full_name, description: x.description, stars: x.stargazers_count, forks: x.forks_count, language: x.language, url: x.html_url }));
-        return json({ ok: true, query: q, total: j.total_count, results, source: "github-api" });
-      } catch(e) { return json({ ok: false, msg: "GitHub 连接器没调通："+e.message }, 502); }
-    }
-    if (path === "/api/connectors/github/execute" && request.method === "GET") {
-      const user = await userFromReq(request, env, url);
-      if (!user) return json({ ok: false, msg: "未登录，token失效" }, 401);
-      const q = String(url.searchParams.get("q")||"openmanus");
-      const pat = String(env.GH_PAT||"").trim();
-      if (!pat) return json({ ok: false, msg: "GH_PAT 没有配置，GitHub 连接器没调通" }, 500);
-      try {
-        const r = await fetch(`https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&per_page=5`, { headers: { Authorization: "Bearer "+pat, Accept: "application/vnd.github+json", "User-Agent": "OpenManus" }, signal: T(10000) });
-        if (!r.ok) return json({ ok: false, msg: "GitHub API 返回 "+r.status } , 502);
-        const j = await r.json();
-        const results = (j.items||[]).map(x=>({ full_name: x.full_name, description: x.description, stars: x.stargazers_count, forks: x.forks_count, language: x.language, url: x.html_url }));
-        return json({ ok: true, query: q, total: j.total_count, results, source: "github-api" });
-      } catch(e) { return json({ ok: false, msg: "GitHub 连接器没调通："+e.message }, 502); }
-    }
-
-    // ---- v24 Figma 连接器：读文件结构和文字（不是截图）----
-    if (path === "/api/connectors/figma/execute" && request.method === "POST") {
-      const b = await request.json().catch(()=>({}));
-      const user = await userFromReq(request, env, url, String(b.token||""));
-      if (!user) return json({ ok: false, msg: "未登录，token失效" }, 401);
-      const tok = String(env.FIGMA_TOKEN||"").trim();
-      if (!tok) return json({ ok: false, msg: "FIGMA_TOKEN 没有配置，Figma 连接器没调通" }, 500);
-      const m = /^https?:\/\/(?:[\w-]+\.)?figma\.com\/(?:file|design|proto|board)\/([A-Za-z0-9]+)/.exec(String(b.url||""));
-      if (!m) return json({ ok: false, msg: "不是 Figma 文件链接（应为 figma.com/design/… 这种）" }, 400);
-      let node = ""; try { node = (new URL(String(b.url)).searchParams.get("node-id")||"").replace(/-/g, ":"); } catch {}
-      const api = node ? `https://api.figma.com/v1/files/${m[1]}/nodes?ids=${encodeURIComponent(node)}&depth=6` : `https://api.figma.com/v1/files/${m[1]}?depth=4`;
-      try {
-        const r = await fetch(api, { headers: { "X-Figma-Token": tok }, signal: T(15000) });
-        if (!r.ok) return json({ ok: false, msg: r.status === 403 ? "Figma 拒绝访问（token 无效，或没有这个文件的权限）" : r.status === 404 ? "Figma 找不到这个文件或节点" : "Figma API 返回 " + r.status }, 502);
-        const j = await r.json();
-        const roots = node ? Object.values(j.nodes||{}).map(x => x && x.document).filter(Boolean) : (j.document && j.document.children) || [];
-        const SKIP = new Set(["VECTOR","BOOLEAN_OPERATION","STAR","LINE","ELLIPSE","REGULAR_POLYGON","RECTANGLE"]);
-        const lines = []; let budget = 400;
-        const walk = (n, d) => {
-          if (!n || budget <= 0 || SKIP.has(n.type)) return; budget--;
-          const bb = n.absoluteBoundingBox, sz = bb ? " " + Math.round(bb.width) + "×" + Math.round(bb.height) : "";
-          if (n.type === "TEXT") lines.push("  ".repeat(d) + "文字：" + String(n.characters||"").replace(/\s+/g, " ").slice(0, 200));
-          else lines.push("  ".repeat(d) + n.type + " " + (n.name||"") + sz);
-          (n.children||[]).forEach(c => walk(c, d + 1));
-        };
-        roots.forEach(n => walk(n, 0));
-        const title = String(j.name || (roots[0] && roots[0].name) || "Figma 文件");
-        const head = "Figma：" + title + (j.lastModified ? "（最后修改 " + j.lastModified + "）" : "") + "\n";
-        // v26 看图：除了文字，再调 GET /v1/images/:file_key?ids=...&format=png&scale=2，把 PNG 地址一起返回；出图失败不影响文字
-        let ids = node ? [node] : [];
-        if (!ids.length) { const pg = (j.document && j.document.children && j.document.children[0] && j.document.children[0].children) || []; ids = pg.filter(n => n && n.id && ["FRAME","COMPONENT","COMPONENT_SET","SECTION"].includes(n.type)).slice(0, 3).map(n => n.id); }
-        const images = []; let imagesError = "";
-        if (!ids.length) imagesError = "没有可出图的节点（链接里没有 node-id，文件首页也没有顶层画板）";
-        else {
-          try {
-            const ir = await fetch(`https://api.figma.com/v1/images/${m[1]}?ids=${ids.map(encodeURIComponent).join(",")}&format=png&scale=2`, { headers: { "X-Figma-Token": tok }, signal: T(25000) });
-            const ij = await ir.json().catch(() => ({}));
-            if (!ir.ok || ij.err) imagesError = ir.status === 403 ? "Figma 出图被拒绝（token 缺少 file_content:read 权限，或无文件权限）" : "Figma 出图失败：" + (ij.err || ir.status);
-            else for (const id of ids) { const u = ij.images && ij.images[id]; if (u) images.push({ node_id: id, url: u }); }
-            if (!imagesError && !images.length) imagesError = "Figma 没有返回 PNG 地址（节点可能不可渲染）";
-          } catch (e) { imagesError = "Figma 出图失败：" + e.message; }
-        }
-        const imgText = images.length ? "\n\n设计稿 PNG（2x）：\n" + images.map(x => x.node_id + " " + x.url).join("\n") : "";
-        const text = (head + lines.join("\n") + (budget <= 0 ? "\n…（内容太多，已截断）" : "")).slice(0, 8000 - imgText.length) + imgText;
-        return json({ ok: true, url: String(b.url), title, content: text, images, images_error: imagesError || undefined, source: "figma-api" });
-      } catch(e) { return json({ ok: false, msg: "Figma 连接器没调通：" + e.message }, 502); }
-    }
-    // ---- v27 截图连接器：Microlink（免 Key）→ 失败兜底 thum.io；Worker 里不跑浏览器 ----
-    if (path === "/api/connectors/screenshot/execute" && request.method === "POST") {
-      const b = await request.json().catch(()=>({}));
-      const user = await userFromReq(request, env, url, String(b.token||""));
-      if (!user) return json({ ok: false, msg: "未登录，token失效" }, 401);
-      const target = String(b.url||"").trim();
-      let tu; try { tu = new URL(target); } catch { return json({ ok: false, msg: "链接格式不对" }, 400); }
-      if (!/^https?:$/.test(tu.protocol)) return json({ ok: false, msg: "链接格式不对" }, 400);
-      const h = tu.hostname.toLowerCase();
-      if (h === "localhost" || !h.includes(".") || /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.)/.test(h) || /\.(local|internal|lan)$/.test(h) || h.startsWith("[")) return json({ ok: false, msg: "内网/本地地址不能截图" }, 400);
-      if (FEISHU_HOST_RE.test(h) || /(^|\.)figma\.com$/.test(h)) return json({ ok: false, msg: "飞书/Figma 链接请走各自的连接器，不走截图" }, 400);
-      // 标题：尽力而为，拿不到就空
-      const titleP = (async () => { try { const r = await fetch(target, { headers: { "User-Agent": "Mozilla/5.0" }, signal: T(4000) }); const t = (await r.text()).slice(0, 60000), m = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(t), title = m ? m[1].replace(/\s+/g, " ").trim().slice(0, 120) : ""; const blocked = /(performing security verification|security verification|just a moment|attention required|cloudflare|cf-chl-|challenge-platform)/i.test(t); return { title, blocked }; } catch { return { title: "", blocked: false }; } })();
-      let shot = "", source = "", err = "";
-      try {
-        const r = await fetch("https://api.microlink.io?url=" + encodeURIComponent(target) + "&screenshot=true&embed=screenshot.url&meta=false", { redirect: "manual", signal: T(12000) });
-        const loc = r.headers.get("Location");
-        if (r.status >= 300 && r.status < 400 && /^https:\/\//.test(loc || "")) shot = loc;
-        else {
-          const txt = await r.text();
-          let j = null; try { j = JSON.parse(txt); } catch {}
-          const u2 = (j && j.data && j.data.screenshot && j.data.screenshot.url) || (/^https:\/\/\S+$/.test(txt.trim()) ? txt.trim() : "");
-          if (u2) shot = u2; else err = "Microlink " + r.status + (j && j.message ? "：" + j.message : "");
-        }
-        if (shot) source = "microlink";
-      } catch (e) { err = "Microlink " + (e.name === "TimeoutError" ? "超时" : e.message); }
-      if (!shot) { shot = "https://image.thum.io/get/width/1200/crop/800/" + target; source = "thum.io"; }
-      const page = await titleP, title = page.title;
-      if (page.blocked || /(performing security verification|security verification|just a moment|attention required|cloudflare)/i.test(title)) return json({ ok: true, url: target, title, blocked: true, message: "该网站需要验证，无法预览", source: "blocked" });
-      return json({ ok: true, url: target, screenshot_url: shot, title, source, microlink_error: err || undefined });
-    }
-    // ---- v25 飞书连接器：读 docx 文档和知识库里的 docx（纯文本），只走 open.feishu.cn ----
-    if (path === "/api/connectors/feishu/execute" && request.method === "POST") {
-      const b = await request.json().catch(()=>({}));
-      const user = await userFromReq(request, env, url, String(b.token||""));
-      if (!user) return json({ ok: false, msg: "未登录，token失效" }, 401);
-      const f = feishuParse(b.url);
-      if (!f) return json({ ok: false, msg: "不是飞书文档链接（支持 /docx/、/wiki/ 和 /file/）" }, 400);
-      try {
-        if (f.kind === "file") return json({ ok: true, url: String(b.url), source: "feishu-api", ...(await feishuReadFile(env, f, user)) });   // /file/ 读失败也返回 ok:true + 原因，不报“不是飞书文档链接”
-        const res = await feishuRead(env, f);
-        if (res.err) return json({ ok: false, msg: res.err, step: res.step }, res.code || 502);
-        return json({ ok: true, url: String(b.url), title: res.title, content: res.content.slice(0, 8000), source: "feishu-api" });
-      } catch(e) { return json({ ok: false, msg: "飞书连接器没调通：" + e.message }, 502); }
-    }
 
     // ---- v29 模型清单：前端下拉直接读这里，以后加模型只改后端 WORK_MODELS / EXTRA，不用再改前端 ----
     if (path === "/api/models" && request.method === "GET") {
@@ -7653,8 +5373,6 @@ async function handle(request, env, ctx) {
       } catch (e) { return json({ ok: false, msg: String(e.message || e).split(String(env.BAIDU_MAP_AK || "~~")).join("***") }, e.status || 502); }
     }
 
-    // ---- v90：Dify 主 Agent 工具层 + 到点提醒手动触发 + Dify 对话转发 ----
-    { const agr = await agentRoutes(request, env, url, path); if (agr) return agr; }
     // ---- v37 个人知识库：kb:{用户}，论文 / 链接 / 草稿 / 笔记，存在 KV，换手机也在 ----
     if (path === "/api/kb" || path === "/api/kb/delete" || path === "/api/kb/clear") {
       const body = request.method === "POST" ? await request.json().catch(() => ({})) : {};
@@ -7760,16 +5478,8 @@ async function handle(request, env, ctx) {
               return;
             }
           }
-          // GitHub 拦截：用户说搜 GitHub，就直接调 GitHub API，不让模型编数据
           const lastUser = [...msgs].reverse().find(m=>m.role==="user");
           const lastText = textOf(lastUser?.content||"");
-          // v94：口令“测试早报”——马上推 1 条早报到飞书，不等 8 点
-          if (/^\s*测试早报\s*$/.test(lastText)) {
-            try { const r = await agMorningBrief(env, { force: true }); await emit(r.ok ? "✅ 早报已推送到飞书群（下面是推送的内容）\n\n" + r.preview : "❌ 早报没推出去：" + r.msg + (r.preview ? "\n\n（本来要推的内容）\n\n" + r.preview : "")); }
-            catch (e) { await emit("❌ 早报失败：" + String(e && e.message || e).slice(0, 160)); }
-            if (wantStream) await write("data: [DONE]\n\n"); else await write(JSON.stringify({ choices: [{ message: { role: "assistant", content: collected || "(空回复)" } }] }));
-            clearInterval(ping); await writer.close().catch(()=>{}); return;
-          }
           // 地图周边请求在模型前强制走统一接口，避免模型编“无法定位”、表格或虚构地点。
           const nearbyQ = lastText.length <= 200 && !/【文件[:：]/.test(lastText) ? parseChatNearby(lastText) : null;
           if (nearbyQ) {
@@ -7802,68 +5512,6 @@ async function handle(request, env, ctx) {
               const loc = normLoc(b.location_context), place = cWeatherPlace(lastText);
               await emit(!place && !loc ? "没拿到你的定位，你在上海吗？请确认城市，或打开定位后再问一次。" : weatherDirectReply(await cWeather(lastText, env, loc)));
             } catch (e) { await emit("天气查询失败：" + String(e && e.message || e).slice(0, 180)); }
-            if (wantStream) await write("data: [DONE]\n\n"); else await write(JSON.stringify({ choices: [{ message: { role: "assistant", content: collected || "(空回复)" } }] }));
-            clearInterval(ping); await writer.close().catch(()=>{}); return;
-          }
-          // v88：热搜 / 热榜优先读糖果梦热榜缓存；问新闻时在后面附带今日新闻。
-          // 只处理短消息，附件或长文中的“热搜”不应劫持正常问答。
-          // v95：“今日早报 / 今日热榜 / 热榜新闻 / 今天有什么新闻”不直接交给模型瞎答，也不再直接回复：先读热榜（和飞书群里回的同一份），拼进 system，再让模型（Groq / OpenRouter / Gemini 任一）按它回答
-          if (lastText.length <= 20 && /^\s*(?:帮我)?(?:清空|清除|清掉|清)(?:一下)?(?:所有|全部)?(?:的)?待办(?:事项|列表)?\s*$/.test(lastText)) {
-            try { const r = lmUser ? await agTodo(env, lmUser, "clear", {}) : null; await emit(r ? "✅ " + r.msg + "（网页和飞书用的是同一份待办）" : "没拿到你的账号，清不了待办。"); } catch (e) { await emit("清待办失败：" + String(e && e.message || e).slice(0, 120)); }
-            if (wantStream) await write("data: [DONE]\n\n"); else await write(JSON.stringify({ choices: [{ message: { role: "assistant", content: collected || "(空回复)" } }] }));
-            clearInterval(ping); await writer.close().catch(() => {}); return;
-          }
-          const hotPromptQ = lastText.length <= 200 && !/【文件[:：]/.test(lastText) && !/```/.test(lastText) && !/^\s*测试早报\s*$/.test(lastText) && /今日早报|今天早报|早报|今日热榜|今天热榜|热榜新闻|今天有什么新闻|今日有什么新闻|今天.{0,4}新闻|今日新闻/.test(lastText);
-          let hotCtx = "";
-          if (hotPromptQ) { try { hotCtx = await hotNewsReply(env, /新闻|早报/.test(lastText)) || ""; } catch (e) { hotCtx = "（热榜这次没取到：" + String(e && e.message || e).slice(0, 100) + "）"; } }
-          const hotCtxM = hotCtx.split("\n").map((l) => /^\s*\d+[.、]\s/.test(l) && !/\]\(https?:\/\//.test(l) && !/没查到链接/.test(l) ? l + " 没查到链接" : l).join("\n");
-          const hotQ = !hotPromptQ && lastText.length <= 200 && !/【文件[:：]/.test(lastText) && !/```/.test(lastText) && /热搜|热榜|热议|热门排行|实时排行/.test(lastText);
-          if (hotQ) {
-            try {
-              const reply = await hotNewsReply(env, /新闻|报道|快讯|头条|要闻|时事|今日热点|热点新闻/.test(lastText));
-              if (reply) await emit(reply);
-              else await emit("糖果梦热榜暂不可用：没有返回热榜缓存或最近一次抓取错误未记录。请点击首页热榜面板中的“刷新”重试。");
-            } catch (e) { await emit("读取糖果梦热榜缓存失败：" + String(e && e.message || e).slice(0, 160)); }
-            if (wantStream) await write("data: [DONE]\n\n"); else await write(JSON.stringify({ choices: [{ message: { role: "assistant", content: collected || "(空回复)" } }] }));
-            clearInterval(ping); await writer.close().catch(()=>{}); return;
-          }
-          // v87：糖果指数 / 招采：短消息、没带附件时，直接调糖果梦接口回复（数字、顺序、链接全部来自接口，不经过模型）
-          const tangQ = lastText.length <= 120 && !/【文件[:：]/.test(lastText) && !/```/.test(lastText) ? tangIntent(lastText) : null;
-          if (tangQ) {
-            try { await emit(tangQ.type === "candy" ? await candyReply(env, tangQ.cats) : await procureReply(env, tangQ)); }
-            catch (e) { await emit((tangQ.type === "candy" ? "糖果指数" : "招采") + "没查到：" + String(e && e.message || e).slice(0, 200) + "。我不会编数据。"); }
-            if (wantStream) await write("data: [DONE]\n\n"); else await write(JSON.stringify({ choices: [{ message: { role: "assistant", content: collected || "(空回复)" } }] }));
-            clearInterval(ping); await writer.close().catch(()=>{}); return;
-          }
-          // v23：只拦“短消息、没带附件”的搜索意图。前端会把附件全文拼进消息，长文档里提到 GitHub 不该被劫持。
-          const isGithubQ = lastText.length <= 200 && !/【文件[:：]/.test(lastText) && /github/i.test(lastText) && /(搜|查|找|仓库|repo)/i.test(lastText);
-          if (isGithubQ) {
-            const pat = String(env.GH_PAT||"").trim();
-            if (!pat) { await emit("GitHub 连接器没调通：GH_PAT 没有配置，请先在 Cloudflare 里配 GH_PAT"); }
-            else {
-              try {
-                const m = lastText.match(/(?:openmanus|[a-zA-Z0-9_\-\.\/]+)/i);
-                // 取 openmanus 或用户说的关键词，默认 openmanus
-                const q = /openmanus/i.test(lastText) ? "openmanus" : (lastText.split(/\s+/).filter(w=>w.length>2 && !/github|搜|查|找|仓库|帮我|一下/i.test(w))[0]||"openmanus");
-                const r = await fetch(`https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&per_page=5`, { headers: { Authorization: "Bearer "+pat, Accept: "application/vnd.github+json", "User-Agent": "OpenManus" }, signal: T(10000) });
-                if (!r.ok) { await emit(`GitHub 连接器没调通：GitHub API 返回 ${r.status}`); }
-                else {
-                  const j = await r.json();
-                  const lines = (j.items||[]).map((x,i)=>`${i+1}. ${x.full_name} ★${x.stargazers_count} | ${x.language||""} | ${x.description||""}\n   ${x.html_url}`).join("\n\n");
-                  await emit(`在 GitHub 上搜 “${q}”，共找到 ${j.total_count} 个，取前 5 个（真调 GitHub API，不是编的）：\n\n${lines||"没找到"}`);
-                }
-              } catch(e) { await emit("GitHub 连接器没调通："+e.message); }
-            }
-            if (wantStream) await write("data: [DONE]\n\n"); else await write(JSON.stringify({ choices: [{ message: { role: "assistant", content: collected || "(空回复)" } }] }));
-            clearInterval(ping); await writer.close().catch(()=>{}); return;
-          }
-          // v90：选了“Dify Agent”：整句话交给 Dify 主 Agent（它自己决定用搜索 / 待办 / 收藏 / 翻译 / 地图），对话上下文由 Dify 按会话保存
-          if (String(b.provider || "") === "Dify Agent") {
-            try {
-              const du = await userFromReq(request, env, url, String(b.token || ""));
-              if (!du) await emit("请先登录后再用 Dify 智能体。");
-              else { const r = await difyChat(env, du, lastText, b.project_id); await emit(r.answer || "（Dify 没有返回内容）"); }
-            } catch (e) { await emit("Dify 智能体出错：" + String(e && e.message || e)); }
             if (wantStream) await write("data: [DONE]\n\n"); else await write(JSON.stringify({ choices: [{ message: { role: "assistant", content: collected || "(空回复)" } }] }));
             clearInterval(ping); await writer.close().catch(()=>{}); return;
           }
@@ -7900,24 +5548,12 @@ async function handle(request, env, ctx) {
               }
             }
           } catch {}
-          // v34：自动选连接器查资料（不用打前缀）。只处理短消息、没带附件、没带代码块；查到的真实资料塞进 system，回答后由系统附“来源”
-          if (hotCtx) msgs2 = mergeSys(msgs2, "以下是今日热榜（带热度+链接），根据这些回答，不要说材料里没有。\n规则：只用下面的材料，不要自己写天气、待办或任何材料里没有的新闻；分榜展示，不混排；每条写成“- 标题 一句话 [来源名](链接)”，一句话只概括该条材料里已有的信息，没有就省略；链接必须原样取自材料，不许省略、不许改写；某条没有链接就在后面写“没查到链接”；保留抓取时间与来源；热榜写明暂不可用时，如实说这次没取到，不要编。\n\n" + hotCtxM);
-          let connRes = null;
-          try {
-            if (b.connectors !== false && !hotCtx && lastText.length <= 300 && !/【文件[:：]/.test(lastText) && !/```/.test(lastText)) {
-              const cids = routeConnectors(lastText, env);
-              if (cids.length) {
-                connRes = await runConnectors(cids, lastText, env); msgs2 = mergeSys(msgs2, connSystem(connRes));
-                // 实时搜索结果不自动写入“我的资料”；保存只能由用户主动操作并确认。
-              }
-            }
-          } catch {}
           { const lm1 = await lmLoad(env, lmUser); if (lm1) msgs2 = mergeSys(msgs2, lm1); }   // v91：长期记忆（昨天说过的话 / 未完成待办 / 笔记）放进 system 最前面
           // v93：口令“测试备用[ Poe|Coze|火山]：你好”——不走前面的来源，直接测 Poe / Coze / 火山豆包，回答里写明是谁答的
           const tm = lastText.match(/^\s*测试备用\s*(poe|coze|火山豆包|火山|豆包|volcano)?\s*[:：]?\s*/i);
           if (tm) msgs2 = stripLastUser(msgs2, tm[0], lastText.slice(tm[0].length).trim() ? "" : "你好");
           const which = tm && tm[1] ? (normProvider(tm[1]) || "") : "";
-          const freeFirst = tm ? { text: await runBackupTest(env, msgs2, which), from: "测试备用", streamed: false, err: "" } : (hotCtx ? await hotGuard(env, msgs2, hotCtxM, requested, requestedModel, mem) : await tryAllFree(msgs2, env, emit, wantStream, requested, { model: requestedModel, memory: mem }));
+          const freeFirst = tm ? { text: await runBackupTest(env, msgs2, which), from: "测试备用", streamed: false, err: "" } : await tryAllFree(msgs2, env, emit, wantStream, requested, { model: requestedModel, memory: mem });
           let interrupted = "";
           if (freeFirst) {
             if (!freeFirst.streamed) await emit(freeFirst.text);
@@ -7929,7 +5565,7 @@ async function handle(request, env, ctx) {
             if (!r.got) await emit("❌ 云端模型都失败了" + (r.err ? "，Kaggle 也不可用（" + r.err + "），请稍后再试" : "，请稍后再试"));
             else interrupted = r.err || "";
           }
-          if (!interrupted) { let f = connRes ? connFooter(connRes, lastText) : ""; const kf = wantsKb ? kbFooter(kbHits) : ""; if (kf) f = f ? f + "\n" + kf : "\n\n" + kf; if (f) await emit(f); }
+          if (!interrupted) { let f = ""; const kf = wantsKb ? kbFooter(kbHits) : ""; if (kf) f = f ? f + "\n" + kf : "\n\n" + kf; if (f) await emit(f); }
           if (interrupted) await notify("回复中断：" + interrupted);
           await lmSaveTurn(env, lmUser, b, (freeFirst && freeFirst.text) || collected);   // v91：把这次的 user / assistant 文本写回 KV
           if (wantStream) await write("data: [DONE]\n\n");

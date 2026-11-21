@@ -69,7 +69,7 @@ body.pvmode .pvdoc{display:block;background:#fff;color:#111;padding:16px;max-wid
 .warn{color:#b42318;font-size:15px}.lockb{width:100%;margin:6px 0 10px}
 @media print{.chips,.tabs,.acct,button,.seg{display:none}}
 
-.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px}
 .tab{font:inherit;font-weight:600;min-height:52px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);border-radius:var(--r);cursor:pointer}
 .tab[aria-pressed=true]{background:var(--c);border-color:var(--c);color:#fff}
 .seg{display:flex;gap:8px;margin-bottom:12px}.seg .chip{flex:1;min-height:48px}
@@ -117,7 +117,7 @@ body::before{content:"";position:fixed;left:0;right:0;top:0;height:env(safe-area
 .phd{display:flex;align-items:center;gap:10px;margin-bottom:10px;min-width:0}
 .back{flex:none;font:inherit;font-size:17px;font-weight:600;color:var(--c);background:var(--card);border:1.5px solid var(--line);border-radius:999px;padding:6px 14px;min-height:44px;cursor:pointer}
 .pname{flex:1;min-width:0;font-size:18px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin:0;padding:4px;background:var(--card);border:1px solid var(--line);border-radius:16px}
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:0;padding:4px;background:var(--card);border:1px solid var(--line);border-radius:16px}
 .tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:64px;padding:6px 2px;font:inherit;font-size:17px;font-weight:600;line-height:1.2;color:var(--mute);background:transparent;border:0;border-radius:12px;cursor:pointer;transition:background .15s,color .15s}
 .tab .ti{font-size:22px;line-height:1}
 .tab[aria-pressed=true]{background:var(--c);color:#fff;box-shadow:0 3px 8px -3px rgba(0,0,0,.35)}
@@ -126,6 +126,16 @@ body::before{content:"";position:fixed;left:0;right:0;top:0;height:env(safe-area
 :root.big .pname{font-size:21px}:root.big .back{font-size:19px}
 @media (max-width:360px){.tab{font-size:15px}}
 @media print{.pnav{display:none}}
+
+/* 智能助手（就医智能端）：聊天气泡 */
+.ai .aihd{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 6px}
+.aibadge{background:var(--c,#0f766e);color:#fff;font-size:13px;font-weight:700;border-radius:999px;padding:2px 10px;letter-spacing:.02em}
+.aich{display:flex;flex-direction:column;gap:8px;margin:10px 0;max-height:52vh;overflow:auto}
+.aib{border-radius:12px;padding:9px 12px;font-size:16px;line-height:1.6;white-space:pre-wrap;word-break:break-word;max-width:92%}
+.aib.u{align-self:flex-end;background:var(--c,#0f766e);color:#fff}
+.aib.a{align-self:flex-start;background:var(--bg);border:1px solid var(--line)}
+.aib.e{align-self:flex-start;background:#fff4e5;color:#8a4b00;border:1px solid #f0c07a}
+.aibwait{color:var(--mute)}
 
 /* 收纳：减少文字、统一网格 */
 h1{display:flex;align-items:center;gap:6px;font-size:22px;margin:4px 0 12px}
@@ -1729,7 +1739,7 @@ ${d.disease === 'tumor' ? `<label>肿瘤类型</label><div style="display:flex;f
         if (!p)
             h += `<div class="card empty"><h2>还没有档案</h2><p class="sub">选择就诊科室或专科病种，建立第一份档案。先选科室即可，病种可按需要选择。</p><button class="btn" data-act="new">新建档案</button> <button class="ghost" data-act="demo">查看示例</button> <button class="ghost" data-act="bk">从备份恢复</button>${HP ? '' : ' <button class="ghost" data-act="prevhosp">预览医院版（演示）</button>'}</div>` + hospCard() + jnyCard() + actCard() + posCard() + hubData();
         else
-            h += `<div class="pnav" style="--c:${COL[p.disease]}"><div class="phd"><button class="back" data-act="home" aria-label="返回全部档案">‹ 返回</button><b class="pname">${esc(label(p))}</b></div>` + tabs() + `</div>` + (S.tab === "tl" ? tlView(p) : S.tab === "mx" ? mxView(p) : S.tab === "sm" ? smView(p) : visitFlowCard(p, flowVisit(p)) + `<div class="card hd" style="--c:${COL[p.disease]}"><h2>档案信息</h2><label>下次复诊日期（可不填）</label><div class="row"><input type="date" data-k="nvd" value="${esc(p.data.nvd || '')}" aria-label="下次复诊日期"><button class="ghost" data-act="tics" data-pid="${p.id}" data-v="1">下载日历提醒文件</button></div><p class="sub">填了日期，复诊前 14 天内首页会出现复诊准备卡，并带你去准备清单和摘要。</p><label>成员称呼</label><input data-mem="1" value="${esc(p.member)}">${secs(p)}${medsView(p)}<div class="bar"><span class="saved" id="sv">修改会自动保存在本机</span>${more('<button class="ghost del" data-act="del">删除档案</button>')}</div></div>`);
+            h += `<div class="pnav" style="--c:${COL[p.disease]}"><div class="phd"><button class="back" data-act="home" aria-label="返回全部档案">‹ 返回</button><b class="pname">${esc(label(p))}</b></div>` + tabs() + `</div>` + (S.tab === "tl" ? tlView(p) : S.tab === "mx" ? mxView(p) : S.tab === "sm" ? smView(p) : S.tab === "ai" ? aiView(p) : visitFlowCard(p, flowVisit(p)) + `<div class="card hd" style="--c:${COL[p.disease]}"><h2>档案信息</h2><label>下次复诊日期（可不填）</label><div class="row"><input type="date" data-k="nvd" value="${esc(p.data.nvd || '')}" aria-label="下次复诊日期"><button class="ghost" data-act="tics" data-pid="${p.id}" data-v="1">下载日历提醒文件</button></div><p class="sub">填了日期，复诊前 14 天内首页会出现复诊准备卡，并带你去准备清单和摘要。</p><label>成员称呼</label><input data-mem="1" value="${esc(p.member)}">${secs(p)}${medsView(p)}<div class="bar"><span class="saved" id="sv">修改会自动保存在本机</span>${more('<button class="ghost del" data-act="del">删除档案</button>')}</div></div>`);
     }
     h += foot();
     a.innerHTML = h;
@@ -1755,8 +1765,8 @@ const iput = async (k, b) => { const d = await idb(); return new Promise((s, j) 
 const iget = async (k) => { const d = await idb(); return new Promise((s, j) => { const q = d.transaction('i').objectStore('i').get(k); q.onsuccess = () => s(q.result); q.onerror = () => j(q.error); }); };
 const idel = k => idb().then(d => d.transaction('i', 'readwrite').objectStore('i').delete(k)).catch(() => { });
 const idelw = async (k) => { const d = await idb(); return new Promise((s, j) => { const t = d.transaction('i', 'readwrite'); t.objectStore('i').delete(k); t.oncomplete = s; t.onerror = () => j(t.error); t.onabort = () => j(t.error); }); };
-const tabs = () => `<nav class="tabs" aria-label="档案栏目">${[['info', '档案', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3h6v3H9zM8.5 11h7M8.5 15h5"/></svg>'], ['tl', '时间线', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>'], ['mx', '指标', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16h16"/><path d="M7 15l4-4 3 3 5-6"/></svg>'], ['sm', '复诊摘要', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>']].map(t => `<button class="tab" aria-pressed="${S.tab === t[0]}" data-act="tab" data-t="${t[0]}"><span class="ti" aria-hidden="true">${t[2]}</span><span class="tl">${t[1]}</span></button>`).join('')}</nav>`;
-const APP_VER = '2026.11.06';
+const tabs = () => `<nav class="tabs" aria-label="档案栏目">${[['info', '档案', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3h6v3H9zM8.5 11h7M8.5 15h5"/></svg>'], ['tl', '时间线', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>'], ['mx', '指标', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16h16"/><path d="M7 15l4-4 3 3 5-6"/></svg>'], ['sm', '复诊摘要', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>'], ['ai', '智能助手', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a4 4 0 0 0-4 4v1a7 7 0 1 0 8 0V7a4 4 0 0 0-4-4z"/><path d="M9 11h.01M15 11h.01M9.5 15a3 3 0 0 0 5 0"/></svg>']].map(t => `<button class="tab" aria-pressed="${S.tab === t[0]}" data-act="tab" data-t="${t[0]}"><span class="ti" aria-hidden="true">${t[2]}</span><span class="tl">${t[1]}</span></button>`).join('')}</nav>`;
+const APP_VER = '2026.11.22';
 const CC_SYM = ['发烧 / 怕冷', '咳嗽 / 咳痰', '头痛 / 头晕', '心慌 / 心悸', '肚子痛 / 胃不舒服', '拉肚子 / 便秘 / 恶心呕吐', '尿频 / 尿痛 / 血尿', '血压 / 血糖问题', '失眠 / 情绪差 / 记性差', '伤口 / 肿块', '腰腿痛 / 关节痛 / 脖子痛', '摔伤 / 扭伤', '牙痛 / 牙龈出血 / 口腔溃疡', '皮疹 / 瘙痒', '看东西模糊 / 眼红 / 眼痛', '耳鸣 / 听力下降 / 鼻塞 / 咽痛', '月经问题 / 备孕', '孩子不舒服', '常规体检 / 带着已有的检查报告', '想看中医 / 调理身体'];
 const CC_DUR = ['今天刚出现', '两三天内', '一周左右', '一个月内', '几个月了', '半年以上', '长期反复'];
 const CC_SEV = ['轻微，不影响生活', '有点难受，能忍', '比较难受，影响睡觉/吃饭', '很难受'];
@@ -1772,7 +1782,7 @@ function afterRender() { document.querySelectorAll('img[data-img]').forEach(asyn
     if (b)
         i.src = URL.createObjectURL(b);
 }
-catch (e) { } }); }
+catch (e) { } }); const ch = document.getElementById('aich'); if (ch) ch.scrollTop = ch.scrollHeight; }
 const okId = s => typeof s === 'string' && /^[\w\u4e00-\u9fa5-]{1,60}$/.test(s), okD = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s), okN = v => v === '' || (typeof v === 'number' && isFinite(v));
 function validBk(q) {
     if (!q || !okId(q.id) || !Object.prototype.hasOwnProperty.call(D, q.disease) || typeof q.member !== 'string' || typeof q.data !== 'object' || !q.data || !['tl', 'mx', 'orders', 'tpls'].every(k => Array.isArray(q[k] || []) && (q[k] || []).length <= 20000))
@@ -2173,6 +2183,45 @@ function pzOut(p) {
         ta.select();
         o.querySelector('#pz_c').textContent = '请长按文字手动复制';
     } });
+}
+/* ===== 智能助手（就医智能端）：调 /api/chat，界面明确标注为智能端 ===== */
+function aiView(p) {
+    const c = S.chat || [];
+    const who = p ? p.member : '本人';
+    const blooms = c.map(m => `<div class="aib ${m.r}">${esc(m.t)}</div>`).join('');
+    const quick = ['帮我整理这份档案', '复诊要带什么', '看看这些指标', '帮我写想问医生的问题'];
+    return `<div class="card ai">
+<div class="aihd"><span class="aibadge">AI 智能端</span><b>智能助手 · 问答</b><span class="sub" style="margin:0">当前档案：${esc(who)}</span></div>
+<p class="sub">智能助手只帮你整理和解释你自己记录的资料，<b>不能看病、不能替代医生</b>；如有胸痛、呼吸困难、意识不清等紧急情况请拨 120。资料只在本页展示，不会自动发给医院。</p>
+<div class="aich" id="aich">${c.length ? blooms : '<div class="aib a">你好，我是就医智能助手，可以帮你整理档案、解释指标、准备复诊问题。你想问什么？</div>'}${S.chatBusy ? '<div class="aib a aibwait">正在思考…</div>' : ''}</div>
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">${quick.map(q => `<button class="chip" data-act="aiquick" data-v="${esc(q)}">${esc(q)}</button>`).join('')}</div>
+<label for="aiin">输入你想问的（请勿填写身份证号、手机号等敏感信息）</label>
+<textarea id="aiin" placeholder="例如：帮我把最近的化验结果整理成一段话，复诊时给医生看"${S.chatBusy ? ' disabled' : ''}></textarea>
+<div class="bar"><button class="ghost" data-act="aiclear">清空对话</button><button class="btn" data-act="aisend"${S.chatBusy ? ' disabled' : ''}>发送</button></div>
+</div>`;
+}
+async function aiCall(txt) {
+    const base = String(typeof AI_BASE === 'string' ? AI_BASE : '').replace(/\/+$/, '');
+    const p = cur(), who = (p && p.id) || 'web';
+    let out;
+    try {
+        const r = await fetch(base + '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: txt, who, chat: 'web:' + who }) });
+        const j = await r.json().catch(() => ({}));
+        if (r.ok && j && j.ok !== false) {
+            let t = String(j.reply || '').trim();
+            if (j.confirm) t = (t ? t + '\n\n' : '') + '（需要你确认：' + String(j.confirm) + '）';
+            out = { r: 'a', t: t || '（智能助手没有返回内容）' };
+        }
+        else
+            out = { r: 'e', t: '调用失败：' + ((j && j.msg) || ('HTTP ' + r.status)) };
+    }
+    catch (e) {
+        out = { r: 'e', t: '网络异常，请稍后再试' };
+    }
+    S.chat = (S.chat || []).concat([out]);
+    S.chatBusy = 0;
+    if (S.view === 'list' && S.tab === 'ai')
+        view();
 }
 function smView(p) { return ckView(p) + pzView(p) + smView0(p); }
 function smView0(p) {
@@ -3113,6 +3162,20 @@ function extra(act, b, p) {
         S.mxe = null;
         return 1;
     }
+    if (act === 'aisend' || act === 'aiquick') {
+        if (S.chatBusy) { toastMsg('智能助手正在回复，请稍候'); return 2; }
+        const txt = act === 'aisend' ? String((g('aiin') || {}).value || '').trim() : String(b.dataset.v || '').trim();
+        if (!txt) { toastMsg('请输入内容'); return 2; }
+        S.chat = (S.chat || []).concat([{ r: 'u', t: txt }]);
+        S.chatBusy = 1;
+        aiCall(txt);
+        return 1;
+    }
+    if (act === 'aiclear') {
+        S.chat = [];
+        S.chatBusy = 0;
+        return 1;
+    }
     if (act === 'range') {
         S.range = b.dataset.r;
         return 1;
@@ -3359,6 +3422,8 @@ function cfgClean(o) {
     /* 记录上传：up=上传地址（https，本机测试可用 http://localhost…），tk=医院上传口令（64 位小写十六进制），两者都由后台「患者页上传设置」生成 */
     if (typeof o.up === 'string' && o.up.trim().length <= 300 && (/^https:\/\/[A-Za-z0-9.\-]+(:\d{1,5})?(\/[^\s"<>]*)?$/.test(o.up.trim()) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?(\/[^\s"<>]*)?$/.test(o.up.trim()))) c.up = o.up.trim();
     if (typeof o.tk === 'string' && /^[a-f0-9]{64}$/.test(o.tk.trim())) c.tk = o.tk.trim();
+    /* 智能助手：ai=智能问答网关根地址（https，本机测试可用 http://localhost…）；不写则用同源 /api/chat */
+    if (typeof o.ai === 'string' && o.ai.trim().length <= 300 && (/^https:\/\/[A-Za-z0-9.\-]+(:\d{1,5})?(\/[^\s"<>]*)?$/.test(o.ai.trim()) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?(\/[^\s"<>]*)?$/.test(o.ai.trim()))) c.ai = o.ai.trim();
     c.vip = lst(o.vip, 30, x => ({ t: str(x.t, 40), d: str(x.d, 200) }));
     c.ann = lst(o.ann, 30, x => ({ t: str(x.t, 40), d: str(x.d, 300), date: str(x.date, 10) }));
     c.pre = lst(o.pre, 30, x => ({ t: str(x.t, 40), d: str(x.d, 200) }));
@@ -3457,6 +3522,8 @@ const chkSet = o => { try { localStorage.setItem(CHKK, JSON.stringify(o)); } cat
 const UP_URL = HP && typeof HP.up === 'string' ? HP.up : '';
 const UP_TK = HP && typeof HP.tk === 'string' ? HP.tk : '';
 const UP_OK = !!(UP_URL && UP_TK && HP_KEY && HK_OK(HP_KEY) && (/^https:\/\//i.test(UP_URL) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?\//i.test(UP_URL)));
+/* 智能助手网关：医院配置里写 ai（网关根地址）则跨域调它的 /api/chat；不写则调用同源 /api/chat */
+const AI_BASE = HP && typeof HP.ai === 'string' ? HP.ai.replace(/\/+$/, '') : '';
 const CTK = 'companion.consent.' + (HP_KEY || 'demo');
 const QK = 'companion.q.' + (HP_KEY || 'demo');
 const PNK = 'companion.pn.' + (HP_KEY || 'demo');

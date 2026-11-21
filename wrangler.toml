@@ -1,0 +1,41 @@
+# 就医智能端 · 后端（Cloudflare Worker）配置
+# 注意：本文件只是部署所需的配置模板，未执行任何 Cloudflare 连接/授权/部署操作。
+# 部署步骤（由你本人操作）：
+#   1) npm i -g wrangler && wrangler login
+#   2) wrangler kv namespace create KV        # 得到 id，替换下方 <KV_NAMESPACE_ID>
+#   3) 按需在 [vars] 填写模型密钥等变量（见下）
+#   4) wrangler deploy
+
+name = "jiuyibanlv-ai"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+workers_dev = true
+
+# 数据存储：用户 / 历史 / 记忆 / 待办 / 知识库 / 分享 / 定时任务等都存在 KV。
+# 绑定名必须是 KV（后端代码按 env.KV 读取）。
+[[kv_namespaces]]
+binding = "KV"
+id = "<KV_NAMESPACE_ID>"
+
+# 可选变量：全部可不填，不填时后端自动跳过对应来源（免费模型轮换仍可用）。
+# 在 Cloudflare 面板的 Worker「设置 → 变量和机密」里填写更安全；也可写在这里（注意别把密钥提交到 Git）。
+[vars]
+# ---- 模型来源（任一即可，多个会自动轮换）----
+# GROQ_KEYS = ""
+# OPENROUTER_KEYS = ""
+# GEMINI_KEYS = ""
+# NVIDIA_KEYS = ""
+# ZHIPU_KEYS = ""
+# CLAUDE_KEYS = ""
+# POE_API_KEY = ""
+# COZE_API_TOKEN = ""
+# COZE_BOT_ID = ""
+# VOLCANO_API_KEY = ""
+# ---- 其他（可选）----
+# AGG_URL = ""              # Kaggle 隧道地址
+# AGENT_USER = ""           # 使用工具层的登录用户名
+# PUBLIC_BASE_URL = ""      # 对外访问地址（生成分享/授权链接用）
+# FEISHU_APP_ID = ""        # 到点提醒推飞书时需要
+# FEISHU_APP_SECRET = ""
+# FEISHU_CHAT_ID = ""
+# REQUIRE_LOGIN = "0"
