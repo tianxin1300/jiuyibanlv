@@ -4754,8 +4754,8 @@ async function handle(request, env, ctx) {
     if (path === "/api/history" && request.method === "GET") {
       const user = await userFromReq(request, env, url);
       if (!user) return json({ ok: false, msg: "未登录，token失效" }, 401);
-      const raw = await env.KV.get("history:" + user);
-      return json({ ok: true, user, history: raw ? JSON.parse(raw) : [] });
+      const data = await env.KV.get("history:" + user, "json");
+      return json({ ok: true, user, history: Array.isArray(data) ? data : [] });
     }
     if (path === "/api/history" && request.method === "POST") {
       const b = await request.json().catch(() => ({}));
@@ -5153,7 +5153,8 @@ async function handle(request, env, ctx) {
       const content = String(b.content||"");
       if (!content) return json({ ok: false, msg: "缺少要分享的内容" }, 400);
       const id = rand(10);
-      const days = Math.min(30, Math.max(1, Number(b.expiry_days||b.expires_days||7)));
+      const dn = Number(b.expiry_days||b.expires_days||7);
+      const days = Number.isFinite(dn) ? Math.min(30, Math.max(1, Math.round(dn))) : 7;
       const share = { id, owner: user, title: String(b.title||"分享"), content, permission: String(b.permission||"read"), expires_at: Date.now()+days*24*3600*1000, created_at: Date.now() };
       await env.KV.put("share:"+id, JSON.stringify(share), { expirationTtl: days*24*3600 });
       return json({ ok: true, share: { id, title: share.title, permission: share.permission, expires_at: share.expires_at, url: "/s/"+id, api_url: "/api/shares/"+id } });
@@ -5532,7 +5533,7 @@ async function handle(request, env, ctx) {
       };
       const [groq, gemini, openrouter, nvidia, zhipu, coze] = await Promise.all([probeGroq(), probeGemini(), probeOpenRouter(), probeNvidia(), probeZhipu(), probeCoze()]);
       const out = { ok: true, build: FS_BUILD, note: "只报告钥匙有无与连通性，不返回任何钥匙值", GEMINI: gemini, GROQ: groq, OPENROUTER: openrouter, NVIDIA: nvidia, ZHIPU: zhipu, COZE: coze };
-      if (!groq.hasKey && !gemini.hasKey && !openrouter.hasKey && !nvidia.hasKey && !zhipu.hasKey && !coze.hasKey) out.hint = "这台 Worker 没读到任何钥匙变量。请在「同名 Worker」（juyibanlvzhinengai）的设置 → 变量和机密 里确认已保存并在同一个 Worker 上；若用仓库 wrangler.toml 部署，[vars] 为空不会覆盖面板里的加密 Secret，但明文变量可能被重置，建议用加密 Secret 或 wrangler secret put。";
+      if (!groq.hasKey && !gemini.hasKey && !openrouter.hasKey && !nvidia.hasKey && !zhipu.hasKey && !coze.hasKey) out.hint = "这台 Worker 没读到任何钥匙变量。请在「同名 Worker」（juyiibanlvzhinengai）的设置 → 变量和机密 里确认已保存并在同一个 Worker 上；若用仓库 wrangler.toml 部署，[vars] 为空不会覆盖面板里的加密 Secret，但明文变量可能被重置，建议用加密 Secret 或 wrangler secret put。";
       return json(out);
     }
 

@@ -2479,7 +2479,7 @@ function todayCard() {
     const tdOpen = !flow || S.tdOpen || L.some(x => x.bad);
     return flow + others + `<details class="card hd today td"${tdOpen ? ' open' : ''}><summary><b>今天要处理（${L.length}）</b></summary><p class="sub">只根据您自己记录的内容整理，不是医疗建议。</p><p class="action-note">完成记录后会保留短暂的“撤销”入口；页面关闭后不会主动推送。想在这里打卡服药，请先在档案的“我的药”里添加。</p>${L.map(i => `<div class="item"><div class="tlh"><b>${esc(i.who || '提醒')}</b><span class="tag ${i.bad ? 'bad' : ''}">${esc(i.tag)}</span></div><div class="tlt">${esc(i.text)}</div><div class="row">${i.btns}</div></div>`).join('')}<details><summary>说明</summary><p class="sub">页面关闭后不会主动推送。想让手机到点响铃，请下载日历提醒文件，然后在系统日历中打开并确认导入；本页面不会直接替你设置手机提醒。</p></details></details>`;
 }
-const icsEsc = x => String(x || '').replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+const icsEsc = x => String(x || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
 function icsFor(p, o) {
     const ymd = d => d.replace(/-/g, ''), nx = new Date(o.due + 'T00:00:00'); nx.setDate(nx.getDate() + 1);
     const n2 = nx.getFullYear() + String(nx.getMonth() + 1).padStart(2, '0') + String(nx.getDate()).padStart(2, '0');
@@ -3477,7 +3477,7 @@ function cfgClean(o) {
     if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
     const str = (v, n) => typeof v === 'string' ? v.slice(0, n) : '', arr = (v, n) => Array.isArray(v) ? v.filter(x => x && typeof x === 'object' && !Array.isArray(x)).slice(0, n) : [];
     const lst = (v, n, f) => arr(v, n).map(f);
-    const c = { n: str(o.n, 40) || '医院', w: str(o.w, 200), l: typeof o.l === 'string' && o.l.length < 200000 ? o.l : '', c: str(o.c, 7), showRef: o.showRef === true, hideRef: o.hideRef !== false };
+    const c = { n: str(o.n, 40) || '医院', w: str(o.w, 200), l: typeof o.l === 'string' && o.l.length < 200000 ? o.l : '', c: str(o.c, 7), ver: str(o.ver, 20), showRef: o.showRef === true, hideRef: o.hideRef !== false };
     if (typeof o.splash === 'string' && o.splash.trim()) c.splash = o.splash.trim().slice(0, 30);
     if (o.trial === true) c.trial = true;
     if (typeof o.icp === 'string') c.icp = o.icp.slice(0, 40);
@@ -3585,7 +3585,7 @@ const chkSet = o => { try { localStorage.setItem(CHKK, JSON.stringify(o)); } cat
 const UP_URL = HP && typeof HP.up === 'string' ? HP.up : '';
 const UP_TK = HP && typeof HP.tk === 'string' ? HP.tk : '';
 const UP_OK = !!(UP_URL && UP_TK && HP_KEY && HK_OK(HP_KEY) && (/^https:\/\//i.test(UP_URL) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?\//i.test(UP_URL)));
-/* 智能助手网关：默认调已部署的后端 Worker（juyibanlvzhinengai）；医院配置里写 ai 则用它跨域调 /api/chat。不再回退同源 */
+/* 智能助手网关：默认调已部署的后端 Worker（juyiibanlvzhinengai）；医院配置里写 ai 则用它跨域调 /api/chat。不再回退同源 */
 const AI_DEFAULT = 'https://juyiibanlvzhinengai.tianxinyuan881.workers.dev';
 const AI_BASE = ((HP && typeof HP.ai === 'string' && HP.ai) || AI_DEFAULT).replace(/\/+$/, '');
 const CTK = 'companion.consent.' + (HP_KEY || 'demo');
@@ -3869,7 +3869,7 @@ catch (e) {
     storeFail();
 } };
 const sha = async (s) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map(x => x.toString(16).padStart(2, '0')).join('');
-const privacy = () => modal('<h2>隐私说明</h2><p class="sub">首次使用请先看一下，点底部按钮关闭后即可新建档案。</p><p>你录入的内容只保存在这台设备的浏览器里，页面不会上传到服务器。</p>' + (UP_OK ? '<p>复诊打卡和核销记录是否上传给医院，由您自己选择；可随时在首页「更多工具与设置 → 上传记录」里修改。</p>' : '') + '<p><p>清理浏览器数据或更换设备会丢失资料，请定期在「数据备份」里导出。</p><p>本地保存不等于加密，请勿在公共设备使用。</p><details><summary>展开更多说明</summary><p>会保存的内容：档案信息、时间线记录、指标数值和你上传的图片。</p><p>清理浏览器数据、使用无痕模式或更换设备，都会丢失这些资料，请定期在「数据备份」里导出。</p><p><b>资料存在本机不等于已加密。</b>别人能打开你的手机或浏览器，就可能看到这些内容；备份文件默认也未加密（导出时可设密码），请勿放在公共设备或不可信的共享空间。</p><p>儿童档案请由监护人填写。</p><p class="sub">本工具仅作病程资料归档，不能替代医生面诊。</p></details><div class="bar"><button class="btn" data-go="x">我已阅读，开始使用</button></div>');
+const privacy = () => modal('<h2>隐私说明</h2><p class="sub">首次使用请先看一下，点底部按钮关闭后即可新建档案。</p><p>你录入的内容只保存在这台设备的浏览器里，页面不会上传到服务器。</p>' + (UP_OK ? '<p>复诊打卡和核销记录是否上传给医院，由您自己选择；可随时在首页「更多工具与设置 → 上传记录」里修改。</p>' : '') + '<p>清理浏览器数据或更换设备会丢失资料，请定期在「数据备份」里导出。</p><p>本地保存不等于加密，请勿在公共设备使用。</p><details><summary>展开更多说明</summary><p>会保存的内容：档案信息、时间线记录、指标数值和你上传的图片。</p><p>清理浏览器数据、使用无痕模式或更换设备，都会丢失这些资料，请定期在「数据备份」里导出。</p><p><b>资料存在本机不等于已加密。</b>别人能打开你的手机或浏览器，就可能看到这些内容；备份文件默认也未加密（导出时可设密码），请勿放在公共设备或不可信的共享空间。</p><p>儿童档案请由监护人填写。</p><p class="sub">本工具仅作病程资料归档，不能替代医生面诊。</p></details><div class="bar"><button class="btn" data-go="x">我已阅读，开始使用</button></div>');
 function acctInit() {
     try {
         if (navigator.storage && navigator.storage.persist)
