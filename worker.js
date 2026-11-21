@@ -3205,7 +3205,7 @@ async function fsAsk(request, env, ctx, q, sys) {      // 走 Worker 自己的�
 // 需要的权限（飞书开放平台 → 权限管理，开通后要“发布应用版本”才生效）：docx:document（建文档、写内容）；给提问的人授权用 docs:permission.member:create（或 drive:drive）；可选 drive:drive.metadata:readonly（取带公司域名的真实链接）。
 // 可选变量：FEISHU_DOC_FOLDER（建到哪个文件夹，填 folder_token；不填 = 应用自己的根目录）、FEISHU_DOC_DOMAIN（取不到真实链接时用它拼，如 xxx.feishu.cn；默认 feishu.cn）、FEISHU_DOC_SHARE=tenant（额外把文档设为“组织内获得链接可阅读”，默认不开）。
 // 说明：应用用 tenant_access_token 建的文档，归应用所有，提问的人默认打不开，所以建完会把文档“可管理”权限授权给发消息的人（open_id）；授权失败会在回复里写明，不假装能打开。
-const FS_BUILD = "v99y-one-brain";
+const FS_BUILD = "v99z-one-brain";
 function fsInline(s) {      // 行内：**加粗** 和 [文字](链接) → 飞书 text_run（链接要 url_encode）
   const els = [], re = /\*\*([^*]+)\*\*|\[([^\]]+)\]\((https?:\/\/(?:[^\s()]|\([^\s()]*\))+)\)/g;      // 链接里带一层括号（如 …/wiki/A_(b)）也认
   const push = (c, st) => { c = String(c || ""); for (let i = 0; i < c.length; i += 1800) { const run = { content: c.slice(i, i + 1800) }; if (st) run.text_element_style = st; els.push({ text_run: run }); } };
