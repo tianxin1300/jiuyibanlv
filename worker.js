@@ -1,3 +1,6 @@
+import { runCareChat, careActorFromReq, prepareCareTask, careTaskDo, CareHttpError } from "./care.js";
+import { careTenantId, careOptionIds, loadCareCatalog, matchCareCatalog, proxyFastGptMatch } from "./care-catalog.js";
+
 // openmanus-gateway v99y：一个脑子。飞书消息不再自己猜意图，直接调前端同一个 runWorkChat（同一份 WORK_SYSTEM_PROMPT / 同一个模型轮换 / 同一张 FS_TOOLS）。选哪个工具完全由模型自己定：代码里没有关键词分流、没有白名单、没有预调工具，只给任务结构（工具表 + 会话态 + 多轮循环 + 最终自由文本）。删掉飞书先猜意图那层 / 关键词 if-else / 写文档先搜一遍 / 待办提醒与待办表混用。
 // v99w：1101 已定位修好，恢复模块顶层直接执行；表全从 FEISHU_BITABLE_TABLES 变量读；读信类代码整体移除。
 // v99u：写操作一轮超过 FS_MAX_WRITES(10) 次不直接停，改成问用户“还要继续写吗”，确认后接着写。
@@ -277,7 +280,7 @@ const WORK_MODELS = {
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type,Authorization",
+  "Access-Control-Allow-Headers": "Content-Type,Authorization,Idempotency-Key",
   "Access-Control-Max-Age": "86400"
 };
 const JH = { "Content-Type": "application/json; charset=utf-8", ...CORS };
@@ -307,6 +310,13 @@ async function edgeTtsWs(text, voice, ratePct) {
   });
 }
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: JH });
+const careFail = (e) => json({ ok: false, code: e && e.code || "CARE_ERROR", msg: String(e && e.message || e).slice(0, 300) }, Number(e && e.status) || 500);
+const careUpstream = (response) => {
+  const headers = new Headers();
+  const type = response.headers.get("Content-Type"); if (type) headers.set("Content-Type", type);
+  for (const [key, value] of Object.entries(CORS)) headers.set(key, value);
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+};
 
 const xmlEsc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]));
 // KV 的 metadata 总共不能超过 1024 字节：prompt/name 太长会让 put 直接抛错(生成图片/语音、上传都会 500)。统一在这里截断。
@@ -2226,6 +2236,20 @@ function buildPptx(md, title) {
 /* ---------- 表格提取（XLSX / CSV 共用）：只整理原文明确出现的内容，不推断、不补数据 ---------- */
 const RE_NUM = /^[-+]?(?:0|[1-9]\d{0,14}|[1-9]\d{0,2}(?:,\d{3})+)(?:\.\d+)?$/;
 const RE_UNITNUM = /^(?:[¥￥$]\s*[-+]?[\d,]+(?:\.\d+)?|[-+]?[\d,]+(?:\.\d+)?\s*(?:元|万元|万|块|%|％|¥|￥))$/;
+function moneyCell(value) {
+  const s = String(value || "").trim();
+  let m = /^([¥￥$])\s*([-+]?(?:\d[\d,]*)(?:\.\d+)?)$/.exec(s), prefix = true;
+  if (!m) { m = /^([-+]?(?:\d[\d,]*)(?:\.\d+)?)\s*(万元|元|块|[¥￥])$/.exec(s); prefix = false; }
+  if (!m) return null;
+  const symbol = prefix ? m[1] : m[2], raw = prefix ? m[2] : m[1];
+  if (!RE_NUM.test(raw)) return null;
+  const number = Number(raw.replace(/,/g, ""));
+  if (!Number.isFinite(number)) return null;
+  if (prefix) return { value: number, style: symbol === "$" ? 8 : 4, unit: symbol === "$" ? "USD" : "CNY" };
+  if (symbol === "万元") return { value: number, style: 6, unit: "WAN_CNY" };
+  if (symbol === "块") return { value: number, style: 7, unit: "CNY" };
+  return { value: number, style: symbol === "元" ? 5 : 4, unit: "CNY" };
+}
 function sheetSafeName(s, used) {
   let n = Array.from(String(s || "").replace(/[\[\]:*?\/\\]/g, "").trim()).slice(0, 31).join("").trim();
   if (!n) n = "表" + (used.size + 1);
@@ -2277,13 +2301,15 @@ function planTables(md) {
 const colName = (i) => { let s = ""; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
 const dispW = (s) => { let w = 0; for (const ch of String(s).split("\n").reduce((a, b) => (b.length > a.length ? b : a), "")) w += ch.charCodeAt(0) > 255 ? 2 : 1; return w; };
 function buildXlsx(md, title) {
-  const { tabs, notes } = planTables(md), used = new Set(); let unitCells = 0;
+  const { tabs, notes } = planTables(md), used = new Set(); let unitCells = 0, moneyCells = 0; const moneyUnits = new Set();
   const sheets = tabs.map((t) => {
     const n = Math.max(t.head.length, ...t.rows.map((r) => r.length), 1), name = sheetSafeName(t.name, used), widths = Array(n).fill(8);
     const cellXml = (v, r, c, head) => {
       const ref = colName(c) + (r + 1); v = String(v == null ? "" : v); widths[c] = Math.max(widths[c], Math.min(60, dispW(v) + 3));
       if (head) return '<c r="' + ref + '" s="1" t="inlineStr"><is><t xml:space="preserve">' + xe(v) + "</t></is></c>";
       if (RE_NUM.test(v.trim()) && !/^[-+]?\d{11,}$/.test(v.trim())) return '<c r="' + ref + '" s="2"><v>' + parseFloat(v.trim().replace(/,/g, "")) + "</v></c>";
+      const money = moneyCell(v);
+      if (money) { moneyCells++; moneyUnits.add(money.unit); return '<c r="' + ref + '" s="' + money.style + '"><v>' + money.value + "</v></c>"; }
       if (RE_UNITNUM.test(v.trim())) unitCells++;
       return v === "" ? '<c r="' + ref + '" s="3"/>' : '<c r="' + ref + '" s="3" t="inlineStr"><is><t xml:space="preserve">' + xe(v) + "</t></is></c>";
     };
@@ -2293,8 +2319,10 @@ function buildXlsx(md, title) {
     const xml = XMLH + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><dimension ref="' + ref + '"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols>' + widths.map((w, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>').join("") + "</cols><sheetData>" + rowsXml + '</sheetData><autoFilter ref="' + ref + '"/></worksheet>';
     return { name, xml, ref };
   });
-  if (unitCells) notes.push("有 " + unitCells + " 个单元格带单位或符号（如 5000元、¥300），已保留原文，没有转成数值；要求和请先去掉单位");
-  const styles = XMLH + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Microsoft YaHei"/><family val="2"/></font><font><b/><sz val="11"/><name val="Microsoft YaHei"/><family val="2"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE8F3EE"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFBBBBBB"/></left><right style="thin"><color rgb="FFBBBBBB"/></right><top style="thin"><color rgb="FFBBBBBB"/></top><bottom style="thin"><color rgb="FFBBBBBB"/></bottom><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+  if (moneyCells) notes.push("有 " + moneyCells + " 个金额单元格已写成数值，并用数字格式保留原单位；未做汇率或万元到元的隐式换算");
+  if (moneyUnits.size > 1) notes.push("表内存在不同货币或金额单位，求和前请先统一口径");
+  if (unitCells) notes.push("有 " + unitCells + " 个带单位或符号的非金额单元格保留原文，没有转成数值");
+  const styles = XMLH + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="5"><numFmt numFmtId="164" formatCode="&quot;¥&quot;#,##0.##############"/><numFmt numFmtId="165" formatCode="#,##0.##############&quot;元&quot;"/><numFmt numFmtId="166" formatCode="#,##0.##############&quot;万元&quot;"/><numFmt numFmtId="167" formatCode="#,##0.##############&quot;块&quot;"/><numFmt numFmtId="168" formatCode="&quot;$&quot;#,##0.##############"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Microsoft YaHei"/><family val="2"/></font><font><b/><sz val="11"/><name val="Microsoft YaHei"/><family val="2"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE8F3EE"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFBBBBBB"/></left><right style="thin"><color rgb="FFBBBBBB"/></right><top style="thin"><color rgb="FFBBBBBB"/></top><bottom style="thin"><color rgb="FFBBBBBB"/></bottom><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="9"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf><xf numFmtId="165" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf><xf numFmtId="166" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf><xf numFmtId="167" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf><xf numFmtId="168" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
   const wb = XMLH + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets>' + sheets.map((s, i) => '<sheet name="' + xe(s.name) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>').join("") + "</sheets><definedNames>" + sheets.map((s, i) => '<definedName name="_xlnm._FilterDatabase" localSheetId="' + i + '" hidden="1">\'' + xe(s.name.replace(/'/g, "''")) + "'!" + s.ref.replace(/([A-Z]+)(\d+)/g, "$$$1$$$2") + "</definedName>").join("") + "</definedNames></workbook>";
   const REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/";
   const files = [
@@ -2366,7 +2394,7 @@ function buildHtml(md, title) {
 }
 
 /* ---------- 入口 ---------- */
-const EXP_MIME = { docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", csv: "text/csv; charset=utf-8", html: "text/html; charset=utf-8" };
+const EXP_MIME = { docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", csv: "text/csv; charset=utf-8", html: "text/html; charset=utf-8", md: "text/markdown; charset=utf-8" };
 const EXP_EXPOSE = "Content-Disposition,X-Filename,part,totalParts,X-Export-Notes,X-Export-Format";
 async function handleExport(request, fmt) {
   const err = (status, msg) => json({ ok: false, msg }, status);
@@ -2383,7 +2411,8 @@ async function handleExport(request, fmt) {
   let base = expFileBase(title, b.filename); if (total > 1) base += "-第" + part + "部分";
   let body, notes = [];
   try {
-    if (fmt === "docx") body = buildDocx(pmd, title);
+    if (fmt === "md") body = pmd;
+    else if (fmt === "docx") body = buildDocx(pmd, title);
     else if (fmt === "pptx") { const r = buildPptx(pmd, title); body = r.bytes; if (r.slides < 1) notes.push("没有可放进幻灯片的正文，只生成了封面"); }
     else if (fmt === "xlsx") { const r = buildXlsx(pmd, title); body = r.bytes; notes = r.notes; }
     else if (fmt === "csv") { const r = buildCsv(pmd); body = r.text; notes = r.notes; }
@@ -4744,7 +4773,7 @@ async function handle(request, env, ctx) {
         await env.KV.delete("rl:" + k1);
         if (!rec.salt) { // 旧账号升级为随机盐
           const salt = rand(16);
-          await env.KV.put("user:" + user, JSON.stringify({ salt, hash: await pbkdf2(pw, salt), created: rec.created || Date.now() }));
+          await env.KV.put("user:" + user, JSON.stringify({ ...rec, salt, hash: await pbkdf2(pw, salt), created: rec.created || Date.now() }));
         }
       }
       return json({ ok: true, token: await newToken(env, user), user });
@@ -5204,8 +5233,47 @@ async function handle(request, env, ctx) {
         { id: "火山豆包", name: "火山豆包", models: volcanoModels(env) }
       ] });
     }
-    // ---- v30 导出：/api/export/{docx|pptx|xlsx|csv|html}，纯 JS 生成，每次传完整 Markdown + part ----
-    const expM = path.match(/^\/api\/export\/(docx|pptx|xlsx|csv|html)$/);
+    // ---- 就医智能匹配与医院任务：选项ID、租户授权、七步快照、DO原子幂等 ----
+    if (path === "/api/intel/match" && request.method === "POST") {
+      try {
+        const b = await request.json().catch(() => null);
+        if (!b || typeof b !== "object" || Array.isArray(b)) return json({ ok: false, code: "INVALID_JSON", msg: "请求必须是 JSON 对象" }, 400);
+        const tenantId = careTenantId(b.tenant_id), optionIds = careOptionIds(b.option_ids, 400);
+        await careActorFromReq(request, env, url, tenantId, userFromReq);
+        const upstream = await proxyFastGptMatch(env, tenantId, optionIds);
+        if (upstream) return careUpstream(upstream);
+        const catalog = await loadCareCatalog(env, tenantId);
+        return json({ ok: true, tenant_id: tenantId, source: "local", ...matchCareCatalog(catalog, optionIds) });
+      } catch (e) { return careFail(e); }
+    }
+    if (path === "/api/care/tasks" && request.method === "POST") {
+      try {
+        const b = await request.json().catch(() => null);
+        if (!b || typeof b !== "object" || Array.isArray(b)) return json({ ok: false, code: "INVALID_JSON", msg: "请求必须是 JSON 对象" }, 400);
+        const tenantId = careTenantId(b.tenant_id);
+        const actor = await careActorFromReq(request, env, url, tenantId, userFromReq);
+        const task = await prepareCareTask(b, env, actor);
+        const result = await careTaskDo(env, task.task_id, "create", { task });
+        return json(result.body, result.status);
+      } catch (e) { return careFail(e); }
+    }
+    const careTaskMatch = path.match(/^\/api\/care\/tasks\/([A-Za-z0-9._:-]+)$/);
+    if (careTaskMatch && (request.method === "GET" || request.method === "PATCH")) {
+      try {
+        const actor = await careActorFromReq(request, env, url, null, userFromReq);
+        if (request.method === "GET") {
+          const result = await careTaskDo(env, careTaskMatch[1], "read", { actor });
+          return json(result.body, result.status);
+        }
+        const b = await request.json().catch(() => null);
+        if (!b || typeof b !== "object" || Array.isArray(b)) return json({ ok: false, code: "INVALID_JSON", msg: "请求必须是 JSON 对象" }, 400);
+        const result = await careTaskDo(env, careTaskMatch[1], "advance", { actor, input: b, idempotency_key: request.headers.get("Idempotency-Key") || "" });
+        return json(result.body, result.status);
+      } catch (e) { return careFail(e); }
+    }
+
+    // ---- v30 导出：/api/export/{docx|pptx|xlsx|csv|html|md}，纯 JS 生成，每次传完整 Markdown + part ----
+    const expM = path.match(/^\/api\/export\/(docx|pptx|xlsx|csv|html|md)$/);
     if (expM && request.method === "POST") {
       const user = await userFromReq(request, env, url, "");
       if (!user) return json({ ok: false, msg: "未登录，token失效" }, 401);
@@ -5542,6 +5610,12 @@ async function handle(request, env, ctx) {
       const b = await request.json().catch(() => ({}));
       const text = String(b.text == null ? (b.message || b.q || "") : b.text).trim();
       if (!text) return json({ ok: false, msg: "缺少 text" }, 400);
+      if (String(b.role == null ? "" : b.role).trim()) {
+        try {
+          const r = await runCareChat({ env, role: b.role, text, history: b.history, l2: b.l2, budget_ms: b.budget_ms }, fsLLMMsgs);
+          return json({ ok: true, build: FS_BUILD, role: r.role, reply: r.reply, awaiting: false, confirm: "", tools: [], steps: [] });
+        } catch (e) { return careFail(e); }
+      }
       const user = await userFromReq(request, env, url, String(b.token || "")).catch(() => null);
       const who = String(user || b.who || "web"), chat = String(b.chat || b.chat_id || ("web:" + who));
       const pkey = fsPendKey(chat, who), tkey = fsTurnKey(chat, who);
@@ -5710,4 +5784,6 @@ async function handle(request, env, ctx) {
 }
 
 
+export { CareTask } from "./care.js";
+export { buildXlsx, handleExport, splitParts, zipRead };
 export default WORKER_DEFAULT;

@@ -10,6 +10,15 @@ main = "worker.js"
 compatibility_date = "2024-11-01"
 workers_dev = true
 
+# 医院任务：每个 task_id 对应一个 Durable Object，在事务内推进步骤并记录幂等结果。
+[[durable_objects.bindings]]
+name = "CARE_TASKS"
+class_name = "CareTask"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CareTask"]
+
 # 数据存储（可选）：用户/历史/记忆/待办/知识库/分享/定时任务等存 KV（绑定名必须是 KV）。
 # 现在先不绑定；以后建好 KV 命名空间、拿到真实 id，再把下面两行注释打开并填入 id。
 # [[kv_namespaces]]
