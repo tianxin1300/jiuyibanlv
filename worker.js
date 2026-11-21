@@ -4464,12 +4464,21 @@ function workToolSpec(list) {
   const arr = Array.isArray(list) ? list : FS_TOOLS;
   return arr.map((t) => "- " + t.name + (t.danger ? "【危险，需确认】" : "") + "：" + t.desc + " 参数：" + t.params).join("\n");
 }
+// 没有飞书钥匙时用的纯聊天 system：飞书不是必须的，跳过多工具 Agent，直接走模型（GROQ / OpenRouter 等）回答
+const FS_CHAT_SYS = "你是「就医伴侣」里的智能助手，帮用户整理和解释他自己记录的就诊资料、准备复诊问题。回答简短、只依据用户给出的内容，不编造、不编链接；不提供诊断或用药建议，遇到胸痛、呼吸困难、意识不清等紧急情况提醒拨打 120。直接回答用户的问题。";
 // ===== 唯一的聊天核心：前端 /api/chat 和飞书都调它 =====
 // o = { env, request, ctx, text, cx }；cx 里有 chat / openId / T / deadline / pend / last / task 这些会话态
 async function runWorkChat(o) {
   const env = o.env, cx = o.cx, text = String(o.text == null ? (cx.userText || "") : o.text).trim();
   cx.userText = text;
   cx.T = cx.T || fsTables(env);
+  // 没配飞书钥匙：飞书这一步不是必须的，跳过多工具 Agent，直接走模型（GROQ 等）回答，不让飞书挡住聊天
+  if (!feishuHasEnv(env)) {
+    const info = {}, budget = Math.max(6000, Math.min(22000, cx.deadline - Date.now() - 1500));
+    const raw = await fsLLMMsgs(env, [{ role: "system", content: FS_CHAT_SYS }, { role: "user", content: text }], info, budget);
+    const t = String(raw || "").trim();
+    return { reply: t || ("这次没接上模型（" + ((info.tried || []).join("；") || "没有可用的钥匙") + "）。回复「继续」我再试一次。"), direct: true, decided: true, steps: [] };
+  }
   // v99z：system = 静态提示词（M1-M8 / file_analysis / output 契约）+ 运行时时间 + 本轮 agent 规则。之前只给 fsAgentSystem，模型收到的交付规则是残缺的， fsAgentSystem 里引用的 <file_analysis> 协议根本不在场。
   const msgs = [{ role: "system", content: WORK_SYSTEM_PROMPT + workRuntime() + "\n\n" + fsAgentSystem(cx) }, { role: "user", content: text }];
   let reply = "", direct = false, decided = false, awaiting = false, taskDone = false, taskNote = "", taskIntent = null, modelFail = "", bad = 0;
