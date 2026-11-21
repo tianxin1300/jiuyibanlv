@@ -11,11 +11,14 @@ main = "worker.js"
 compatibility_date = "2024-11-01"
 workers_dev = true
 
-# 数据存储：用户 / 历史 / 记忆 / 待办 / 知识库 / 分享 / 定时任务等都存在 KV。
-# 绑定名必须是 KV（后端代码按 env.KV 读取）。
-[[kv_namespaces]]
-binding = "KV"
-id = "<KV_NAMESPACE_ID>"
+# 数据存储：用户 / 历史 / 记忆 / 待办 / 知识库 / 分享 / 定时任务等都存在 KV（绑定名必须是 KV）。
+# 注意：id 不能留占位符，否则 `wrangler deploy` 会被 Cloudflare 拒绝、构建失败。
+# 所以这里先注释掉，保证第一次构建能成功；智能助手（/api/chat）不强依赖 KV。
+# 之后在 Cloudflare 建好 KV 命名空间、拿到真实 id，再取消注释并填入：
+#   wrangler kv namespace create KV   # 得到 32 位十六进制 id
+# [[kv_namespaces]]
+# binding = "KV"
+# id = "你的 KV 命名空间 id"
 
 # 可选变量：全部可不填，不填时后端自动跳过对应来源（免费模型轮换仍可用）。
 # 在 Cloudflare 面板的 Worker「设置 → 变量和机密」里填写更安全；也可写在这里（注意别把密钥提交到 Git）。
