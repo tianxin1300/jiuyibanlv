@@ -1827,8 +1827,8 @@ async function dkey(pw, salt) { const k = await crypto.subtle.importKey('raw', n
 async function encStr(txt, pw) { const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12)), c = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await dkey(pw, salt), new TextEncoder().encode(txt)); return JSON.stringify({ app: 'companion', enc: 1, kdf: 'PBKDF2-SHA256-250000', salt: b2s(salt), iv: b2s(iv), data: b2s(new Uint8Array(c)) }); }
 async function decStr(o, pw) { const p = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: s2b(o.iv) }, await dkey(pw, s2b(o.salt)), s2b(o.data)); return new TextDecoder().decode(p); }
 const HK_OK = c => /^[A-Za-z0-9_-]{1,30}$/.test(c) && c !== 'preview' && c !== 'demo';
-function collectHosp() { const h = {}; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i) || '', m = /^companion\.(act|chk|jny)\.([A-Za-z0-9_-]{1,30})$/.exec(k); if (!m || !HK_OK(m[2])) continue; let v; try { v = JSON.parse(localStorage.getItem(k)); } catch (e) { continue; } if (!v || typeof v !== 'object') continue; (h[m[2]] = h[m[2]] || {})[m[1]] = v; } } catch (e) { } return h; }
-function hospStat(h) { let v = 0, u = 0, n = 0; Object.keys(h || {}).forEach(c => { const b = h[c] || {}; Object.keys(b.act || {}).forEach(id => (Array.isArray(b.act[id]) ? b.act[id] : []).forEach(x => { if (x && !x.n) { v++; if (x.used) u++; } })); n += Math.max(0, +((b.chk || {}).n) || 0); }); return { codes: Object.keys(h || {}).length, v, u, n }; }
+function collectHosp() { const h = {}; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i) || '', m = /^companion\.(act|chk|jny|q|consent|pn|pt)\.([A-Za-z0-9_-]{1,30})$/.exec(k); if (!m || !HK_OK(m[2])) continue; const raw = localStorage.getItem(k); if (raw == null) continue; let v; if (m[1] === 'consent' || m[1] === 'pn' || m[1] === 'pt') { v = raw; } else { try { v = JSON.parse(raw); } catch (e) { continue; } if (!v || typeof v !== 'object') continue; } (h[m[2]] = h[m[2]] || {})[m[1]] = v; } } catch (e) { } return h; }
+function hospStat(h) { let v = 0, u = 0, n = 0, q = 0; Object.keys(h || {}).forEach(c => { const b = h[c] || {}; Object.keys(b.act || {}).forEach(id => (Array.isArray(b.act[id]) ? b.act[id] : []).forEach(x => { if (x && !x.n) { v++; if (x.used) u++; } })); n += Math.max(0, +((b.chk || {}).n) || 0); if (Array.isArray(b.q)) q += b.q.length; }); return { codes: Object.keys(h || {}).length, v, u, n, q }; }
 const cleanV = v => { if (!v || typeof v !== 'object' || !/^[0-9A-Z]{6}$/.test(v.sn || '')) return null; const s = (x, n) => typeof x === 'string' ? x.slice(0, n) : '', dt = x => /^\d{4}-\d{2}-\d{2}$/.test(x || '') ? x : ''; return { sn: v.sn, d: dt(v.d), at: s(v.at, 30), r: s(v.r, 60), g: s(v.g, 20), desc: s(v.desc, 300), n: v.n ? 1 : 0, exp: dt(v.exp), used: v.used ? 1 : 0, ut: s(v.ut, 30), ...(v.bk ? { bk: 1 } : {}) }; };
 function mergeHosp(code, blk) {
     const K = k => 'companion.' + k + '.' + code, rd = k => { try { return JSON.parse(localStorage.getItem(K(k)) || '{}') || {}; } catch (e) { return {}; } }, st = { nv: 0, nu: 0 };
@@ -1857,6 +1857,21 @@ function mergeHosp(code, blk) {
     const ja = rd('jny'), jb = blk.jny && typeof blk.jny === 'object' ? blk.jny : {};
     Object.keys(jb).slice(0, 40).forEach(k => { if (!/^[\w-]{1,30}$/.test(k) || !Array.isArray(jb[k])) return; ja[k] = [...new Set([...(Array.isArray(ja[k]) ? ja[k] : []), ...jb[k].filter(z => Number.isInteger(z) && z >= 0 && z < 50)])].sort((x, y) => x - y); });
     try { localStorage.setItem(K('jny'), JSON.stringify(ja)); } catch (e) { }
+    /* 待上传队列（companion.q.<code>）：换机后未上传的打卡/核销记录不丢，月报口径一致。按事件 id 去重追加。 */
+    if (Array.isArray(blk.q)) {
+        let cur = [];
+        try { const z = JSON.parse(localStorage.getItem(K('q')) || '[]'); if (Array.isArray(z)) cur = z; } catch (e) { }
+        const seen = new Set(cur.map(x => x && x.id));
+        blk.q.slice(-300).forEach(e => { if (e && typeof e === 'object' && typeof e.id === 'string' && !seen.has(e.id)) { seen.add(e.id); cur.push(e); } });
+        try { localStorage.setItem(K('q'), JSON.stringify(cur.slice(-300))); } catch (e) { }
+    }
+    /* 上传同意与姓名/尾号：只对当前站点生效，本机已有选择时不覆盖。 */
+    if (isCur) {
+        const cv = blk.consent;
+        try { if (!localStorage.getItem(K('consent')) && (cv === 'name' || cv === 'anon' || cv === 'off')) localStorage.setItem(K('consent'), cv); } catch (e) { }
+        try { if (typeof blk.pn === 'string' && !localStorage.getItem(K('pn'))) localStorage.setItem(K('pn'), blk.pn.slice(0, 20)); } catch (e) { }
+        try { if (typeof blk.pt === 'string' && !localStorage.getItem(K('pt'))) localStorage.setItem(K('pt'), blk.pt.replace(/\D/g, '').slice(0, 4)); } catch (e) { }
+    }
     return st;
 }
 async function exportBackup() { try {
@@ -1914,7 +1929,7 @@ async function exportBackup_() {
             A.bk = today();
             saveA();
         }
-        m.textContent = (pw ? '【已加密】' : '【未加密，请妥善保管文件】') + '备份已导出：' + S.profiles.length + ' 份档案，' + Object.keys(ims).length + ' 张图片' + (hs.codes ? '，' + hs.v + ' 张医院活动凭证、' + hs.n + ' 次整理打卡' : '') + (miss ? '。▲ 备份不完整：有 ' + miss + ' 张图片读取失败、未包含，本次不计入“已备份”，请重试' : '。请把文件保存在手机以外的地方。');
+        m.textContent = (pw ? '【已加密】' : '【未加密，请妥善保管文件】') + '备份已导出：' + S.profiles.length + ' 份档案，' + Object.keys(ims).length + ' 张图片' + (hs.codes ? '，' + hs.v + ' 张医院活动凭证、' + hs.n + ' 次整理打卡' + (hs.q ? '、' + hs.q + ' 条待上传记录' : '') : '') + (miss ? '。▲ 备份不完整：有 ' + miss + ' 张图片读取失败、未包含，本次不计入“已备份”，请重试' : '。请把文件保存在手机以外的地方。');
     }
     catch (e) {
         m.textContent = e && e.code === 'declined' ? '已取消导出。' : '导出失败，请重试。';
@@ -1962,7 +1977,7 @@ async function importBackup(f) {
         pr.forEach(q => (q.tl || []).forEach(r => (r.imgs || []).forEach(k => { if (!have[k])
             miss.add(k); })));
         const rows = pr.map(q => { const ex = S.profiles.some(x => x.id === q.id), mc = (q.mx || []).reduce((n, m) => n + m.pts.length, 0), ic = (q.tl || []).reduce((n, r) => n + (r.imgs || []).length, 0); return '<li><b>' + esc(q.member + ' · ' + dn(q)) + '</b>：' + (q.tl || []).length + ' 条记录，' + mc + ' 个指标数值，' + ic + ' 张图片；' + (ex ? '<span class="bad">覆盖本机同一份档案</span>' : '新增') + '</li>'; }).join('');
-        if (!await askModal('<h2>恢复预览</h2><p class="sub">备份时间：' + esc((o.at || '').slice(0, 10)) + '</p><ul>' + rows + '</ul><p class="sub">本机上不在备份里的档案不受影响。</p>' + (hst.codes ? '<p class="sub" style="background:#fff4e5;color:#8a4b00;border-radius:8px;padding:8px 10px"><b>医院活动数据：</b>将合并 ' + hst.v + ' 张凭证（其中已核销 ' + hst.u + ' 张）、' + hst.n + ' 次整理打卡。合并不会删除本机已有的凭证，已核销的不会变回未核销。<br><b>恢复不会注销旧手机上的数据：两台手机都能看到同一张凭证，兑换以医院登记表为准。</b>备份可能不是最新的，恢复后请以现场登记表核对。</p>' : '') + (miss.size ? '<p class="bad">有 ' + miss.size + ' 张图片在备份文件里缺失，恢复后这些图片无法显示。</p>' : '')))
+        if (!await askModal('<h2>恢复预览</h2><p class="sub">备份时间：' + esc((o.at || '').slice(0, 10)) + '</p><ul>' + rows + '</ul><p class="sub">本机上不在备份里的档案不受影响。</p>' + (hst.codes ? '<p class="sub" style="background:#fff4e5;color:#8a4b00;border-radius:8px;padding:8px 10px"><b>医院活动数据：</b>将合并 ' + hst.v + ' 张凭证（其中已核销 ' + hst.u + ' 张）、' + hst.n + ' 次整理打卡' + (hst.q ? '，并恢复 ' + hst.q + ' 条还没传上去的记录（联网后会自动继续上传）' : '') + '。合并不会删除本机已有的凭证，已核销的不会变回未核销。<br><b>恢复不会注销旧手机上的数据：两台手机都能看到同一张凭证，兑换以医院登记表为准。</b>备份可能不是最新的，恢复后请以现场登记表核对。</p>' : '') + (miss.size ? '<p class="bad">有 ' + miss.size + ' 张图片在备份文件里缺失，恢复后这些图片无法显示。</p>' : '')))
             return;
         if (Object.keys(have).length > 1000)
             throw 8;
@@ -2045,13 +2060,13 @@ async function importBackup(f) {
             S.cur = S.profiles[0] ? S.profiles[0].id : null;
         S.view = 'list';
         view();
-        alert('已恢复 ' + pr.length + ' 份档案，' + dec.length + ' 张图片' + (hst.codes ? '，并合并了医院活动凭证和打卡（两台手机都能看到同一张凭证，兑换以医院登记表为准）' : '') + (bad ? '；其中 ' + bad + ' 张核对失败，请重新导出备份检查' : '，核对无误') + '。');
+        alert('已恢复 ' + pr.length + ' 份档案，' + dec.length + ' 张图片' + (hst.codes ? '，并合并了医院活动凭证和打卡' + (hst.q ? '，以及 ' + hst.q + ' 条待上传记录' : '') + '（两台手机都能看到同一张凭证，兑换以医院登记表为准）' : '') + (bad ? '；其中 ' + bad + ' 张核对失败，请重新导出备份检查' : '，核对无误') + '。');
     }
     catch (e) {
         m.textContent = e === 2 ? '备份文件校验失败，文件可能已损坏或被修改。' : e === 3 ? '备份文件内容不符合格式，已拒绝恢复。' : e === 9 ? '恢复失败，而且撤销没有完全成功，本机原有数据的完整性未确认。请保留备份文件，先不要清除或再次恢复，并立即导出当前数据。' : e === 8 ? '备份里图片过多或单张过大（上限 1000 张、每张约 20 MB），已拒绝恢复。' : e === 6 ? '密码不对，或备份文件已损坏。注意：忘记密码无法找回。' : e === 7 ? '这个备份已加密，请先在上方「备份密码」里填写密码。' : e === 4 ? '备份里的图片数据损坏，已拒绝恢复，本机数据未改动。' : e === 5 ? '恢复过程中写入失败（可能空间不足），已撤销，本机原有数据未改动。' : '这不是有效的备份文件。';
     }
 }
-const bkView = () => `<div class="card hd"><h2>数据备份与恢复</h2><p class="sub">备份包含全部档案、时间线、指标和图片。换设备、清理浏览器之前，请先导出。</p><div class="backup-risk"><b>先看清楚再操作</b><ul><li>资料只保存在当前浏览器，清理数据、无痕模式或换设备可能丢失。</li><li>不填写密码导出的文件是明文病历；建议设置独立的备份密码。</li><li>备份文件请保存到手机以外的可信位置，不要发到群聊或公共网盘。备份文件含您的就诊资料，请妥善保管，不要发送给无关人员。</li><li>备份也会带上您在各医院入口里抽到的凭证和整理打卡。恢复时是“合并”：旧手机不会失效，两台手机都能看到同一张凭证，兑换以医院登记表为准。</li></ul></div><p>${A.bk ? '上次备份：' + A.bk : '<b>还没有备份过。</b>'}</p>${S.quota && S.quota.quota ? `<p class="sub">本机已用空间约 ${(S.quota.usage / 1048576).toFixed(1)} MB（浏览器给的上限约 ${(S.quota.quota / 1048576).toFixed(0)} MB，仅供参考）</p>` : ''}<label>备份密码（强烈建议设置）</label><input type="password" id="bkpw" autocomplete="new-password" placeholder="至少 8 位；导出时填写则加密，恢复加密备份时也填这里"><label>再输一次（仅设置密码时填）</label><input type="password" id="bkpw2" autocomplete="new-password" placeholder="再输入一遍相同的密码"><p class="sub" style="color:var(--warn,#b42318)"><b>不填密码导出的备份是明文文件</b>，任何人拿到都能看到病历内容。请妥善保管，不要发到群里或公共网盘。</p><p class="sub">填了密码，备份文件里的档案和图片会加密。<b>忘记密码无法找回</b>，请自己牢记；不填则导出未加密文件。</p><div class="bar"><button class="btn" data-act="bkexp">导出完整备份</button></div><label>从备份文件恢复</label><input type="file" id="bkf" accept=".json,application/json"><div class="bar"><button class="ghost" data-act="bkimp">选择文件后恢复</button></div><p class="sub" id="bkm"></p></div><div class="card"><h2>清除本机数据</h2><p class="sub">删除这台设备浏览器里的全部档案、记录、指标和图片，不影响你已导出的备份文件。清除前请先导出备份。</p><div class="bar"><button class="ghost del" data-act="wipe">清除全部数据</button></div></div><div class="bar"><button class="ghost" data-act="back">返回档案</button></div>`;
+const bkView = () => `<div class="card hd"><h2>数据备份与恢复</h2><p class="sub">备份包含全部档案、时间线、指标和图片。换设备、清理浏览器之前，请先导出。</p><div class="backup-risk"><b>先看清楚再操作</b><ul><li>资料只保存在当前浏览器，清理数据、无痕模式或换设备可能丢失。</li><li>不填写密码导出的文件是明文病历；建议设置独立的备份密码。</li><li>备份文件请保存到手机以外的可信位置，不要发到群聊或公共网盘。备份文件含您的就诊资料，请妥善保管，不要发送给无关人员。</li><li>备份也会带上您在各医院入口里抽到的凭证、整理打卡，以及还没上传给医院的记录。恢复时是“合并”：旧手机不会失效，两台手机都能看到同一张凭证，兑换以医院登记表为准。</li></ul></div><p>${A.bk ? '上次备份：' + A.bk : '<b>还没有备份过。</b>'}</p>${S.quota && S.quota.quota ? `<p class="sub">本机已用空间约 ${(S.quota.usage / 1048576).toFixed(1)} MB（浏览器给的上限约 ${(S.quota.quota / 1048576).toFixed(0)} MB，仅供参考）</p>` : ''}<label>备份密码（强烈建议设置）</label><input type="password" id="bkpw" autocomplete="new-password" placeholder="至少 8 位；导出时填写则加密，恢复加密备份时也填这里"><label>再输一次（仅设置密码时填）</label><input type="password" id="bkpw2" autocomplete="new-password" placeholder="再输入一遍相同的密码"><p class="sub" style="color:var(--warn,#b42318)"><b>不填密码导出的备份是明文文件</b>，任何人拿到都能看到病历内容。请妥善保管，不要发到群里或公共网盘。</p><p class="sub">填了密码，备份文件里的档案和图片会加密。<b>忘记密码无法找回</b>，请自己牢记；不填则导出未加密文件。</p><div class="bar"><button class="btn" data-act="bkexp">导出完整备份</button></div><label>从备份文件恢复</label><input type="file" id="bkf" accept=".json,application/json"><div class="bar"><button class="ghost" data-act="bkimp">选择文件后恢复</button></div><p class="sub" id="bkm"></p></div><div class="card"><h2>清除本机数据</h2><p class="sub">删除这台设备浏览器里的全部档案、记录、指标和图片，不影响你已导出的备份文件。清除前请先导出备份。</p><div class="bar"><button class="ghost del" data-act="wipe">清除全部数据</button></div></div><div class="bar"><button class="ghost" data-act="back">返回档案</button></div>`;
 const kindList = p => [...new Set([...KINDS, ...(p.tl || []).map(r => r.kind)])];
 const tlFilter = (p, n) => n ? `<div class="row"><input id="tq" type="search" placeholder="搜索内容、医院、日期" value="${esc(S.q || '')}" aria-label="搜索"><select id="tkf" aria-label="按类型筛选"><option value="">全部类型</option>${kindList(p).map(k => `<option ${S.kf === k ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select></div>` : '';
 const editForm = (r, p) => `<div class="card hd"><h2>编辑记录</h2><label>记录类型</label><select id="ek">${kindList(p).map(k => `<option ${k === r.kind ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select><label>日期</label><input id="ed" type="date" value="${esc(r.date)}"><label>具体时间（可不填）</label><input id="eti" type="time" value="${esc(r.time || '')}"><label>医院 / 科室</label><input id="eh" value="${esc(r.hosp || '')}"><label>内容摘要</label><textarea id="et">${esc(r.text || '')}</textarea>${(r.fields || []).map((x, i) => `<label>${esc(x.n)}</label><input data-ef="${i}" value="${esc(x.v)}">`).join('')}${(r.imgs || []).length ? '<p class="sub">图片保持不变；如需更换图片，请删除这条记录后重新添加。</p>' : ''}<div class="bar"><button class="ghost" data-act="tlcancel">取消</button><button class="btn" data-act="tlupd" data-id="${r.id}">保存修改</button></div></div>`;
@@ -3561,7 +3576,7 @@ const lgImg = h => LG ? '<img src="' + LG + '" alt="" style="height:' + h + 'px;
 /* 惠民服务（抽签筒、小转盘）：由医院在配置里设置服务内容和兑换规则（act），用户抽中后得到一张带流水号和有效期的兑换凭证，凭此到院由工作人员核销。
    结果和凭证只在本机生成、保存；核销记录是否上传给医院由患者选择（见上传引擎）；本页面无法防伪，兑换以医院现场核验和医院自己的登记（流水号）为准，同一流水号医院只应兑换一次。
    act:[{id,t,kind:'wheel'|'draw',per:'day'|'once'|'free',valid:有效天数,pin:'核销密码(可选)',rule:'活动说明',note,items:[字符串 或 {t:服务名,d:兑换说明,g:奖项等级,q:限量说明,w:抽中权重(可选，默认一等奖1/二等奖2/其他3，数字越大越容易抽中),n:1(表示谢谢参与，无服务)}]}] */
-const ACTK = 'companion.act.' + (HP_KEY || 'demo');
+const ACTK = 'companion.act.' + (HP_KEY || 'solo');
 const actGet = () => { try { return JSON.parse(localStorage.getItem(ACTK) || '{}') || {}; } catch (e) { return {}; } };
 const actSet = o => { try { localStorage.setItem(ACTK, JSON.stringify(o)); } catch (e) { } };
 const rnd = n => { try { const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] % n; } catch (e) { return Math.floor(Math.random() * n); } };
@@ -3577,7 +3592,7 @@ function actList() {
 const vState = v => v.n ? '' : v.off ? '活动已下线，请联系医院' : v.used ? '已兑换' : (v.exp && v.exp < today()) ? '已过期' : '待兑换';
 const actPick = L => { const w = L.map(x => x.w || (x.n ? 3 : x.g === '一等奖' ? 1 : x.g === '二等奖' ? 2 : 3)), T = w.reduce((a, b) => a + b, 0); let r = rnd(T * 100) / 100; for (let k = 0; k < w.length; k++) { r -= w[k]; if (r < 0) return k; } return w.length - 1; };
 const ciGrant = key => { if (!actList().some(a => a.need)) return false; const c = chkGet(); if (c.got.includes(key)) return false; c.got.push(key); if (c.got.length > 200) c.got.splice(0, c.got.length - 200); c.n++; chkSet(c); return true; };
-const CHKK = 'companion.chk.' + (HP_KEY || 'demo');
+const CHKK = 'companion.chk.' + (HP_KEY || 'solo');
 const chkGet = () => { try { const o = JSON.parse(localStorage.getItem(CHKK) || '{}') || {}; return { n: Math.max(0, +o.n || 0), u: Math.max(0, +o.u || 0), d: typeof o.d === 'string' ? o.d : '', got: Array.isArray(o.got) ? o.got : [], jd: Array.isArray(o.jd) ? o.jd : [] }; } catch (e) { return { n: 0, u: 0, d: '', got: [], jd: [] }; } };
 const chkSet = o => { try { localStorage.setItem(CHKK, JSON.stringify(o)); } catch (e) { } };
 /* ===== 复诊打卡与核销记录上传：医院在配置里写了 up（上传地址）和 tk（上传口令）才开启。
@@ -3588,10 +3603,10 @@ const UP_OK = !!(UP_URL && UP_TK && HP_KEY && HK_OK(HP_KEY) && (/^https:\/\//i.t
 /* 智能助手网关：默认调已部署的后端 Worker（juyiibanlvzhinengai）；医院配置里写 ai 则用它跨域调 /api/chat。不再回退同源 */
 const AI_DEFAULT = 'https://juyiibanlvzhinengai.tianxinyuan881.workers.dev';
 const AI_BASE = ((HP && typeof HP.ai === 'string' && HP.ai) || AI_DEFAULT).replace(/\/+$/, '');
-const CTK = 'companion.consent.' + (HP_KEY || 'demo');
-const QK = 'companion.q.' + (HP_KEY || 'demo');
-const PNK = 'companion.pn.' + (HP_KEY || 'demo');
-const PTK = 'companion.pt.' + (HP_KEY || 'demo');
+const CTK = 'companion.consent.' + (HP_KEY || 'solo');
+const QK = 'companion.q.' + (HP_KEY || 'solo');
+const PNK = 'companion.pn.' + (HP_KEY || 'solo');
+const PTK = 'companion.pt.' + (HP_KEY || 'solo');
 const DEVK = 'companion.dev';
 const lsGet = k => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
@@ -3663,11 +3678,11 @@ const chkAvail = () => { const c = chkGet(); return Math.max(0, c.n - c.u); };
 const goCard = (cls, key) => { document.querySelectorAll('.ov').forEach(x => x.remove()); S[key] = true; const e = document.querySelector(cls); if (e) { e.open = true; e.scrollIntoView({ behavior: 'smooth', block: 'start' }); } };
 const actWin = a => a.start && today() < a.start ? '活动 ' + a.start + ' 开始' : a.end && today() > a.end ? '活动已结束' : '';
 function actDone(a) { if (actWin(a)) return true; const r = (actGet()[a.id] || []); return a.per === 'once' ? r.length > 0 : a.per === 'day' ? r.some(x => x.d === today()) : false; }
-const JNYK = 'companion.jny.' + (HP_KEY || 'demo');
+const JNYK = 'companion.jny.' + (HP_KEY || 'solo');
 const jnyGet = () => { try { return JSON.parse(localStorage.getItem(JNYK) || '{}') || {}; } catch (e) { return {}; } };
 const jnySet = o => { try { localStorage.setItem(JNYK, JSON.stringify(o)); } catch (e) { } };
 function jnyList() {
-    const src = HP ? HP.jny : HOSP.demo.jny;
+    const src = HP ? HP.jny : [];
     if (!Array.isArray(src)) return [];
     return src.filter(j => j && typeof j === 'object' && /^[\w-]{1,30}$/.test(j.id || '') && typeof j.t === 'string' && j.t.trim() && Array.isArray(j.steps)).map(j => ({ id: j.id, t: j.t.trim().slice(0, 30), note: typeof j.note === 'string' ? j.note.slice(0, 120) : '', steps: j.steps.filter(x => x && typeof x.t === 'string' && x.t.trim()).slice(0, 15).map(x => ({ t: x.t.trim().slice(0, 40), d: typeof x.d === 'string' ? x.d.trim().slice(0, 160) : '' })) })).filter(j => j.steps.length >= 1).filter((j, i, L) => L.findIndex(x => x.id === j.id) === i).slice(0, 6);
 }
@@ -3703,7 +3718,7 @@ function qrSvg(text, px) {
     } catch (e) { return ''; }
 }
 function actVoucherHtml(a, v) {
-    return '<div style="border:2px dashed ' + (v.n ? '#9ca3af' : '#0f766e') + ';border-radius:12px;padding:10px 12px;margin-top:8px;text-align:left"><div style="font-size:18px;font-weight:700">' + (v.g ? '<span class="tag">' + esc(v.g) + '</span> ' : '') + esc(v.r) + '</div>' + (v.n ? '<div class="sub">本次没有服务，欢迎下次参与。</div>' : '<div class="sub">' + esc(v.desc || '请到院向工作人员出示本凭证') + '</div><div class="sub">流水号：<b>' + esc(v.sn) + '</b> <button type="button" class="ghost" data-cpsn="' + esc(v.sn) + '" style="padding:2px 10px;min-height:0;font-size:13px">复制</button> <button type="button" class="ghost" data-cpsn="' + esc((HP && HP.n ? HP.n + '｜' : '') + (a && a.t ? a.t + '｜' : '') + (v.g ? v.g + ' ' : '') + v.r + '｜流水号 ' + v.sn + '｜有效期至 ' + v.exp + '｜到院出示，以医院登记表为准') + '" style="padding:2px 10px;min-height:0;font-size:13px">复制凭证文字</button></div>' + ((v.used || (v.exp && v.exp < today())) ? '' : '<div style="margin-top:6px">' + qrSvg((HP_KEY || 'demo') + '|' + (a && a.id ? a.id : '') + '|' + v.sn, 112) + '<div class="sub">到院时给工作人员看这张凭证即可；二维码只方便工作人员读流水号，不是付款码</div></div>') + '<div class="sub">抽取时间：' + esc(v.at) + (v.bk ? ' · <b>来自备份</b>' : '') + '</div><div class="sub">有效期至：' + esc(v.exp) + ' · 状态：<b style="white-space:nowrap">' + vState(v) + '</b>' + (v.used ? '（' + esc(v.ut) + '）' : '') + '</div>') + '</div>';
+    return '<div style="border:2px dashed ' + (v.n ? '#9ca3af' : '#0f766e') + ';border-radius:12px;padding:10px 12px;margin-top:8px;text-align:left"><div style="font-size:18px;font-weight:700">' + (v.g ? '<span class="tag">' + esc(v.g) + '</span> ' : '') + esc(v.r) + '</div>' + (v.n ? '<div class="sub">本次没有服务，欢迎下次参与。</div>' : '<div class="sub">' + esc(v.desc || '请到院向工作人员出示本凭证') + '</div><div class="sub">流水号：<b>' + esc(v.sn) + '</b> <button type="button" class="ghost" data-cpsn="' + esc(v.sn) + '" style="padding:2px 10px;min-height:0;font-size:13px">复制</button> <button type="button" class="ghost" data-cpsn="' + esc((HP && HP.n ? HP.n + '｜' : '') + (a && a.t ? a.t + '｜' : '') + (v.g ? v.g + ' ' : '') + v.r + '｜流水号 ' + v.sn + '｜有效期至 ' + v.exp + '｜到院出示，以医院登记表为准') + '" style="padding:2px 10px;min-height:0;font-size:13px">复制凭证文字</button></div>' + ((v.used || (v.exp && v.exp < today())) ? '' : '<div style="margin-top:6px">' + qrSvg((HP_KEY || 'solo') + '|' + (a && a.id ? a.id : '') + '|' + v.sn, 112) + '<div class="sub">到院时给工作人员看这张凭证即可；二维码只方便工作人员读流水号，不是付款码</div></div>') + '<div class="sub">抽取时间：' + esc(v.at) + (v.bk ? ' · <b>来自备份</b>' : '') + '</div><div class="sub">有效期至：' + esc(v.exp) + ' · 状态：<b style="white-space:nowrap">' + vState(v) + '</b>' + (v.used ? '（' + esc(v.ut) + '）' : '') + '</div>') + '</div>';
 }
 function actLog(a) {
     const r = (actGet()[a.id] || []).slice().reverse().slice(0, 30);
@@ -3725,7 +3740,7 @@ function actRedeem(a, sn, parent) {
         const ck = o.querySelector('#rd_chk'); if (ck && !ck.checked) { let e = o.querySelector('#rd_err0'); if (!e) { e = document.createElement('p'); e.id = 'rd_err0'; e.setAttribute('role', 'alert'); e.style.cssText = 'color:#b3261e;font-weight:600'; ck.parentNode.parentNode.insertBefore(e, ck.parentNode.nextSibling); } e.textContent = '请先勾选“已核对”。'; return; }
         if (a.pin) {
             if (!pin) return;
-            const LK = 'companion.rdlock.' + (HP_KEY || 'demo') + '.' + a.id, lk = (() => { try { return JSON.parse(localStorage.getItem(LK) || '{}') || {}; } catch (e) { return {}; } })();
+            const LK = 'companion.rdlock.' + (HP_KEY || 'solo') + '.' + a.id, lk = (() => { try { return JSON.parse(localStorage.getItem(LK) || '{}') || {}; } catch (e) { return {}; } })();
             const erf = t => { let e = o.querySelector('#rd_err'); if (!e) { e = document.createElement('p'); e.id = 'rd_err'; e.setAttribute('role', 'alert'); e.style.color = '#b3261e'; e.style.fontWeight = '600'; pin.parentNode.insertBefore(e, pin.nextSibling); } e.textContent = t; pin.value = ''; pin.focus(); };
             if (lk.until && Date.now() < lk.until) { erf('密码输错次数过多，请 ' + Math.ceil((lk.until - Date.now()) / 60000) + ' 分钟后再试'); return; }
             if (!pin.value) { erf('请输入核销密码'); return; }

@@ -96,14 +96,14 @@ if((S.tk||'').trim()&&!(S.up||'').trim())er.push('填了上传口令就要填上
 if((S.tk||'').trim()&&!/^[a-f0-9]{64}$/.test(S.tk.trim().toLowerCase()))er.push('上传口令不对：应是后台“患者页上传设置”里那串 64 位小写字母和数字，现在 '+S.tk.trim().length+' 位');
 if(!(S.up||'').trim()&&!(S.tk||'').trim())er.push('提醒·没有填上传口令：患者打卡和核销记录不会汇总到后台，医院看不到复诊人数');
 if(S.tel.num.trim()&&!/^[0-9+\-() ]{5,20}$/.test(S.tel.num.trim()))er.push('电话号码格式不对');
-if((o.act||[]).some(a=>a.need)&&!(o.jny||[]).length)er.push('有活动要求整理打卡，但没有填“就诊流程清单”。患者将只能靠“复诊后记录”获得打卡，且要等到复诊日期之后。建议至少配一个流程');
+if((o.act||[]).some(a=>a.need)&&!(o.jny||[]).length)er.push('有活动要求整理打卡，但没有填“就诊流程清单”：患者上线后在复诊日期之前一次整理打卡都拿不到，等于活动“上得了线、打不开”。请至少配一个就诊流程清单，或把该活动的“需要整理打卡次数”改为 0');
 (o.act||[]).forEach(a=>{if(a.start&&a.end&&a.start>a.end)er.push('活动“'+a.t+'”的结束日期早于开始日期')});
 {const seen={};(o.act||[]).forEach(a=>{if(seen[a.id])er.push('活动编号重复：'+a.id+'，请删除重复的活动或改名');seen[a.id]=1})}
 (o.act||[]).forEach(a=>{const w=a.items.filter(x=>!x.n).length;if(a.items.length<2)er.push('活动“'+a.t+'”至少要有 2 个奖项');if(a.per!=='free'&&!a.pin)er.push('活动“'+a.t+'”没有设置工作人员确认码（4–6 位数字）。没有确认码时患者页不能核销，请先填写');if(a.pin&&(/^(\d)\1+$/.test(a.pin)||'0123456789'.includes(a.pin)||'9876543210'.includes(a.pin)||['1234','2468','1357','123456','654321','520520','888888','666666'].includes(a.pin)))er.push('活动“'+a.t+'”的确认码“'+a.pin+'”太容易被猜到（连号、重复数字或常见号码），请换一个');if(!w)er.push('活动“'+a.t+'”没有任何实际服务奖项')});
 return er}
 function words(o){const txt=JSON.stringify(o,(k,v)=>k==='l'?undefined:v),hit=BAN.filter(w=>txt.includes(w));return hit}
 document.getElementById('exp').onclick=()=>{const o=build(),er=check(o);
-const hard=er.filter(x=>!/^(有活动要求整理打卡|提醒·)/.test(x)),hh=words(o).filter(w=>HARD.includes(w));if(hh.length)hard.push('内容里出现高风险医疗宣传词：'+hh.join('、')+'。请删除或改写后再导出（不能承诺治愈或疗效）');if(hard.length){msg('请先修改：\n- '+hard.join('\n- '));return}
+const hard=er.filter(x=>!/^提醒·/.test(x)),hh=words(o).filter(w=>HARD.includes(w));if(hh.length)hard.push('内容里出现高风险医疗宣传词：'+hh.join('、')+'。请删除或改写后再导出（不能承诺治愈或疗效）');if(hard.length){msg('请先修改：\n- '+hard.join('\n- '));return}
 let note=er.length?'提醒：\n- '+er.join('\n- ')+'\n\n':'';
 const hit=words(o);if(hit.length)note+='内容里出现了容易涉及医疗广告违规的词：'+hit.join('、')+'。请确认不是疗效承诺、药品或保健品宣传，并经医院审核。\n\n';
 if((o.act||[]).length)note+='导出前请再确认三点：①“数量说明”只是显示文字，系统不会自动限制数量，库存请医院自己管；②每天一次的活动，抽到“谢谢参与”也算当天已参与（但不扣整理打卡）；③奖项权重留空时按等级默认：一等奖 1、二等奖 2、其他和谢谢参与 3（一等奖机会最小）。\n\n';
