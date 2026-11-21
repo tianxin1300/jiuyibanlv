@@ -7,8 +7,8 @@
 #   4) wrangler deploy
 
 name = "juyibanlvzhinengai"
-# 保留 Cloudflare 面板里手动填的变量/机密，避免每次 Git 构建部署时把面板里的钥匙清掉。
 keep_vars = true
+# keep_vars = true：部署时保留 Cloudflare 面板里手动填的变量/机密，避免每次 Git 构建把面板里的钥匙清掉。
 main = "worker.js"
 compatibility_date = "2024-11-01"
 workers_dev = true
