@@ -267,7 +267,7 @@ function workRuntime() {
 // 工作用模型（按干活能力排，免费优先）
 const WORK_MODELS = {
   groq: ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "openai/gpt-oss-20b"], // v12: 只留 Groq 官网能确认的 3 个
-  openrouter: ["nvidia/nemotron-3-ultra:free", "google/gemma-3-27b-it:free", "nvidia/nemotron-3.5-super-vl:free" /* 看图强 */, "cohere/north-mini-code:free" /* 写代码强 */, "google/gemma-4-26b-a4b:free" /* 快，随手问 */, "meta-llama/llama-3.3-70b-instruct:free"], // v29：前端下拉直接读这张表（/api/models），以后加模型只改这里
+  openrouter: ["nvidia/nemotron-3.5-super-vl:free" /* 之前能用的免费模型，放首位优先用 */, "nvidia/nemotron-3-ultra:free", "google/gemma-3-27b-it:free", "cohere/north-mini-code:free" /* 写代码强 */, "google/gemma-4-26b-a4b:free" /* 快，随手问 */], // v29：前端下拉直接读这张表（/api/models），以后加模型只改这里。已删掉 meta-llama/llama-3.3-70b-instruct:free（已不再免费）
   gemini: ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.0-flash"]
 };
 // 前端带 stream:true → SSE 流式(每 5 秒心跳)；老前端不带 → 一整段 JSON(等待时发空格保活)
@@ -775,7 +775,7 @@ function toGemini(messages) {
 }
 async function tryGemini(messages, key, preferred) {
   const { ver, model } = await getGeminiModel(key);
-  const tries = [...(preferred && preferred !== model ? [{ ver, model: preferred }] : []), { ver, model }, { ver: "v1", model: "gemini-2.5-flash" }, { ver: "v1", model: "gemini-2.5-flash-lite" }];
+  const tries = [...(preferred && preferred !== model ? [{ ver, model: preferred }] : []), { ver, model }, { ver: "v1", model: "gemini-2.5-flash" }, { ver: "v1", model: "gemini-3.5-flash-lite" }];
   const seen = new Set();
   const contents = toGemini(messages);
   for (const t of tries.filter((x) => { const k = x.ver + x.model; return seen.has(k) ? false : (seen.add(k), true); })) {
@@ -5441,7 +5441,7 @@ async function handle(request, env, ctx) {
       const probeOpenRouter = async () => {
         const keys = getKeys(env.OPENROUTER_KEYS); if (!keys.length) return miss("OPENROUTER_KEYS");
         // 不写死模型：按真实干活用的 WORK_MODELS.openrouter 依次试，第一个通的算在线（顺便验证这张表里哪些还活着）
-        const models = (Array.isArray(WORK_MODELS.openrouter) && WORK_MODELS.openrouter.length) ? WORK_MODELS.openrouter : ["meta-llama/llama-3.3-70b-instruct:free"];
+        const models = (Array.isArray(WORK_MODELS.openrouter) && WORK_MODELS.openrouter.length) ? WORK_MODELS.openrouter : ["nvidia/nemotron-3.5-super-vl:free"];
         const t0 = Date.now(), deadline = t0 + 35000;
         let lastErr = "";
         for (const model of models) {
@@ -5461,8 +5461,8 @@ async function handle(request, env, ctx) {
         const t0 = Date.now();
         let gm = { ver: "v1", model: "gemini-2.5-flash" };
         try { gm = await getGeminiModel(keys[0]); } catch { }
-        // 跟真实调用一样带降级链：首选模型不行就依次试 2.5-flash / 2.5-flash-lite，第一个通的算在线
-        const tries = [{ ver: gm.ver, model: gm.model }, { ver: "v1", model: "gemini-2.5-flash" }, { ver: "v1", model: "gemini-2.5-flash-lite" }];
+        // 跟真实调用一样带降级链：首选模型不行就依次试 2.5-flash / 3.5-flash-lite，第一个通的算在线
+        const tries = [{ ver: gm.ver, model: gm.model }, { ver: "v1", model: "gemini-2.5-flash" }, { ver: "v1", model: "gemini-3.5-flash-lite" }];
         const seen = new Set(); let lastErr = "", usedModel = gm.model;
         for (const t of tries) {
           const k = t.ver + t.model; if (seen.has(k)) continue; seen.add(k); usedModel = t.model;
