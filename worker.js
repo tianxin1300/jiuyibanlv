@@ -5452,17 +5452,22 @@ async function handle(request, env, ctx) {
         const t0 = Date.now();
         let gm = { ver: "v1", model: "gemini-2.5-flash" };
         try { gm = await getGeminiModel(keys[0]); } catch { }
-        try {
-          const res = await fetch("https://generativelanguage.googleapis.com/" + gm.ver + "/models/" + gm.model + ":generateContent", { method: "POST", signal: T(30000), headers: { "x-goog-api-key": keys[0], "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "ping" }] }], generationConfig: { maxOutputTokens: 8 } }) });
-          const txt = await res.text().catch(() => "");
-          if (res.ok) return { hasKey: true, keyCount: keys.length, status: "在线", model: gm.model, ms: Date.now() - t0, error: "" };
-          let msg = "HTTP " + res.status + "：" + txt; try { const j = JSON.parse(txt); msg = "HTTP " + res.status + "：" + ((j.error && (j.error.message || j.error.status)) || txt); } catch { }
-          return { hasKey: true, keyCount: keys.length, status: "离线", model: gm.model, ms: Date.now() - t0, error: clip(msg) };
-        } catch (e) {
-          const to = Date.now() - t0, sec = Math.round(to / 1000);
-          const m = (e && (e.name === "TimeoutError" || e.name === "AbortError")) ? ("等 " + sec + " 秒仍无响应：模型 " + gm.model + " 太慢或不可用（真实对话里也走这条，超时 60 秒）") : ("请求失败：" + ((e && e.message) || e));
-          return { hasKey: true, keyCount: keys.length, status: "离线", model: gm.model, ms: to, error: clip(m) };
+        // 跟真实调用一样带降级链：首选模型不行就依次试 2.5-flash / 2.5-flash-lite，第一个通的算在线
+        const tries = [{ ver: gm.ver, model: gm.model }, { ver: "v1", model: "gemini-2.5-flash" }, { ver: "v1", model: "gemini-2.5-flash-lite" }];
+        const seen = new Set(); let lastErr = "", usedModel = gm.model;
+        for (const t of tries) {
+          const k = t.ver + t.model; if (seen.has(k)) continue; seen.add(k); usedModel = t.model;
+          try {
+            const res = await fetch("https://generativelanguage.googleapis.com/" + t.ver + "/models/" + t.model + ":generateContent", { method: "POST", signal: T(20000), headers: { "x-goog-api-key": keys[0], "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "ping" }] }], generationConfig: { maxOutputTokens: 8 } }) });
+            const txt = await res.text().catch(() => "");
+            if (res.ok) return { hasKey: true, keyCount: keys.length, status: "在线", model: t.model, ms: Date.now() - t0, error: "" };
+            let msg = "HTTP " + res.status + "：" + txt; try { const j = JSON.parse(txt); msg = "HTTP " + res.status + "：" + ((j.error && (j.error.message || j.error.status)) || txt); } catch { }
+            lastErr = t.model + " → " + msg;
+          } catch (e) {
+            lastErr = t.model + " → " + (e && (e.name === "TimeoutError" || e.name === "AbortError") ? "等了 " + Math.round((Date.now() - t0) / 1000) + " 秒无响应" : ((e && e.message) || e));
+          }
         }
+        return { hasKey: true, keyCount: keys.length, status: "离线", model: usedModel, ms: Date.now() - t0, error: clip(lastErr) };
       };
       const probeCoze = async () => {
         const tok = String(env.COZE_API_TOKEN || ""), bot = String(env.COZE_BOT_ID || "");
