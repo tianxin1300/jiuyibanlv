@@ -5431,26 +5431,38 @@ async function handle(request, env, ctx) {
       };
       const probeOpenRouter = async () => {
         const keys = getKeys(env.OPENROUTER_KEYS); if (!keys.length) return miss("OPENROUTER_KEYS");
-        const t0 = Date.now();
-        try {
-          const res = await fetch("https://openrouter.ai/api/v1/chat/completions", { method: "POST", signal: T(15000), headers: { Authorization: "Bearer " + keys[0], "Content-Type": "application/json" }, body: JSON.stringify({ model: "meta-llama/llama-3.3-70b-instruct:free", messages: [{ role: "user", content: "ping" }], max_tokens: 8 }) });
-          const txt = await res.text().catch(() => "");
-          if (res.ok) return { hasKey: true, keyCount: keys.length, status: "在线", ms: Date.now() - t0, error: "" };
-          let msg = "HTTP " + res.status + "：" + txt; try { const j = JSON.parse(txt); msg = "HTTP " + res.status + "：" + (j.error && (j.error.message || j.error) || j.message || txt); } catch { }
-          return { hasKey: true, keyCount: keys.length, status: "离线", ms: Date.now() - t0, error: clip(msg) };
-        } catch (e) { return { hasKey: true, keyCount: keys.length, status: "离线", error: clip("请求失败：" + (e && e.message || e)) }; }
+        // 不写死模型：按真实干活用的 WORK_MODELS.openrouter 依次试，第一个通的算在线（顺便验证这张表里哪些还活着）
+        const models = (Array.isArray(WORK_MODELS.openrouter) && WORK_MODELS.openrouter.length) ? WORK_MODELS.openrouter : ["meta-llama/llama-3.3-70b-instruct:free"];
+        const t0 = Date.now(), deadline = t0 + 35000;
+        let lastErr = "";
+        for (const model of models) {
+          if (Date.now() > deadline) { lastErr = lastErr || "列表里的模型都超时，没试完"; break; }
+          try {
+            const res = await fetch("https://openrouter.ai/api/v1/chat/completions", { method: "POST", signal: T(15000), headers: { Authorization: "Bearer " + keys[0], "Content-Type": "application/json" }, body: JSON.stringify({ model, messages: [{ role: "user", content: "ping" }], max_tokens: 8 }) });
+            const txt = await res.text().catch(() => "");
+            if (res.ok) return { hasKey: true, keyCount: keys.length, status: "在线", model, ms: Date.now() - t0, error: "" };
+            let msg = "HTTP " + res.status + "：" + txt; try { const j = JSON.parse(txt); msg = "HTTP " + res.status + "：" + (j.error && (j.error.message || j.error) || j.message || txt); } catch { }
+            lastErr = model + " → " + msg;
+          } catch (e) { lastErr = model + " → 请求失败：" + (e && e.message || e); }
+        }
+        return { hasKey: true, keyCount: keys.length, status: "离线", ms: Date.now() - t0, error: clip(lastErr) };
       };
       const probeGemini = async () => {
         const keys = getKeys(env.GEMINI_KEYS); if (!keys.length) return miss("GEMINI_KEYS");
         const t0 = Date.now();
+        let gm = { ver: "v1", model: "gemini-2.5-flash" };
+        try { gm = await getGeminiModel(keys[0]); } catch { }
         try {
-          const gm = await getGeminiModel(keys[0]);
-          const res = await fetch("https://generativelanguage.googleapis.com/" + gm.ver + "/models/" + gm.model + ":generateContent", { method: "POST", signal: T(15000), headers: { "x-goog-api-key": keys[0], "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "ping" }] }], generationConfig: { maxOutputTokens: 8 } }) });
+          const res = await fetch("https://generativelanguage.googleapis.com/" + gm.ver + "/models/" + gm.model + ":generateContent", { method: "POST", signal: T(30000), headers: { "x-goog-api-key": keys[0], "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "ping" }] }], generationConfig: { maxOutputTokens: 8 } }) });
           const txt = await res.text().catch(() => "");
           if (res.ok) return { hasKey: true, keyCount: keys.length, status: "在线", model: gm.model, ms: Date.now() - t0, error: "" };
           let msg = "HTTP " + res.status + "：" + txt; try { const j = JSON.parse(txt); msg = "HTTP " + res.status + "：" + ((j.error && (j.error.message || j.error.status)) || txt); } catch { }
           return { hasKey: true, keyCount: keys.length, status: "离线", model: gm.model, ms: Date.now() - t0, error: clip(msg) };
-        } catch (e) { return { hasKey: true, keyCount: keys.length, status: "离线", error: clip("请求失败：" + (e && e.message || e)) }; }
+        } catch (e) {
+          const to = Date.now() - t0, sec = Math.round(to / 1000);
+          const m = (e && (e.name === "TimeoutError" || e.name === "AbortError")) ? ("等 " + sec + " 秒仍无响应：模型 " + gm.model + " 太慢或不可用（真实对话里也走这条，超时 60 秒）") : ("请求失败：" + ((e && e.message) || e));
+          return { hasKey: true, keyCount: keys.length, status: "离线", model: gm.model, ms: to, error: clip(m) };
+        }
       };
       const probeCoze = async () => {
         const tok = String(env.COZE_API_TOKEN || ""), bot = String(env.COZE_BOT_ID || "");
@@ -5459,10 +5471,16 @@ async function handle(request, env, ctx) {
         const base = String(env.COZE_API_BASE || "https://api.coze.cn").replace(/\/+$/, "");
         const t0 = Date.now();
         try {
-          const res = await fetch(base + "/v3/chat", { method: "POST", signal: T(20000), headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" }, body: JSON.stringify({ bot_id: bot, user_id: "openmanus-gateway", stream: false, auto_save_history: false, additional_messages: [{ role: "user", content: "ping", content_type: "text" }] }) });
+          // 跟真实 cozeChat 完全一致：stream:true + auto_save_history:false（Coze 规定 auto_save_history=false 时必须 stream:true，用 false 会被拒）
+          const res = await fetch(base + "/v3/chat", { method: "POST", signal: T(30000), headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" }, body: JSON.stringify({ bot_id: bot, user_id: "openmanus-gateway", stream: true, auto_save_history: false, additional_messages: [{ role: "user", content: "ping", content_type: "text" }] }) });
           const txt = await res.text().catch(() => "");
+          if (res.ok) {
+            const m = txt.match(/"code"\s*:\s*(-?\d+)/);
+            const code = m ? Number(m[1]) : 0;
+            if (code === 0) return { hasKey: true, hasBot: true, status: "在线", ms: Date.now() - t0, error: "" };
+            return { hasKey: true, hasBot: true, status: "离线", ms: Date.now() - t0, error: clip("HTTP 200：code=" + code + " " + txt) };
+          }
           let j = {}; try { j = JSON.parse(txt); } catch { }
-          if (res.ok && (j.code === 0 || j.code == null)) return { hasKey: true, hasBot: true, status: "在线", ms: Date.now() - t0, error: "" };
           return { hasKey: true, hasBot: true, status: "离线", ms: Date.now() - t0, error: clip("HTTP " + res.status + "：code=" + (j.code == null ? "?" : j.code) + " " + (j.msg || txt)) };
         } catch (e) { return { hasKey: true, hasBot: true, status: "离线", error: clip("请求失败：" + (e && e.message || e)) }; }
       };
