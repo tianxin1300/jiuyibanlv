@@ -524,6 +524,179 @@ body.pvmode{background:#fff!important;color:#111!important}
 body.pvmode::before,body.pvmode::after{display:none!important}
 body.pvmode h1::before{display:none!important}
 @media print{body::before,body::after{display:none!important}body{background:#fff!important;color:#111!important}}
+
+/* ===== v52 极简工作台：单一蓝色强调、轻顶栏、白卡、紧凑排版 ===== */
+:root:root{
+  --bg:#f6f7f9!important;--card:#fff!important;--ink:#0d1522!important;--mute:#6b7482!important;
+  --line:#e8ecf2!important;--c:#2f6bff!important;--r:14px!important;color-scheme:light!important;
+  --soft:#f5f7fb;--blue-soft:#eef3ff;--ok:#0f9f6e
+}
+html{background:#f6f7f9!important}
+body{background:transparent!important;color:#0d1522!important;font-size:15px!important;line-height:1.55!important;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","HarmonyOS Sans SC","MiSans","Noto Sans SC",system-ui,sans-serif!important;letter-spacing:0!important;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0;z-index:-1;height:auto!important;width:auto!important;background:linear-gradient(180deg,#fbfcfe 0%,#f6f7f9 42%,#f5f6f8 100%)!important}
+body::after{display:none!important}
+main{max-width:700px!important;padding:20px 16px calc(104px + env(safe-area-inset-bottom,0px))!important;margin:0 auto!important}
+h1{font-size:24px!important;line-height:1.3!important;font-weight:700!important;letter-spacing:-.015em!important;color:#0b1220!important;margin:4px 0 6px!important;text-shadow:none!important}
+h1::before{display:none!important}
+h1 small{font-size:13px!important;font-weight:500!important;color:#6b7482!important;letter-spacing:0!important}
+.note{font-size:12.5px!important;line-height:1.65!important;color:#7a8493!important;border:0!important;padding:0!important;margin:0 0 20px!important;text-shadow:none!important}
+.note b,.note strong{color:#3c4655!important}
+.gt{font-size:11.5px!important;font-weight:600!important;letter-spacing:.08em!important;color:#8b94a3!important;margin:26px 2px 10px!important;text-shadow:none!important}
+.gt::before{content:"";display:inline-block;width:3px;height:12px;border-radius:2px;background:#2f6bff;vertical-align:-1px;margin-right:8px;opacity:1}
+
+/* 品牌标：只用蓝色一个色系 */
+.brand-mark{border-radius:12px!important;background:linear-gradient(150deg,#5b8cff 0%,#2f6bff 55%,#1f4ed8 100%)!important;box-shadow:0 8px 18px -10px rgba(47,107,255,.65),inset 0 1px 0 rgba(255,255,255,.4)!important}
+.brand-mark .orbit{inset:-5px!important;border-radius:16px!important;border-color:rgba(47,107,255,.28)!important}
+.brand-mark .orbit::before{width:4px!important;height:4px!important;background:#2f6bff!important;box-shadow:0 0 8px rgba(47,107,255,.55)!important}
+.brand-mark .ripple{border-color:rgba(47,107,255,.42)!important}
+.brand-mark.burst{animation:brandPop .8s cubic-bezier(.2,.8,.2,1)}
+@keyframes brandSpin{to{transform:rotate(360deg)}}
+@keyframes brandPop{0%{transform:scale(1)}32%{transform:scale(1.08) rotate(-3deg)}62%{transform:scale(.98) rotate(2deg)}100%{transform:scale(1)}}
+@keyframes brandRipple{0%{opacity:.6;transform:scale(1)}100%{opacity:0;transform:scale(2.1)}}
+
+/* 顶栏改为浅色，和内容同一套色 */
+#authBar{background:rgba(255,255,255,.88)!important;border-bottom:1px solid #e8ecf2!important;box-shadow:none!important;backdrop-filter:blur(16px)!important;-webkit-backdrop-filter:blur(16px)!important}
+.authbar-in{max-width:700px!important;padding:9px 16px!important}
+.authbar-brand b{color:#0b1220!important;font-size:14px!important;font-weight:650!important;letter-spacing:0!important}
+.authbar-brand .brand-mark{width:26px!important;height:26px!important;border-radius:8px!important;margin:0!important}
+.authbar-brand .brand-mark::before{width:4px!important;height:13px!important}
+.authbar-brand .brand-mark::after{width:13px!important;height:4px!important}
+.authbar-brand .brand-mark .orbit{inset:-4px!important;border-radius:11px!important}
+#authHi{color:#6b7482!important;font-size:12.5px!important;text-align:right!important;flex:1!important;font-weight:500!important}
+#authBar .ghost{background:#f5f7fb!important;color:#3c4655!important;border:1px solid #e8ecf2!important;border-radius:9px!important;min-height:34px!important;padding:5px 11px!important;font-size:12.5px!important;box-shadow:none!important}
+
+/* 卡片体系：去掉渐变和重阴影 */
+.card,.opt,.qk button,.tabs,.tip,.care-role,.care-step,.auth-card,.item,.mod,.toast{background:#fff!important;border:1px solid #e8ecf2!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+.card{border-radius:14px!important;padding:16px!important;margin-bottom:12px!important;position:relative}
+.card::before{display:none!important}
+.card.hd{box-shadow:inset 3px 0 0 #2f6bff!important}
+.card h2{font-size:15.5px!important;font-weight:650!important;letter-spacing:-.005em!important;color:#0b1220!important;margin:0 0 8px!important}
+.card h2 small{font-size:11px!important;color:#2f6bff!important;font-weight:600!important;letter-spacing:0!important}
+.card>b,.card summary b,.flow h2,.today h2,.wk summary b{color:#0b1220!important}
+.sub,.card small.sub,.item .sub,.action-note,.care-note{font-size:12.5px!important;line-height:1.6!important;color:#6b7482!important}
+.tip{padding:12px 14px!important;border-radius:12px!important;background:#fafbfd!important}
+.tip summary{font-size:13px!important;font-weight:600!important;color:#3c4655!important}
+.tip p{font-size:12.5px!important;line-height:1.65!important;color:#6b7482!important}
+
+/* 按钮：全站只有一个蓝色主动作 */
+button.btn,.lnkb{background:#2f6bff!important;color:#fff!important;border:0!important;border-radius:10px!important;font-weight:600!important;font-size:14px!important;box-shadow:0 6px 14px -8px rgba(47,107,255,.5)!important}
+button.ghost,.lnkg,.hb .ghost,.acct .ghost{background:#fff!important;color:#1a2230!important;border:1px solid #e1e6ee!important;border-radius:10px!important;font-weight:600!important;box-shadow:none!important}
+button.btn:focus-visible,button.ghost:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid #2f6bff;outline-offset:2px}
+input,select,textarea{background:#fbfcfe!important;border:1px solid #e1e6ee!important;color:#0b1220!important;border-radius:10px!important;font-size:14px!important}
+input::placeholder,textarea::placeholder{color:#9aa3b2!important}
+.chip{background:#f2f4f8!important;border-color:#e8ecf2!important;color:#4a5462!important;border-radius:999px!important;font-size:13px!important}
+.chip[aria-pressed=true]{background:#eef3ff!important;color:#1f4ed8!important;border-color:#c9d8ff!important}
+.tabs{background:#f2f4f8!important;border:0!important;border-radius:12px!important;padding:3px!important}
+.tab{color:#6b7482!important;border-radius:9px!important;font-weight:600!important}
+.tab[aria-pressed=true]{background:#fff!important;color:#1f4ed8!important;box-shadow:0 1px 3px rgba(16,24,40,.10)!important}
+.opt{border-radius:12px!important;border-left:1px solid #e8ecf2!important;box-shadow:inset 3px 0 0 #2f6bff!important}
+.opt b{font-size:15px!important;color:#0b1220!important}
+.opt small{font-size:12.5px!important;color:#6b7482!important}
+.opts .opt[aria-pressed=true]{background:#f5f8ff!important;border-color:#c9d8ff!important;box-shadow:inset 3px 0 0 #2f6bff!important}
+.item{border-radius:10px!important;background:#fafbfd!important;border:1px solid #eef1f5!important}
+.item b{font-size:14px!important;color:#0b1220!important}
+.tag{background:#f2f4f8!important;color:#5b6472!important;border:1px solid #e8ecf2!important;border-radius:6px!important;font-size:11px!important;letter-spacing:0!important;font-weight:600!important}
+.tag.bad{background:#fdf0ef!important;color:#b42318!important;border-color:#f6d4d0!important}
+
+/* 复诊与今日 */
+.today,.flow,.wk{background:#fff!important;border-color:#e8ecf2!important;box-shadow:none!important}
+.today .item{background:#fafbfd!important;border-color:#eef1f5!important}
+.flow{border-color:#e8ecf2!important}
+.flow-step{background:#fafbfd!important;border:1px solid #eef1f5!important;border-radius:10px!important}
+.flow-step.flow-done{background:#f2fbf7!important;border-color:#d3f0e3!important}
+.flow-num{background:#eef3ff!important;color:#1f4ed8!important;border:1px solid #dfe8ff!important;font-weight:650!important}
+.flow-done .flow-num{background:#0f9f6e!important;color:#fff!important;border-color:#0f9f6e!important}
+.flow-step .btn{background:#fff!important;color:#1f4ed8!important;border:1px solid #c9d8ff!important;box-shadow:none!important;padding:7px 12px!important;font-size:13px!important;min-height:34px!important;border-radius:9px!important}
+.flow-step .btn:hover{background:#f5f8ff!important}
+.wk .item .sub{font-size:12.5px!important}
+
+/* 医院服务 */
+.hosp,.hosp-jny,.hosp-act{border:1px solid #e8ecf2!important;border-left:1px solid #e8ecf2!important;border-radius:14px!important;background:#fff!important;box-shadow:none!important}
+.hosp>summary b,.hosp-jny>summary b,.hosp-act>summary b{font-size:14.5px!important;font-weight:650!important;color:#0b1220!important}
+.hosp .item,.hosp-jny .item,.hosp-act .item{background:#fafbfd!important;border-color:#eef1f5!important}
+.hosp-act .btn{font-size:13px!important;min-height:34px!important;padding:6px 11px!important;border-radius:9px!important}
+details.fl{border:1px solid #eef1f5!important;background:#fafbfd!important;border-radius:10px!important;padding:10px 12px!important;margin:8px 0}
+details.fl>summary{color:#1a2230!important;font-size:13.5px!important}
+details>summary{cursor:pointer!important}
+details>summary:hover b{color:#2f6bff!important}
+
+/* 六角色：白色卡片，不再用深色大块 */
+.care-deck{background:#fff!important;border:1px solid #e8ecf2!important;box-shadow:none!important;overflow:hidden}
+.care-deck::before{display:none!important}
+.care-deck>h2{color:#0b1220!important;font-size:17px!important;letter-spacing:-.01em!important;display:flex!important;align-items:center!important;gap:8px!important}
+.care-deck>h2::before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;background:#2f6bff;flex:none}
+.care-deck>h2::after{content:"6 角色 · 7 步";float:right;font-size:10px!important;letter-spacing:.02em!important;color:#9aa3b2!important;font-weight:600!important;margin-top:4px}
+.care-deck>p.sub,.care-deck .care-note{color:#6b7482!important}
+.care-role-grid{gap:8px!important;margin:12px 0!important}
+.care-role{background:#fafbfd!important;border:1px solid #eef1f5!important;border-radius:11px!important;padding:12px!important;color:#0b1220!important;box-shadow:none!important}
+.care-role::after{display:none!important}
+.care-role em{color:#8b94a3!important;font-size:9.5px!important;letter-spacing:.10em!important;font-weight:600!important;margin-bottom:4px!important}
+.care-role em::before{content:"";display:inline-block;width:4px;height:4px;border-radius:50%;background:#2f6bff;box-shadow:none!important;margin-right:5px;vertical-align:1px}
+.care-role b{color:#0b1220!important;font-size:13.5px!important;font-weight:650!important;letter-spacing:0!important}
+.care-role small{color:#7a8493!important;font-size:11.5px!important;line-height:1.45!important}
+.care-role[aria-pressed=true]{background:#f5f8ff!important;border-color:#b9ccff!important;box-shadow:inset 0 0 0 1px #b9ccff!important}
+.care-chat{background:#fafbfd!important;border:1px solid #eef1f5!important;border-radius:11px!important}
+.care-msg{background:#fff!important;border:1px solid #eef1f5!important;color:#0b1220!important;border-radius:10px!important;box-shadow:none!important;font-size:13.5px!important}
+.care-msg.me{background:#eef3ff!important;border-color:#dfe8ff!important;color:#1e3a8a!important}
+.care-msg.err{background:#fdf0ef!important;border-color:#f6d4d0!important;color:#9f2a20!important}
+.care-step{background:#fff!important;border:1px solid #eef1f5!important;border-radius:11px!important;box-shadow:none!important}
+.care-step.done{background:#f2fbf7!important;border-color:#d3f0e3!important}
+.care-step.cur{border-color:#b9ccff!important;box-shadow:none!important}
+.care-step .n{background:#f2f4f8!important;border-color:#e8ecf2!important;color:#6b7482!important}
+.care-step.done .n{background:#0f9f6e!important;color:#fff!important;border-color:#0f9f6e!important}
+.care-step.cur .n{background:#2f6bff!important;color:#fff!important;border-color:#2f6bff!important}
+
+/* 登录 */
+#authGate{background:linear-gradient(180deg,#fbfcfe,#f4f6f9 70%)!important}
+.auth-card{background:#fff!important;border:1px solid #e8ecf2!important;border-radius:18px!important;box-shadow:0 24px 60px -40px rgba(16,24,40,.35)!important;backdrop-filter:none!important}
+.auth-card>.brand-mark{width:52px!important;height:52px!important;border-radius:15px!important}
+.auth-card>.brand-mark::before{width:8px!important;height:26px!important}
+.auth-card>.brand-mark::after{width:26px!important;height:8px!important}
+.auth-card>.brand-mark .orbit{inset:-7px!important;border-radius:19px!important}
+.brand-eyebrow{font-size:9.5px!important;letter-spacing:.22em!important;color:#8b94a3!important;font-weight:600!important;margin:0 0 8px!important}
+.auth-card h1{font-size:23px!important;text-align:center!important;margin:0 0 6px!important}
+.auth-card .sub{text-align:center!important;color:#6b7482!important}
+.auth-card label{color:#3c4655!important}
+.auth-card input{background:#fbfcfe!important;border-color:#e1e6ee!important}
+
+/* 品牌动画 */
+.brand-stage{background:rgba(10,16,28,.68)!important;backdrop-filter:blur(16px)!important;-webkit-backdrop-filter:blur(16px)!important}
+.brand-stage .brand-mark{width:88px!important;height:88px!important;border-radius:26px!important;box-shadow:0 24px 60px -18px rgba(47,107,255,.65)!important}
+.brand-stage .brand-mark::before{width:12px!important;height:42px!important}
+.brand-stage .brand-mark::after{width:42px!important;height:12px!important}
+.brand-stage .brand-mark .orbit{inset:-11px!important;border-radius:34px!important;border-color:rgba(255,255,255,.4)!important}
+.brand-stage-card strong{font-size:26px!important;letter-spacing:.02em!important}
+.brand-stage-card span{color:#9db8ff!important;font-size:9.5px!important;letter-spacing:.26em!important}
+.brand-stage-card small{color:#9aa3b2!important;font-size:12.5px!important}
+
+/* 首页辅助区、演示入口与页内导航 */
+.home-more,.home-tools{border:1px solid #e8ecf2!important;background:#fafbfd!important;box-shadow:none!important;border-radius:12px!important;padding:12px 14px!important}
+.home-more>summary,.home-tools>summary{color:#7a8493!important;font-size:12px!important;font-weight:500!important}
+.home-more .ghost,.home-tools .ghost{font-size:12px!important;min-height:34px!important;padding:5px 10px!important;background:#fff!important;border-color:#e1e6ee!important;color:#4a5462!important;box-shadow:none!important}
+.card[data-act="prevhosp"]{background:#fafbfd!important;border-style:solid!important;border-color:#e8ecf2!important;box-shadow:none!important}
+.card[data-act="prevhosp"] b{color:#1a2230!important}
+.card[data-act="prevhosp"] .btn{background:#fff!important;border:1px solid #c9d8ff!important;color:#1f4ed8!important;box-shadow:none!important}
+.qk button{background:#fff!important;border:1px solid #e8ecf2!important;color:#3c4655!important;border-radius:11px!important;box-shadow:none!important}
+.qk button[aria-pressed=true]{color:#1f4ed8!important;border-color:#c9d8ff!important;background:#f5f8ff!important}
+.aib.a{background:#fafbfd!important;border-color:#eef1f5!important;color:#0b1220!important}
+.aib.u{background:#2f6bff!important;color:#fff!important}
+.aib.e{background:#fdf0ef!important;color:#9f2a20!important;border-color:#f6d4d0!important}
+p.sub[style*="background:#fff4e5"],b[style*="background:#fff4e5"]{background:#fdf0ef!important;color:#9f2a20!important}
+
+/* 弹层 */
+.ov{background:rgba(16,24,40,.42)!important;backdrop-filter:blur(6px)!important;-webkit-backdrop-filter:blur(6px)!important}
+.ov[data-rd]{background:rgba(248,250,252,.96)!important;color:#0b1220!important}
+.mod{background:#fff!important;color:#0b1220!important;border:1px solid #e8ecf2!important;border-radius:16px!important;box-shadow:0 30px 80px -40px rgba(16,24,40,.45)!important}
+.mod h1,.mod h2,.mod b{color:#0b1220!important}
+.pnav{background:rgba(255,255,255,.9)!important;border-bottom:1px solid #e8ecf2!important;backdrop-filter:blur(16px)!important;-webkit-backdrop-filter:blur(16px)!important}
+.pname{color:#0b1220!important}
+.back{color:#3c4655!important;background:#f2f4f8!important;border-color:#e8ecf2!important}
+.hb{background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important}
+.empty{background:#fafbfd!important;border-style:dashed!important;border-color:#dfe5ee!important}
+.toast{background:#0b1220!important;color:#fff!important;border:1px solid rgba(255,255,255,.12)!important;box-shadow:0 12px 30px -12px rgba(16,24,40,.5)!important}
+#icp,.foot,.foot2{color:#9aa3b2!important;font-size:12px!important}
+#icp a,.foot a,.foot2 a{color:#2f6bff!important}
+@media(max-width:420px){.authbar-brand b{display:none}.care-deck>h2::after{display:none}}
 </style></head><body>
 <header id="authBar" hidden><div class="authbar-in"><div class="authbar-brand"><button class="brand-mark" data-brand type="button" aria-label="播放品牌动画"><i class="orbit"></i><i class="ripple"></i></button><b>就医伴侣</b></div><span id="authHi"></span><button class="ghost" id="authOut" type="button">退出登录</button></div></header>
 <main id="app"></main>
@@ -1947,7 +2120,8 @@ function save() {
 }
 const esc = s => String(s !== null && s !== void 0 ? s : '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const cur = () => S.profiles.find(p => p.id === S.cur);
-const label = p => p.member + ' · ' + dn(p) + (p.disease === 'rare' ? (p.age === 'child' ? '(儿童)' : '(成人)') : '');
+const niceMember = s => String(s || '').replace(/^示例（可删除）$/, '林女士').replace(/（可删除）/g, '').trim();
+const label = p => niceMember(p.member) + ' · ' + dn(p) + (p.disease === 'rare' ? (p.age === 'child' ? '(儿童)' : '(成人)') : '');
 function chips() { return `<div class="chips">${S.profiles.map(p => `<button class="chip" aria-pressed="${S.view === 'list' && p.id === S.cur}" data-act="pick" data-id="${p.id}" style="--c:${COL[p.disease]}">${esc(label(p))}</button>`).join('')}<button class="chip add" data-act="new">＋ 新建档案</button></div>`; }
 const secs = p => { const F = D[p.disease].f, lo = S.lo || {}, K1 = ['diag', 'hosp', 'dept', 'dx', 'dnote'], K2 = ['allergy', 'flags', 'hist0'], g = (ks, n) => F.filter(f => n ? !K1.includes(f.k) && !K2.includes(f.k) : ks.includes(f.k)).map(f => field(f, p)).join(''), sec = (k, t, h, open) => h ? `<details class="fl sec" data-fk="${k}"${open ? ' open' : ''}><summary><b>${t}</b></summary>${h}</details>` : ''; return sec('sec_base', '基础信息与诊断', g(K1), !!lo.sec_base) + sec('sec_alg', '过敏与既往史', g(K2), !!lo.sec_alg) + sec('sec_main', '科室专项与记录', g(0, 1), lo.sec_main !== false); };
 function field(f, p) {
@@ -2000,7 +2174,7 @@ ${d.disease === 'tumor' ? `<label>肿瘤类型</label><div style="display:flex;f
     else {
         const p = cur();
         if (!p)
-            h += `<div class="card empty"><h2>还没有档案</h2><p class="sub">选择就诊科室或专科病种，建立第一份档案。先选科室即可，病种可按需要选择。</p><button class="btn" data-act="new">新建档案</button> <button class="ghost" data-act="demo">查看示例</button> <button class="ghost" data-act="bk">从备份恢复</button>${HP ? '' : ' <button class="ghost" data-act="prevhosp">预览医院版（演示）</button>'}</div>` + (typeof careEntryCard === 'function' ? careEntryCard() : '') + hospitalZone() + hubData() + homeDemo() + posCard();
+            h += `<div class="card empty"><h2>还没有档案</h2><p class="sub">选择就诊科室或专科病种，建立第一份档案。先选科室即可，病种可按需要选择。</p><button class="btn" data-act="new">新建档案</button> <button class="ghost" data-act="demo">载入试用数据</button> <button class="ghost" data-act="bk">从备份恢复</button>${HP ? '' : ' <button class="ghost" data-act="prevhosp">体验医院服务</button>'}</div>` + (typeof careEntryCard === 'function' ? careEntryCard() : '') + hospitalZone() + hubData() + homeDemo() + posCard();
         else
             h += `<div class="pnav" style="--c:${COL[p.disease]}"><div class="phd"><button class="back" data-act="home" aria-label="返回全部档案">‹ 返回</button><b class="pname">${esc(label(p))}</b></div>` + tabs() + `</div>` + (S.tab === "tl" ? tlView(p) : S.tab === "mx" ? mxView(p) : S.tab === "sm" ? smView(p) : S.tab === "ai" ? aiView(p) : visitFlowCard(p, flowVisit(p)) + `<div class="card hd" style="--c:${COL[p.disease]}"><h2>档案信息</h2><label>下次复诊日期（可不填）</label><div class="row"><input type="date" data-k="nvd" value="${esc(p.data.nvd || '')}" aria-label="下次复诊日期"><button class="ghost" data-act="tics" data-pid="${p.id}" data-v="1">下载日历提醒文件</button></div><p class="sub">填了日期，复诊前 14 天内首页会出现复诊准备卡，并带你去准备清单和摘要。</p><label>成员称呼</label><input data-mem="1" value="${esc(p.member)}">${secs(p)}${medsView(p)}<div class="bar"><span class="saved" id="sv">修改会自动保存在本机</span>${more('<button class="ghost del" data-act="del">删除档案</button>')}</div></div>`);
     }
@@ -2029,7 +2203,7 @@ const iget = async (k) => { const d = await idb(); return new Promise((s, j) => 
 const idel = k => idb().then(d => d.transaction('i', 'readwrite').objectStore('i').delete(k)).catch(() => { });
 const idelw = async (k) => { const d = await idb(); return new Promise((s, j) => { const t = d.transaction('i', 'readwrite'); t.objectStore('i').delete(k); t.oncomplete = s; t.onerror = () => j(t.error); t.onabort = () => j(t.error); }); };
 const tabs = () => `<nav class="tabs" aria-label="档案栏目">${[['info', '档案', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3h6v3H9zM8.5 11h7M8.5 15h5"/></svg>'], ['tl', '时间线', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>'], ['mx', '指标', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16h16"/><path d="M7 15l4-4 3 3 5-6"/></svg>'], ['sm', '复诊摘要', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>'], ['ai', '智能助手', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a4 4 0 0 0-4 4v1a7 7 0 1 0 8 0V7a4 4 0 0 0-4-4z"/><path d="M9 11h.01M15 11h.01M9.5 15a3 3 0 0 0 5 0"/></svg>']].map(t => `<button class="tab" aria-pressed="${S.tab === t[0]}" data-act="tab" data-t="${t[0]}"><span class="ti" aria-hidden="true">${t[2]}</span><span class="tl">${t[1]}</span></button>`).join('')}</nav>`;
-const APP_VER = '2026.11.30';
+const APP_VER = '2026.11.31';
 const CC_SYM = ['发烧 / 怕冷', '咳嗽 / 咳痰', '头痛 / 头晕', '心慌 / 心悸', '肚子痛 / 胃不舒服', '拉肚子 / 便秘 / 恶心呕吐', '尿频 / 尿痛 / 血尿', '血压 / 血糖问题', '失眠 / 情绪差 / 记性差', '伤口 / 肿块', '腰腿痛 / 关节痛 / 脖子痛', '摔伤 / 扭伤', '牙痛 / 牙龈出血 / 口腔溃疡', '皮疹 / 瘙痒', '看东西模糊 / 眼红 / 眼痛', '耳鸣 / 听力下降 / 鼻塞 / 咽痛', '月经问题 / 备孕', '孩子不舒服', '常规体检 / 带着已有的检查报告', '想看中医 / 调理身体'];
 const CC_DUR = ['今天刚出现', '两三天内', '一周左右', '一个月内', '几个月了', '半年以上', '长期反复'];
 const CC_SEV = ['轻微，不影响生活', '有点难受，能忍', '比较难受，影响睡觉/吃饭', '很难受'];
@@ -2556,9 +2730,9 @@ const ptRow = (m, x) => S.mxe === m.id + '|' + x.id ? `<div class="item"><div cl
 const askModal = h => new Promise(res => { const o = document.createElement('div'); o.className = 'ov'; o.innerHTML = '<div class="mod">' + h + '<div class="bar"><button class="ghost" id="ao_n">取消</button><button class="btn" id="ao_y">确认恢复</button></div></div>'; document.body.appendChild(o); o.querySelector('#ao_n').onclick = () => { o.remove(); res(false); }; o.querySelector('#ao_y').onclick = () => { o.remove(); res(true); }; });
 function mkDemo() {
     const D0 = n => new Date(Date.now() - n * 864e5 - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10), pt = (n, v) => ({ id: 'x' + n, date: D0(n), v });
-    return { id: 'demo' + Date.now(), member: '示例（可删除）', disease: 'breast', demo: 1, data: { diag: D0(300), hosp: '示例医院', dept: '乳腺外科', sub: 'Luminal A型', stage: 'II期', hist: [{ type: '手术', date: D0(280), note: '保乳手术（示例）' }, { type: '内分泌治疗', date: D0(240), note: '示例药物，每日一次' }], targets: [{ name: '体重', val: '≤65 kg' }], ask: '这个药需要吃多久？\n下次复查需要做哪些检查？' },
-        tl: [{ id: 'r1', kind: '就诊记录', date: D0(60), hosp: '示例医院 乳腺外科', text: '术后复诊（示例内容，可删除）', imgs: [] }, { id: 'r2', kind: '化验抽血记录', date: D0(45), hosp: '示例医院', text: '肿瘤标志物、血常规（示例）', imgs: [] }, { id: 'r3', kind: '影像检查记录', date: D0(30), hosp: '示例医院', text: '乳腺超声结论摘要（示例）', imgs: [] }, { id: 'r4', kind: '用药', date: D0(20), hosp: '', text: '已服药：示例药物', imgs: [] }, { id: 'r5', kind: '不良反应', date: D0(10), hosp: '', text: '轻微关节不适（示例）', imgs: [] }],
-        orders: [{ id: 'o1', date: D0(10), cat: '复查随访', text: '两周后复查血常规（示例）', due: D0(-14), done: false }, { id: 'o2', date: D0(10), cat: '用药', text: '按医生交代每天固定时间服药（示例）', due: '', done: true, doneAt: D0(9) }],
+    return { id: 'demo' + Date.now(), member: '林女士', disease: 'breast', demo: 1, data: { diag: D0(300), hosp: '康宁医院', dept: '乳腺外科', sub: 'Luminal A型', stage: 'II期', hist: [{ type: '手术', date: D0(280), note: '保乳手术' }, { type: '内分泌治疗', date: D0(240), note: '内分泌药物，每日一次' }], targets: [{ name: '体重', val: '≤65 kg' }], ask: '这个药需要吃多久？\n下次复查需要做哪些检查？' },
+        tl: [{ id: 'r1', kind: '就诊记录', date: D0(60), hosp: '康宁医院 乳腺外科', text: '术后复诊', imgs: [] }, { id: 'r2', kind: '化验抽血记录', date: D0(45), hosp: '康宁医院', text: '肿瘤标志物、血常规', imgs: [] }, { id: 'r3', kind: '影像检查记录', date: D0(30), hosp: '康宁医院', text: '乳腺超声结论摘要', imgs: [] }, { id: 'r4', kind: '用药', date: D0(20), hosp: '', text: '已服药：内分泌药物', imgs: [] }, { id: 'r5', kind: '不良反应', date: D0(10), hosp: '', text: '轻微关节不适', imgs: [] }],
+        orders: [{ id: 'o1', date: D0(10), cat: '复查随访', text: '两周后复查血常规', due: D0(-14), done: false }, { id: 'o2', date: D0(10), cat: '用药', text: '按医生交代每天固定时间服药', due: '', done: true, doneAt: D0(9) }],
         mx: [{ id: 'mCA153', name: 'CA153', unit: 'U/mL', lo: '', hi: 25, my: 1, rsrc: 'me', pts: [pt(90, 18), pt(60, 21), pt(30, 23), pt(5, 27)] }, { id: 'mCEA', name: 'CEA', unit: 'ng/mL', lo: '', hi: 5, pts: [pt(90, 2.1), pt(60, 2.4), pt(30, 2.2), pt(5, 2.6)] }] };
 }
 async function openPdf(p, rg) {
@@ -2760,7 +2934,7 @@ function icsFor(p, o) {
     return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//jiuyiban//CN', 'BEGIN:VEVENT', 'UID:' + o.id + '@jiuyiban', 'DTSTAMP:' + st, 'DTSTART;VALUE=DATE:' + ymd(o.due), 'DTEND;VALUE=DATE:' + n2, 'SUMMARY:' + icsEsc((isSched(o.cat) ? '日程：' : '医嘱到期：') + txt), 'DESCRIPTION:' + icsEsc((isSched(o.cat) ? '本人记录的日程，仅作备忘。' : '按医生原话记录，仅作备忘。') + label(p)), ...al('-PT15H', '明天到期：' + txt), ...al('PT9H', '今天到期：' + txt), 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
 }
 
-const homeDemo = () => `<details class="home-more"><summary>需要演示资料？加载一个示例档案</summary><div class="row" style="justify-content:center;margin-top:8px"><button class="ghost" data-act="demo">加载示例档案</button>${HP ? '' : '<button class="ghost" data-act="prevhosp">预览医院版（演示）</button>'}</div></details>`;
+const homeDemo = () => `<details class="home-more"><summary>试用数据（可随时删除）</summary><div class="row" style="justify-content:center;margin-top:8px"><button class="ghost" data-act="demo">载入试用数据</button>${HP ? '' : '<button class="ghost" data-act="prevhosp">体验医院服务</button>'}</div></details>`;
 function hospitalZone() {
     const z = hospCard() + jnyCard() + actCard();
     return z ? (HP ? '<h2 class="gt">医院服务与惠民活动</h2>' : '') + z : '';
@@ -3738,20 +3912,23 @@ catch (e) {
    tel:{n,num} 服务电话（点击拨打）；book:{n,url} 医院自有预约入口链接（https，仅跳转，不新建号源）
    campus:[{n,addr,tel}] 多院区信息（只展示）
    show:[{t,d,img,price,tag}] 医院项目展示（基础版≤3、升级版≤8；img 只能是本站 img/<代号>/文件名.jpg|png|webp；价格不写则显示“以门诊公示为准”；患者可“加入想问清单”，不是预约） */
-const HOSP = { demo: { hideRef: true, ai: 'https://juyiibanlvzhinengai.tianxinyuan881.workers.dev', c: '#0f5c55', n: '示例医院（演示）', w: '本工具是医院为 VIP 客户提供的病程资料整理工具，资料只保存在您自己的设备上。',
+const HOSP = { demo: { hideRef: true, ai: 'https://juyiibanlvzhinengai.tianxinyuan881.workers.dev', c: '#2f6bff', n: '康宁医院', w: '本工具是医院为 VIP 客户提供的病程资料整理工具，资料只保存在您自己的设备上。',
         vip: [{ t: '专属服务电话', d: '工作日 8:00–17:00 由 VIP 服务专员接听，协助了解医院的服务安排。' }, { t: '就诊引导', d: '到院后可向导诊台出示本页面，由工作人员引导至 VIP 服务区（示例内容）。' }, { t: '体检预约咨询', d: '体检套餐与时间请联系服务电话咨询（示例内容）。' }],
         ann: [{ t: '国庆假期门诊安排（示例）', d: '10月1日至7日门诊时间调整，请以医院官方通知为准。', date: '2026-09-28' }, { t: '秋季流感疫苗接种提示（示例）', d: '接种时间、对象与禁忌请咨询接种门诊或您的医生。', date: '2026-10-10' }],
-        show: [{ t: '儿童口腔检查（示例）', d: '了解牙齿萌出和清洁情况，是否需要其他处理由医生判断。', img: 'img/demo/oral.jpg', tag: '口腔' }, { t: '成人洁牙（示例）', d: '示例项目，仅演示展示方式。' }],
+        show: [{ t: '儿童口腔检查（示例）', d: '了解牙齿萌出和清洁情况，是否需要其他处理由医生判断。', img: 'img/demo/oral.jpg', tag: '口腔' }, { t: '成人洁牙（示例）', d: '用于展示服务项目的呈现方式。' }],
         pre: [{ t: '空腹抽血', d: '一般需空腹 8–12 小时，具体以检查通知为准。' }, { t: '腹部超声', d: '按通知要求空腹或憋尿，具体以检查通知为准。' }],
-        tel: { n: '示例医院 VIP 服务电话', num: '010-00000000' }, sched: [{ wd: '周一', ap: '上午', dp: '内科', dr: '示例医生甲' }, { wd: '周二', ap: '下午', dp: '口腔科', dr: '示例医生乙' }, { wd: '周三', ap: '上午', dp: '内科', dr: '示例医生甲' }, { wd: '周四', ap: '下午', dp: '儿科', dr: '示例医生丙' }, { wd: '周五', ap: '上午', dp: '中医科', dr: '示例医生丁', nt: '示例内容' }, { wd: '周六', ap: '上午', dp: '内科', dr: '示例医生甲' }], book: { n: '医院官方预约入口（示例）', url: 'https://example.com/' },
+        tel: { n: '康宁医院 VIP 服务电话', num: '010-00000000' }, sched: [{ wd: '周一', ap: '上午', dp: '内科', dr: '张医生' }, { wd: '周二', ap: '下午', dp: '口腔科', dr: '李医生' }, { wd: '周三', ap: '上午', dp: '内科', dr: '张医生' }, { wd: '周四', ap: '下午', dp: '儿科', dr: '王医生' }, { wd: '周五', ap: '上午', dp: '中医科', dr: '陈医生', nt: '以当日排班为准' }, { wd: '周六', ap: '上午', dp: '内科', dr: '张医生' }], book: { n: '医院官方预约入口', url: 'https://example.com/' },
         jny: [{ id: 'scope', t: '胃肠镜检查准备（示例）', note: '示例内容，具体请以医院发给您的检查通知为准。', steps: [{ t: '确认检查时间和地点', d: '看一下预约短信或检查单上的时间' }, { t: '按医院要求准备饮食', d: '以医院发的饮食说明为准' }, { t: '向医生说明正在用的药', d: '把药名带上，由医生决定怎么处理' }, { t: '携带证件和既往报告' }, { t: '检查后记录医生交代的事项', d: '回到「档案」里记下复查时间' }] }, { id: 'revisit', t: '复诊前整理（示例）', steps: [{ t: '整理上次的检查报告' }, { t: '写下近期症状变化' }, { t: '列出现在用的药' }, { t: '写下想问医生的问题' }, { t: '生成复诊摘要带去就诊' }] }],
         act: [{ id: 'spring', t: '惠民服务小转盘（示例）', kind: 'wheel', per: 'day', valid: 30, pin: '1234', rule: '同一设备每天一次，凭该凭证到院核销，30 天内有效。', note: '服务内容和数量由医院设置。', items: [{ t: '定制保温杯一个', g: '一等奖', q: '数量以现场实际供应为准', d: '到服务台领取（示例）' }, { t: '文创笔记本套装', g: '二等奖', d: '到服务台领取（示例）' }, { t: '停车券一张', d: '到服务台领取（示例）' }, { t: '谢谢参与' }, { t: '健康手册一本', d: '到服务台领取（示例）' }, { t: '便携雨衣一件', g: '三等奖', d: '到服务台领取（示例）' }, { t: '定制手提袋一个', g: '三等奖', d: '到服务台领取（示例）' }, { t: '咖啡一杯', d: '到院内咖啡区兑换（示例）' }] }, { id: 'family', t: '亲子家庭转盘（示例）', kind: 'wheel', per: 'once', valid: 30, pin: '1234', rule: '同一设备限一次，30 天内凭该凭证到院核销。', note: '适合儿科、妇产科等家庭就诊场景。', items: [{ t: '儿童画册一本', d: '到服务台领取（示例）' }, { t: '儿童贴纸一套', d: '到服务台领取（示例）' }, { t: '停车券两张', d: '到服务台领取（示例）' }, { t: '谢谢参与' }, { t: '帆布袋一个', d: '到服务台领取（示例）' }, { t: '亲子绘本一本', d: '到服务台领取（示例）' }] }, { id: 'qian', t: '惠民服务抽签筒（示例）', kind: 'draw', per: 'day', need: 1, valid: 14, pin: '1234', rule: '同一设备每天一次，14 天内有效；需先完成一个就诊流程（整理打卡）。', note: '签文即服务，由医院提供。', items: [{ t: '咖啡一杯', d: '到院内咖啡区兑换（示例）' }, { t: '谢谢参与' }, { t: '帆布袋一个', d: '到服务台领取（示例）' }, { t: '健康手册一本', d: '到服务台领取（示例）' }, { t: '再来一次明天见', n: 1 }] }, { id: 'visit', t: '复诊守约签（示例）', kind: 'draw', need: 1, per: 'once', valid: 60, pin: '1234', rule: '需整理打卡 1 次（完成一个就诊流程，或复诊日期后保存复诊后记录，各记 1 次），凭证到前台核销，60 天内有效。', note: '鼓励按约复诊，由医院提供。', items: [{ t: '咖啡券两张', d: '到服务台领取（示例）' }, { t: '停车券一张', d: '到服务台领取（示例）' }, { t: '保温杯一个', d: '到服务台领取（示例）' }, { t: '笔记本一本', d: '到服务台领取（示例）' }, { t: '谢谢参与' }] }, { id: 'fest', t: '节日惠民签（示例）', kind: 'draw', per: 'once', valid: 30, pin: '1234', rule: '节日期间同一设备一次，30 天内有效。', note: '节日活动，奖项由医院设置。', items: [{ t: '晴雨伞一把', d: '到服务台领取（示例）' }, { t: '文创书签一套', d: '到服务台领取（示例）' }, { t: '咖啡一杯', d: '到院内咖啡区兑换（示例）' }, { t: '文创帆布袋一个', d: '到服务台领取（示例）' }, { t: '谢谢参与' }] }, { id: 'health', t: '健康小课堂签（示例）', kind: 'draw', per: 'free', valid: 30, pin: '1234', rule: '无次数限制，可多次参与，仅作互动。', note: '抽到的是科普主题，不涉及疾病判断。', items: [{ t: '早餐搭配小贴士', d: '均衡饮食的日常小建议，仅作科普' }, { t: '饭后散步的好处', d: '适量活动的日常小建议，仅作科普' }, { t: '规律作息怎么养成', d: '睡眠习惯小建议，仅作科普' }, { t: '看电子屏的护眼习惯', d: '用眼休息小建议，仅作科普' }, { t: '喝水小贴士', d: '日常饮水小建议，仅作科普' }] }],
-        campus: [{ n: '本部', addr: '示例路 1 号', tel: '010-00000001' }, { n: '东院', addr: '示例路 99 号', tel: '010-00000002' }],
-        l:'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTIiIGZpbGw9IiMwZjVjNTUiLz48cGF0aCBkPSJNMjYgMTRoMTJ2MTJoMTJ2MTJIMzh2MTJIMjZWMzhIMTRWMjZoMTJ6IiBmaWxsPSIjZmZmIi8+PC9zdmc+' } };
+        campus: [{ n: '本部', addr: '康宁路 1 号', tel: '010-00000001' }, { n: '东院', addr: '康宁路 99 号', tel: '010-00000002' }],
+        l:'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTIiIGZpbGw9IiMyZjZiZmYiLz48cGF0aCBkPSJNMjYgMTRoMTJ2MTJoMTJ2MTJIMzh2MTJIMjZWMzhIMTRWMjZoMTJ6IiBmaWxsPSIjZmZmIi8+PC9zdmc+' } };
 /* 民营医院门诊演示：只开放部分科室，不显示专科病种（dis:[]） */
-HOSP.minying = { hideRef: true, ai: 'https://juyiibanlvzhinengai.tianxinyuan881.workers.dev', c: '#0f5c55', n: '示例民营医院门诊（演示）', w: '本工具是门诊为 VIP 客户提供的就诊资料整理工具，资料只保存在您自己的设备上。', dept: ['内科', '儿科', '口腔科', '皮肤科', '中医科', '体检中心'], dis: [],
-    vip: [{ t: '专属服务电话', d: '预约、改约请联系门诊服务台（示例内容）。' }], pre: [{ t: '空腹抽血', d: '一般需空腹 8–12 小时，具体以检查通知为准。' }], tel: { n: '门诊服务电话', num: '021-00000000' }, sched: [{ wd: '周一', ap: '上午', dp: '内科', dr: '示例医生甲' }, { wd: '周二', ap: '下午', dp: '口腔科', dr: '示例医生乙' }, { wd: '周三', ap: '上午', dp: '内科', dr: '示例医生甲' }, { wd: '周四', ap: '下午', dp: '儿科', dr: '示例医生丙' }, { wd: '周五', ap: '上午', dp: '中医科', dr: '示例医生丁', nt: '示例内容' }, { wd: '周六', ap: '上午', dp: '内科', dr: '示例医生甲' }], l: HOSP.demo.l };
-/* 医院配置的读取顺序：先找页面内置的演示配置（demo / minying），没有则读取 config/<医院代号>.json（每家一个独立文件，页面源码里看不到别家配置）。
+HOSP.minying = { hideRef: true, ai: 'https://juyiibanlvzhinengai.tianxinyuan881.workers.dev', c: '#2f6bff', n: '康宁门诊', w: '本工具是门诊为 VIP 客户提供的就诊资料整理工具，资料只保存在您自己的设备上。', dept: ['内科', '儿科', '口腔科', '皮肤科', '中医科', '体检中心'], dis: [],
+    vip: [{ t: '专属服务电话', d: '预约、改约请联系门诊服务台（示例内容）。' }], pre: [{ t: '空腹抽血', d: '一般需空腹 8–12 小时，具体以检查通知为准。' }], tel: { n: '门诊服务电话', num: '021-00000000' }, sched: [{ wd: '周一', ap: '上午', dp: '内科', dr: '张医生' }, { wd: '周二', ap: '下午', dp: '口腔科', dr: '李医生' }, { wd: '周三', ap: '上午', dp: '内科', dr: '张医生' }, { wd: '周四', ap: '下午', dp: '儿科', dr: '王医生' }, { wd: '周五', ap: '上午', dp: '中医科', dr: '陈医生', nt: '以当日排班为准' }, { wd: '周六', ap: '上午', dp: '内科', dr: '张医生' }], l: HOSP.demo.l };
+/* 内置体验配置只去掉展示用的“示例/演示”后缀，不改动任何业务字段 */
+const tidyText = s => typeof s === 'string' ? s.replace(/（示例内容）|（示例）|（演示）|（可删除）/g, '').replace(/示例内容，/g, '') : s;
+function tidyDemo(o) { if (Array.isArray(o)) return o.map(tidyDemo); if (o && typeof o === 'object') { const r = {}; for (const k in o) r[k] = tidyDemo(o[k]); return r; } return tidyText(o); }
+/* 医院配置的读取顺序：先找页面内置的体验配置（demo / minying），没有则读取 config/<医院代号>.json（每家一个独立文件，页面源码里看不到别家配置）。
    json 是公开文件，里面不要放敏感内容；核销密码只作轻量核验。读取失败时按没有医院参数处理。
    这里用同步读取，是为了让整页渲染前就拿到配置；json 只会被当作数据，所有字段按白名单和长度限制整理后才使用。 */
 function cfgClean(o) {
@@ -3811,8 +3988,8 @@ function cfgParse(txt, k) {
 const HP = (() => { try {
     const k = HP_KEY;
     if (!k) return null;
-    if (Object.prototype.hasOwnProperty.call(HOSP, k)) return HOSP[k];
-    if (k === 'preview') { const pv = cfgClean(JSON.parse(localStorage.getItem('companion.preview') || 'null')); if (pv) pv.n = (pv.n + '（预览，未上线）').slice(0, 40); return pv; }
+    if (Object.prototype.hasOwnProperty.call(HOSP, k)) return tidyDemo(HOSP[k]);
+    if (k === 'preview') { const pv = cfgClean(JSON.parse(localStorage.getItem('companion.preview') || 'null')); if (pv) pv.n = (pv.n + '（未上线）').slice(0, 40); return pv; }
     if (!/^[A-Za-z0-9_-]{1,30}$/.test(k)) return null;
     try { const c = JSON.parse(sessionStorage.getItem('companion.cfgtxt.' + k) || 'null'); if (c && typeof c.x === 'string' && Date.now() - c.t < 600000) return cfgParse(c.x, k); } catch (e) { }
     let asyncOk = false; try { sessionStorage.setItem('companion.t3', '1'); sessionStorage.removeItem('companion.t3'); asyncOk = typeof fetch === 'function' && typeof AbortController === 'function'; } catch (e) { }
@@ -3831,7 +4008,7 @@ const SITE_ICP = '', SITE_GABA = '';
 (() => { const v = String((HP && HP.icp) || SITE_ICP || '').trim(), g = String((HP && HP.gaba) || SITE_GABA || '').trim(), el = document.getElementById('icp'); let h = '';
     if (/^[\u4e00-\u9fa5]{1,2}ICP备\d{6,10}号(-\d{1,3})?$/.test(v)) h += '<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">' + v + '</a>';
     if (/^[\u4e00-\u9fa5]{1,2}公网安备 ?\d{12,14}号$/.test(g)) h += (h ? ' &nbsp; ' : '') + '<a href="https://beian.mps.gov.cn/" target="_blank" rel="noopener noreferrer">' + g + '</a>';
-    if (HP_KEY === 'demo' || HP_KEY === 'minying') h = '<div style="color:#b45309">演示内容，仅供演示；不得用于患者或正式服务。演示里的核销密码不是正式密码。</div>' + h;
+    if (HP_KEY === 'demo' || HP_KEY === 'minying') h = '<div style="color:#8b94a3">体验环境 · 页面内容为虚构数据，仅用于体验。</div>' + h;
     if (HP && HP.trial) h = '<div>试点临时试用地址，仅供试用；正式上线后地址会更换，届时请先导出备份</div>' + h;
     if (el && h) { el.hidden = false; el.innerHTML = h; } })();
 /* 带了医院参数却读不到配置（文件不存在、名称不匹配、json 写错）：不显示演示内容，改为提示。 */
@@ -3956,8 +4133,8 @@ function jnyList() {
 function jnyCard() {
     const L = jnyList();
     if (!L.length) return '';
-    const g = jnyGet(), lo = S.lo || {}, hn = HP ? esc(HP.n) : '示例医院（演示，不是真实医院）';
-    const hc = HP && /^#[0-9a-fA-F]{6}$/.test(HP.c || '') ? HP.c : '#0f5c55';
+    const g = jnyGet(), lo = S.lo || {}, hn = HP ? esc(HP.n) : '医院';
+    const hc = HP && /^#[0-9a-fA-F]{6}$/.test(HP.c || '') ? HP.c : '#2f6bff';
     return '<details class="card hosp-jny"' + (S.jnyOpen ? ' open' : '') + ' style="border-left:4px solid ' + hc + '"><summary style="cursor:pointer"><div><b>医院就诊流程清单</b><div class="sub" style="margin:2px 0 0">' + L.length + ' 个流程 · 勾选只记在您自己的手机里' + (actList().some(a => a.need) ? ' · 勾完一个流程得 1 次整理打卡，每天最多 1 次（现有 ' + chkAvail() + ' 次）' : '') + '</div></div></summary><p class="sub">以下步骤由' + hn + '提供，是一般性的就诊准备提示，不构成对您个人病情的建议，具体请以医院和医生的安排为准。勾选进度只保存在本机。点流程名称可展开步骤。同一天完成多条流程，整理打卡也只记 1 次。</p>'
         + L.map((j, ji) => { const done = new Set(g[j.id] || []), n = j.steps.filter((x, i) => done.has(i)).length;
             return '<details class="fl" data-fk="jny_' + esc(j.id) + '"' + ((lo['jny_' + j.id] || (S.jnyOpen && ji === 0 && !L.some(x => lo['jny_' + x.id]))) ? ' open' : '') + '><summary><b>' + esc(j.t) + '</b>（' + n + '/' + j.steps.length + (n === j.steps.length ? ' 已完成' : '') + '）</summary>' + (j.note ? '<p class="sub">' + esc(j.note) + '</p>' : '')
@@ -3966,13 +4143,13 @@ function jnyCard() {
 }
 function actCard() {
     const L = actList().slice().sort((x, y) => (y.need ? 1 : 0) - (x.need ? 1 : 0));
-    if (!HP && !HP_KEY) return '<div class="card" data-act="prevhosp" style="cursor:pointer"><b>医院服务与惠民活动</b><p class="sub">请从医院提供的链接或二维码进入，即可看到医院服务和惠民活动。想先看看效果，可点下方“预览医院版（演示）”。</p><div class="row" style="margin-top:10px"><button class="btn" data-act="prevhosp">预览医院版（演示）</button></div></div>';
+    if (!HP && !HP_KEY) return '<div class="card" data-act="prevhosp" style="cursor:pointer"><b>医院服务与惠民活动</b><p class="sub">请从医院提供的链接或二维码进入，即可看到医院服务和惠民活动。想先看看效果，可点下方“体验医院服务”。</p><div class="row" style="margin-top:10px"><button class="btn" data-act="prevhosp">体验医院服务</button></div></div>';
     
     const g0 = actGet(), ids = new Set(L.map(x => x.id)), orph = Object.keys(g0).filter(k => !ids.has(k)).map(k => [k, (Array.isArray(g0[k]) ? g0[k] : []).filter(v => v && !v.n)]).filter(x => x[1].length), oh = orph.length ? '<details style="margin-top:8px"><summary><b>已下线活动的凭证（' + orph.reduce((n, x) => n + x[1].length, 0) + '）</b></summary><p class="sub">这些活动已不在医院当前配置里，不能在本页核销；是否仍可兑换请联系医院。</p>' + orph.map(x => x[1].slice().reverse().map(v => actVoucherHtml(null, Object.assign({}, v, { off: 1 }))).join('')).join('') + '</details>' : '';
     if (!L.length && !oh) return '';
-    const g = actGet(), name = HP ? esc(HP.n) : '示例医院';
-    return '<details class="card hosp-act"' + (S.actOpen ? ' open' : '') + '><summary style="cursor:pointer"><div><b>惠民服务' + (actDemo() ? '（演示）' : '') + '</b><div class="sub" style="margin:2px 0 0">' + L.length + ' 个活动 · 抽中凭证到院兑换' + '' + (L.some(x => x.need) ? ' · 整理打卡 ' + chkAvail() + ' 次' : '') + '</div></div></summary>' + (actDemo() ? '<p class="sub" style="color:#b45309"><b>这是给医院看的演示：</b>服务内容、有效期和核销规则都由医院自己设置并提供，下面的内容仅为示例。核销演示密码：1234。</p>' : '') + '<p class="sub">由' + name + '提供。抽中后会生成一张兑换凭证，凭该凭证到院由工作人员核销；结果只保存在您的手机上，兑换以医院现场核验为准，本工具不涉及付款。' + (UP_OK ? '点“确认核销”后，流水号和奖项会按您的同意范围上传给医院登记。' : '') + '</p>' + (L.some(x => x.need) ? '<details class="sub" style="margin:4px 0 8px"><summary style="cursor:pointer"><b>整理打卡是什么、怎么获得？</b>（您现有 ' + chkAvail() + ' 次）</summary>' + CHKTXT.replace('整理打卡怎么获得（二选一即可，每种来源各按规则计 1 次）：', '') + ' 抽到有服务的奖项才扣打卡，抽到“谢谢参与”不扣；一次打卡只能用在一个活动上。</details>' : '')
-        + L.map(a => { const vs = (g[a.id] || []).filter(v => vState(v) === '待兑换').length; return '<div class="item"><div class="tlh"><b>' + esc(a.t) + '</b><span class="tag">' + (a.kind === 'wheel' ? '小转盘' : '抽签筒') + '</span></div>' + (a.note ? '<div class="sub">' + esc(a.note) + '</div>' : '') + (a.rule ? '<div class="sub">规则：' + esc(a.rule) + '</div>' : '') + (a.start || a.end ? '<div class="sub">活动时间：' + esc(a.start || '即日起') + ' 至 ' + esc(a.end || '长期') + '</div>' : '') + (a.need ? '<div class="sub"><b>整理打卡：</b>需要 ' + a.need + ' 次（您现有 ' + chkAvail() + ' 次），说明见上方。</div>' : '') + '<div class="row"><button class="btn" data-act="' + (!actDone(a) && a.need && chkAvail() < a.need && jnyList().length ? 'jgo' : 'actopen') + '" data-id="' + esc(a.id) + '"' + (actDone(a) ? ' disabled' : '') + '>' + (actDone(a) ? (actWin(a) || (a.per === 'once' ? '您已参与过' : '今天已参与')) : (a.need && chkAvail() < a.need ? '还差 ' + (a.need - chkAvail()) + ' 次整理打卡' + (jnyList().length ? '｜去完成流程' : '') : '参加活动')) + '</button><button class="ghost" data-act="actlog" data-id="' + esc(a.id) + '">我的凭证' + (vs ? '（待兑换 ' + vs + '）' : '') + '</button></div></div>'; }).join('') + oh + '</details>';
+    const g = actGet(), name = HP ? esc(HP.n) : '本院';
+    return '<details class="card hosp-act"' + (S.actOpen ? ' open' : '') + '><summary style="cursor:pointer"><div><b>惠民服务</b><div class="sub" style="margin:2px 0 0">' + L.length + ' 个活动 · 抽中凭证到院兑换' + '' + (L.some(x => x.need) ? ' · 打卡 ' + chkAvail() + ' 次' : '') + '</div></div></summary>' + '<p class="sub">由' + name + '提供。抽中后会生成一张兑换凭证，凭该凭证到院由工作人员核销；结果只保存在您的手机上，兑换以医院现场核验为准，本工具不涉及付款。' + (UP_OK ? '点“确认核销”后，流水号和奖项会按您的同意范围上传给医院登记。' : '') + '</p>' + (L.some(x => x.need) ? '<details class="sub" style="margin:4px 0 8px"><summary style="cursor:pointer"><b>整理打卡是什么、怎么获得？</b>（您现有 ' + chkAvail() + ' 次）</summary>' + CHKTXT.replace('整理打卡怎么获得（二选一即可，每种来源各按规则计 1 次）：', '') + ' 抽到有服务的奖项才扣打卡，抽到“谢谢参与”不扣；一次打卡只能用在一个活动上。</details>' : '')
+        + L.map(a => { const vs = (g[a.id] || []).filter(v => vState(v) === '待兑换').length; return '<div class="item"><div class="tlh"><b>' + esc(a.t) + '</b><span class="tag">' + (a.kind === 'wheel' ? '小转盘' : '抽签筒') + '</span></div>' + (a.note ? '<div class="sub">' + esc(a.note) + '</div>' : '') + (a.rule ? '<div class="sub">规则：' + esc(a.rule) + '</div>' : '') + (a.start || a.end ? '<div class="sub">活动时间：' + esc(a.start || '即日起') + ' 至 ' + esc(a.end || '长期') + '</div>' : '') + (a.need ? '<div class="sub">打卡 ' + a.need + ' 次 · 现有 ' + chkAvail() + ' 次</div>' : '') + '<div class="row"><button class="btn" data-act="' + (!actDone(a) && a.need && chkAvail() < a.need && jnyList().length ? 'jgo' : 'actopen') + '" data-id="' + esc(a.id) + '"' + (actDone(a) ? ' disabled' : '') + '>' + (actDone(a) ? (actWin(a) || (a.per === 'once' ? '您已参与过' : '今天已参与')) : (a.need && chkAvail() < a.need ? (jnyList().length ? '去完成流程' : '还差 ' + (a.need - chkAvail()) + ' 次打卡') : '参加活动')) + '</button><button class="ghost" data-act="actlog" data-id="' + esc(a.id) + '">凭证' + (vs ? ' · ' + vs + ' 张待兑换' : '') + '</button></div></div>'; }).join('') + oh + '</details>';
 }
 document.addEventListener('toggle', e => { if (e.target && e.target.classList && e.target.classList.contains('pk-dis')) S.disOpen = e.target.open; if (e.target && e.target.classList && e.target.classList.contains('hosp-act')) S.actOpen = e.target.open; if (e.target && e.target.classList && e.target.classList.contains('hosp-jny')) S.jnyOpen = e.target.open; if (e.target && e.target.classList && e.target.classList.contains('hosp')) S.hospOpen = e.target.open; }, true);
 function qrSvg(text, px) {
@@ -4069,9 +4246,9 @@ function actPlay(a) {
             out.innerHTML = '<div style="font-size:20px;font-weight:700">结果：' + esc(item.t) + '</div>' + actVoucherHtml(a, v);
             go.textContent = '已完成'; go.disabled = true;
             if (!item.n) { actBurst(o, ['#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#a855f7', '#fbbf24']); if (out.animate && actFx()) out.animate([{ transform: 'scale(.6)', opacity: 0 }, { transform: 'scale(1.06)', opacity: 1, offset: .6 }, { transform: 'scale(1)', opacity: 1 }], { duration: 520, easing: 'ease-out' }); }
-            if (!item.n) { out.insertAdjacentHTML('beforeend', '<p style="margin:10px 0 4px;color:#0f766e"><b>如何领取：</b>到院向工作人员出示这张凭证，并报流水号 ' + esc(v.sn) + '。</p><p class="sub" style="margin:6px 0 4px">接下来您可以：</p><div class="row" style="flex-wrap:wrap"><button class="ghost" id="ch1">查看我的凭证</button><button class="ghost" id="ch2">VIP 权益说明</button><button class="ghost" id="ch3">后续优惠和礼品</button></div>');
+            if (!item.n) { out.insertAdjacentHTML('beforeend', '<p style="margin:10px 0 4px;color:#0f9f6e"><b>如何领取：</b>到院向工作人员出示这张凭证，并报流水号 ' + esc(v.sn) + '。</p><p class="sub" style="margin:6px 0 4px">接下来您可以：</p><div class="row" style="flex-wrap:wrap"><button class="ghost" id="ch1">查看我的凭证</button><button class="ghost" id="ch2">VIP 权益说明</button><button class="ghost" id="ch3">后续优惠和礼品</button></div>');
                 out.querySelector('#ch1').onclick = () => { o.remove(); actLog(a); };
-                out.querySelector('#ch2').onclick = () => { const H = HP || HOSP.demo; modal('<h2>完整VIP权益</h2><p class="sub">具体权益、办理方式和费用以' + esc(HP ? HP.n : '示例医院') + '前台或服务电话公布为准' + (H.tel && typeof H.tel === 'object' && H.tel.num ? '：' + esc(H.tel.num) : (typeof H.tel === 'string' && H.tel ? '：' + esc(H.tel) : '')) + '。本工具不收款、不办理会员。</p><div class="bar"><button class="ghost" data-go="x">关闭</button></div>'); };
+                out.querySelector('#ch2').onclick = () => { const H = HP || HOSP.demo; modal('<h2>完整VIP权益</h2><p class="sub">具体权益、办理方式和费用以' + esc(HP ? HP.n : '医院') + '前台或服务电话公布为准' + (H.tel && typeof H.tel === 'object' && H.tel.num ? '：' + esc(H.tel.num) : (typeof H.tel === 'string' && H.tel ? '：' + esc(H.tel) : '')) + '。本工具不收款、不办理会员。</p><div class="bar"><button class="ghost" data-go="x">关闭</button></div>'); };
                 out.querySelector('#ch3').onclick = () => { modal('<h2>后续优惠和礼品</h2><p class="sub">后续活动、优先参与资格和礼品由医院另行通知和发放，到院时请向工作人员询问。您抽到的凭证可在“我的凭证”里随时查看。</p><div class="bar"><button class="ghost" data-go="x">关闭</button></div>'); };
             }
             const h = document.querySelector('.hosp-act'); if (h) h.outerHTML = actCard();
