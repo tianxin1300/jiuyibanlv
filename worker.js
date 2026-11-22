@@ -334,7 +334,7 @@ function careAiSse(result) {
 const xmlEsc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]));
 // KV 的 metadata 总共不能超过 1024 字节：prompt/name 太长会让 put 直接抛错(生成图片/语音、上传都会 500)。统一在这里截断。
 const KV_BLOCK = { until: 0 };      // KV 写入额度爆了（“put() limit exceeded”）以后，这个时间点之前非关键写入直接跳过，不再每次都撞错
-const KV_HARD = /^(todos|tasks|user|history|projects|file|share|kb|fb|token|loc|rl|memory|care):|^mem:(todo|note):|^agg$/;      // 用户数据 / 登录：写失败必须报错，不能假装保存了；其余（日志、缓存、去重、token 缓存、热榜缓存、聊天记忆…）都算非关键
+const KV_HARD = /^(todos|tasks|user|history|projects|file|share|kb|fb|token|loc|rl|memory|care):|^catalog\/|^mem:(todo|note):|^agg$/;      // 用户数据 / 登录：写失败必须报错，不能假装保存了；其余（日志、缓存、去重、token 缓存、热榜缓存、聊天记忆…）都算非关键
 function safeKV(kv) {
   if (!kv) return kv;
   const quota = (e) => /limit exceeded/i.test(String(e && e.message || e));
@@ -529,10 +529,10 @@ function detectCatalogImage(bytes) {
   return "";
 }
 function catalogImageResponse(object) {
-  const mime = object && object.httpMetadata && object.httpMetadata.contentType;
-  if (!["image/png", "image/jpeg", "image/webp"].includes(mime)) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在或尚未发布" }, 404);
-  return new Response(object.body, { headers: {
-    ...CORS, "Content-Type": mime, "Content-Length": String(object.size || 0),
+  const mime = object && object.metadata && object.metadata.contentType;
+  if (!object.value || !["image/png", "image/jpeg", "image/webp"].includes(mime)) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在或尚未发布" }, 404);
+  return new Response(object.value, { headers: {
+    ...CORS, "Content-Type": mime, "Content-Length": String(object.metadata.size || object.value.byteLength || 0),
     "Content-Disposition": "inline", "X-Content-Type-Options": "nosniff", "Cache-Control": "private, max-age=60"
   } });
 }
@@ -6168,9 +6168,8 @@ async function handle(request, env, ctx) {
       try { normalized = validateCareCatalog(catalog); }
       catch (e) { return json({ ok: false, code: "CATALOG_UNAVAILABLE", msg: "医院服务配置尚未发布完整" }, 503); }
       if (!catalogReferencesAsset(normalized, assetId)) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在或尚未发布" }, 404);
-      if (!env.CARE_ASSETS) return json({ ok: false, code: "R2_NOT_BOUND", msg: "医院图片存储尚未配置" }, 503);
-      const object = await env.CARE_ASSETS.get(catalogAssetKey(rec.tenant_id, assetId));
-      if (!object) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在或尚未发布" }, 404);
+      const object = await env.KV.getWithMetadata(catalogAssetKey(rec.tenant_id, assetId), "arrayBuffer").catch(() => null);
+      if (!object || !object.value) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在或尚未发布" }, 404);
       return catalogImageResponse(object);
     }
 
@@ -6222,12 +6221,11 @@ async function handle(request, env, ctx) {
       let tenantId;
       try { tenantId = careTenantId(selected.tenantId); }
       catch (e) { return json({ ok: false, code: "INVALID_TENANT", msg: "医院租户 ID 格式不正确" }, 422); }
-      if (!env.CARE_ASSETS) return json({ ok: false, code: "R2_NOT_BOUND", msg: "医院图片存储尚未配置，请联系管理员" }, 503);
       if (request.method === "GET") {
         const assetId = String(url.searchParams.get("asset_id") || "").trim();
         if (!CATALOG_ASSET_ID.test(assetId)) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在" }, 404);
-        const object = await env.CARE_ASSETS.get(catalogAssetKey(tenantId, assetId));
-        if (!object) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在" }, 404);
+        const object = await env.KV.getWithMetadata(catalogAssetKey(tenantId, assetId), "arrayBuffer").catch(() => null);
+        if (!object || !object.value) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在" }, 404);
         return catalogImageResponse(object);
       }
       const declared = String(request.headers.get("Content-Type") || "").split(";", 1)[0].trim().toLowerCase();
@@ -6245,9 +6243,8 @@ async function handle(request, env, ctx) {
       if (serviceId && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(serviceId)) return json({ ok: false, code: "INVALID_SERVICE", msg: "service_id 格式不正确" }, 422);
       const assetId = Date.now().toString(36) + "-" + rand(8);
       const hash = hex(await crypto.subtle.digest("SHA-256", body));
-      await env.CARE_ASSETS.put(catalogAssetKey(tenantId, assetId), body, {
-        httpMetadata: { contentType: mime, contentDisposition: "inline", cacheControl: "private, max-age=60" },
-        customMetadata: { tenant_id: tenantId, service_id: serviceId || "logo", mime, size: String(bytes.length), sha256: hash, uploaded_at: String(Date.now()) }
+      await env.KV.put(catalogAssetKey(tenantId, assetId), body, {
+        metadata: { contentType: mime, tenant_id: tenantId, service_id: serviceId || "logo", size: bytes.length, sha256: hash, uploaded_at: Date.now() }
       });
       await adminAudit(env, "staff-config-image", tenantId + " 操作人:" + ctxStaff.username + " 素材:" + assetId + " 大小:" + bytes.length, request.headers.get("CF-Connecting-IP") || "0");
       return json({ ok: true, tenant_id: tenantId, asset_id: assetId, image_url: "asset:" + assetId, size: bytes.length, mime });

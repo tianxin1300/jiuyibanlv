@@ -1,45 +1,31 @@
 export class MemoryKV {
-  constructor() { this.data = new Map(); this.failKey = ""; }
+  constructor() { this.data = new Map(); this.metadata = new Map(); this.failKey = ""; }
   seed(key, value) { this.data.set(key, typeof value === "string" ? value : JSON.stringify(value)); }
   async get(key, type) {
     const value = this.data.has(key) ? this.data.get(key) : null;
     if (value == null) return null;
     if (type === "json") return JSON.parse(value);
+    if (type === "arrayBuffer") {
+      const bytes = value instanceof Uint8Array ? value : new TextEncoder().encode(String(value));
+      return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+    }
     return value;
   }
-  async put(key, value) {
-    if (this.failKey === key) throw new Error("injected KV write failure");
-    this.data.set(key, String(value));
-  }
-  async delete(key) { this.data.delete(key); }
-  async list({ prefix = "" } = {}) {
-    return { keys: [...this.data.keys()].filter((key) => key.startsWith(prefix)).map((name) => ({ name })), list_complete: true };
-  }
-  async getWithMetadata(key, type) { return { value: await this.get(key, type), metadata: null }; }
-}
-
-export class MemoryR2 {
-  constructor() { this.data = new Map(); }
   async put(key, value, options = {}) {
-    const bytes = value instanceof ArrayBuffer
-      ? new Uint8Array(value)
+    if (this.failKey === key) throw new Error("injected KV write failure");
+    const stored = value instanceof ArrayBuffer
+      ? new Uint8Array(value.slice(0))
       : ArrayBuffer.isView(value)
-        ? new Uint8Array(value.buffer, value.byteOffset, value.byteLength)
-        : new TextEncoder().encode(String(value));
-    this.data.set(key, {
-      bytes: new Uint8Array(bytes), size: bytes.byteLength,
-      httpMetadata: { ...(options.httpMetadata || {}) },
-      customMetadata: { ...(options.customMetadata || {}) }
-    });
+        ? new Uint8Array(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength))
+        : String(value);
+    this.data.set(key, stored);
+    this.metadata.set(key, { ...(options.metadata || {}) });
   }
-  async get(key) {
-    const object = this.data.get(key);
-    if (!object) return null;
-    return {
-      body: new Uint8Array(object.bytes), size: object.size,
-      httpMetadata: { ...object.httpMetadata }, customMetadata: { ...object.customMetadata }
-    };
+  async delete(key) { this.data.delete(key); this.metadata.delete(key); }
+  async list({ prefix = "" } = {}) {
+    return { keys: [...this.data.keys()].filter((key) => key.startsWith(prefix)).map((name) => ({ name, metadata: this.metadata.get(name) || null })), list_complete: true };
   }
+  async getWithMetadata(key, type) { return { value: await this.get(key, type), metadata: this.metadata.get(key) || null }; }
 }
 
 export class MemoryStorage {

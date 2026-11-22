@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import worker from "../worker.js";
-import { MemoryR2, careEnv, makeCatalog, makeService } from "./care-test-helpers.mjs";
+import { careEnv, makeCatalog, makeService } from "./care-test-helpers.mjs";
 
 const ctx = { waitUntil() {} };
 const ADMIN = "test-admin-key-not-real";
@@ -395,7 +395,7 @@ test("R3 发布后完整同步公开资料且不截断，控制台字段和订�
 });
 
 test("PNG/JPEG/WebP 可上传预览，患者只能读已发布图片且图片请求不增加扫码次数", async () => {
-  const env = { ...careEnv(), CARE_ASSETS: new MemoryR2(), ADMIN_KEY: ADMIN };
+  const env = { ...careEnv(), ADMIN_KEY: ADMIN };
   const admin = await adminLogin(env);
   await seedStaff(env);
   const access = await createAccess(env, admin);
@@ -409,9 +409,11 @@ test("PNG/JPEG/WebP 可上传预览，患者只能读已发布图片且图片请
     assert.equal(body.size, bytes.length);
     assert.match(body.image_url, /^asset:/);
     assets[mime] = { ...body, bytes };
-    const object = await env.CARE_ASSETS.get(`catalog/tenant1/${body.asset_id}`);
-    assert.equal(object.customMetadata.tenant_id, "tenant1");
-    assert.equal(object.customMetadata.service_id, "svcA");
+    const object = await env.KV.getWithMetadata(`catalog/tenant1/${body.asset_id}`, "arrayBuffer");
+    assert.equal(object.metadata.tenant_id, "tenant1");
+    assert.equal(object.metadata.service_id, "svcA");
+    assert.equal(object.metadata.contentType, mime);
+    assert.deepEqual(new Uint8Array(object.value), bytes);
     const preview = await imageCall(env, `/api/staff/config/image?tenant_id=tenant1&asset_id=${body.asset_id}`, { method: "GET" });
     assert.equal(preview.status, 200);
     assert.equal(preview.headers.get("Content-Type"), mime);
@@ -445,7 +447,7 @@ test("PNG/JPEG/WebP 可上传预览，患者只能读已发布图片且图片请
   assert.equal((await call(env, "/api/staff/config", { method: "PUT", token: "carol-token", body: { tenant_id: "tenant1", catalog } })).status, 200);
   assert.equal((await imageCall(env, publicPath(webp.asset_id), { method: "GET", token: "" })).status, 200);
   assert.equal((await imageCall(env, publicPath(png.asset_id), { method: "GET", token: "" })).status, 404);
-  assert.ok(await env.CARE_ASSETS.get(`catalog/tenant1/${png.asset_id}`), "替换发布后旧文件仍应保留缓冲");
+  assert.ok((await env.KV.getWithMetadata(`catalog/tenant1/${png.asset_id}`, "arrayBuffer")).value, "替换发布后旧文件仍应保留缓冲");
 
   const accessRecord = await env.KV.get("access:" + access.id, "json");
   const subscription = await env.KV.get("sub:tenant1", "json");
@@ -458,7 +460,7 @@ test("PNG/JPEG/WebP 可上传预览，患者只能读已发布图片且图片请
 });
 
 test("上传拒绝超限、空文件、GIF/SVG、伪造 MIME 和异常魔数", async () => {
-  const env = { ...careEnv(), CARE_ASSETS: new MemoryR2() };
+  const env = { ...careEnv() };
   await seedStaff(env);
   const path = "/api/staff/config/image?tenant_id=tenant1";
   assert.equal((await imageCall(env, path, { bytes: new Uint8Array(2 * 1024 * 1024 + 1) })).status, 413);
@@ -475,14 +477,14 @@ test("上传拒绝超限、空文件、GIF/SVG、伪造 MIME 和异常魔数", a
     assert.equal(response.status, 415);
     assert.equal((await response.json()).code, "IMAGE_TYPE_INVALID");
   }
-  assert.equal(env.CARE_ASSETS.data.size, 0);
+  assert.equal([...env.KV.data.keys()].filter((key) => key.startsWith("catalog/")).length, 0);
 });
 
 test("目录写入失败不假报发布成功，也不删除或替换旧公开图片", async () => {
   const current = makeCatalog("v1");
   current.services.svcA.image_url = "asset:old-public";
-  const env = { ...careEnv(current), CARE_ASSETS: new MemoryR2(), ADMIN_KEY: ADMIN };
-  await env.CARE_ASSETS.put("catalog/tenant1/old-public", PNG_BYTES, { httpMetadata: { contentType: "image/png" } });
+  const env = { ...careEnv(current), ADMIN_KEY: ADMIN };
+  await env.KV.put("catalog/tenant1/old-public", PNG_BYTES, { metadata: { contentType: "image/png", size: PNG_BYTES.length } });
   const admin = await adminLogin(env);
   await seedStaff(env);
   const access = await createAccess(env, admin);
@@ -495,7 +497,7 @@ test("目录写入失败不假报发布成功，也不删除或替换旧公开�
   assert.equal((await failed.json()).ok, false);
   env.KV.failKey = "";
   assert.equal((await env.KV.get("care:catalog:tenant1", "json")).services.svcA.image_url, "asset:old-public");
-  assert.ok(await env.CARE_ASSETS.get("catalog/tenant1/old-public"));
+  assert.ok((await env.KV.getWithMetadata("catalog/tenant1/old-public", "arrayBuffer")).value);
   const oldImage = await imageCall(env, `/api/public/catalog-image?access=${access.id}&tenant_id=tenant1&asset_id=old-public`, { method: "GET", token: "" });
   assert.equal(oldImage.status, 200);
   const newImage = await imageCall(env, `/api/public/catalog-image?access=${access.id}&tenant_id=tenant1&asset_id=new-unpublished`, { method: "GET", token: "" });
