@@ -19,8 +19,7 @@ class_name = "CareTask"
 tag = "v1"
 new_sqlite_classes = ["CareTask"]
 
-# 数据存储（可选）：用户/历史/记忆/待办/知识库/分享/定时任务等存 KV（绑定名必须是 KV）。
-# 现在先不绑定；以后建好 KV 命名空间、拿到真实 id，再把下面两行注释打开并填入 id。
-# [[kv_namespaces]]
-# binding = "KV"
-# id = "你的 KV 命名空间 id"
+# 数据存储：用户/历史/记忆/待办/知识库/分享/定时任务等存 KV（绑定名必须是 KV）。
+[[kv_namespaces]]
+binding = "KV"
+id = "6f56242d19284338b3d2332d823e412d"
