@@ -2355,7 +2355,7 @@ const iget = async (k) => { const d = await idb(); return new Promise((s, j) => 
 const idel = k => idb().then(d => d.transaction('i', 'readwrite').objectStore('i').delete(k)).catch(() => { });
 const idelw = async (k) => { const d = await idb(); return new Promise((s, j) => { const t = d.transaction('i', 'readwrite'); t.objectStore('i').delete(k); t.oncomplete = s; t.onerror = () => j(t.error); t.onabort = () => j(t.error); }); };
 const tabs = () => `<nav class="tabs" aria-label="档案栏目">${[['info', '档案', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3h6v3H9zM8.5 11h7M8.5 15h5"/></svg>'], ['tl', '时间线', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>'], ['mx', '指标', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16h16"/><path d="M7 15l4-4 3 3 5-6"/></svg>'], ['sm', '摘要', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>'], ['ai', '助手', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a4 4 0 0 0-4 4v1a7 7 0 1 0 8 0V7a4 4 0 0 0-4-4z"/><path d="M9 11h.01M15 11h.01M9.5 15a3 3 0 0 0 5 0"/></svg>']].map(t => `<button class="tab" aria-pressed="${S.tab === t[0]}" data-act="tab" data-t="${t[0]}"><span class="ti" aria-hidden="true">${t[2]}</span><span class="tl">${t[1]}</span></button>`).join('')}</nav>`;
-const APP_VER = '2026.11.33';
+const APP_VER = '2026.11.34';
 const CC_SYM = ['发烧 / 怕冷', '咳嗽 / 咳痰', '头痛 / 头晕', '心慌 / 心悸', '肚子痛 / 胃不舒服', '拉肚子 / 便秘 / 恶心呕吐', '尿频 / 尿痛 / 血尿', '血压 / 血糖问题', '失眠 / 情绪差 / 记性差', '伤口 / 肿块', '腰腿痛 / 关节痛 / 脖子痛', '摔伤 / 扭伤', '牙痛 / 牙龈出血 / 口腔溃疡', '皮疹 / 瘙痒', '看东西模糊 / 眼红 / 眼痛', '耳鸣 / 听力下降 / 鼻塞 / 咽痛', '月经问题 / 备孕', '孩子不舒服', '常规体检 / 带着已有的检查报告', '想看中医 / 调理身体'];
 const CC_DUR = ['今天刚出现', '两三天内', '一周左右', '一个月内', '几个月了', '半年以上', '长期反复'];
 const CC_SEV = ['轻微，不影响生活', '有点难受，能忍', '比较难受，影响睡觉/吃饭', '很难受'];
@@ -3101,11 +3101,14 @@ const hdate = d => { const x = new Date(d + 'T00:00:00'); return (x.getMonth() +
 const hwday = d => '周' + ['日', '一', '二', '三', '四', '五', '六'][new Date(d + 'T00:00:00').getDay()];
 const hlastPt = m => (m.pts || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)))[0] || null;
 function hGreeting(cp) {
+    let uname = ''; try { uname = localStorage.getItem('companion.auth.user') || ''; } catch (e) { }
+    const nm = cp && niceMember(cp.member || '') ? niceMember(cp.member) : '';
+    const who = nm || uname || '朋友';
     const L = todayItems().filter(x => x.pid === cp.id), nv = nextVisit(cp), d = nv ? daysTo(nv) : null;
     let st = nv ? (d === 0 ? '今天' : d === 1 ? '明天' : d > 1 ? '还有 ' + d + ' 天' : '复诊已过 ' + (-d) + ' 天') + ' · ' + dn(cp) : '还没有安排下次复诊';
     if (L.length) st += ' · 今天 ' + L.length + ' 项待处理';
     const chips = S.profiles.length > 1 ? `<div class="pchips">${S.profiles.map(q => `<button class="pchip" aria-pressed="${q.id === cp.id}" data-act="psel" data-id="${q.id}">${esc(niceMember(q.member))}</button>`).join('')}</div>` : '';
-    return `<header class="hello"><div><p class="hello-hi">${hgreet()}，</p><h1>${esc(niceMember(cp.member))}</h1><p class="hello-sub">${esc(st)}</p></div><span class="hello-ava" aria-hidden="true">${esc(niceMember(cp.member).slice(0, 1))}</span></header>` + chips;
+    return `<header class="hello"><div><p class="hello-hi">${hgreet()}，${esc(uname || '朋友')}</p>${nm ? `<h1>${esc(nm)}</h1>` : ''}<p class="hello-sub">${esc(st)}</p></div><span class="hello-ava" aria-hidden="true">${esc(who.slice(0, 1))}</span></header>` + chips;
 }
 function hNext(cp) {
     const nv = nextVisit(cp), fv = flowVisit(cp), sel = nv || fv;
@@ -3146,7 +3149,7 @@ function hQuick(cp) {
     };
     return `<nav class="qgrid" aria-label="常用操作"><button class="qbtn" data-act="tab" data-t="tl"><span class="qico">${ic.add}</span><b>记录就诊</b><small>${tlN} 条记录</small></button><button class="qbtn" data-act="tab" data-t="tl"><span class="qico">${ic.img}</span><b>报告图片</b><small>${imgN} 张</small></button><button class="qbtn" data-act="tab" data-t="info"><span class="qico">${ic.pill}</span><b>我的用药</b><small>${medN} 种在用</small></button><button class="qbtn" data-act="tab" data-t="mx"><span class="qico">${ic.chart}</span><b>指标趋势</b><small>${mxN} 项</small></button></nav>`;
 }
-const hAI = () => `<button class="airow" data-act="care"><span class="airo">AI</span><span class="airt"><b>六角色助手</b><small>陪诊整理 · 核对材料 · 沟通准备</small></span><span class="airc">›</span></button>`;
+const hAI = () => `<button class="airow" data-care="open"><span class="airo">AI</span><span class="airt"><b>六角色助手</b><small>陪诊整理 · 核对材料 · 沟通准备</small></span><span class="airc">›</span></button>`;
 function hOverview(cp) {
     const ms = (cp.mx || []).map(m => ({ m, pt: hlastPt(m) })).filter(x => x.pt).slice(0, 2);
     const body = ms.length ? `<div class="ovrow">${ms.map(({ m, pt }) => { const v = +String(pt.v).match(/^-?\d+(\.\d+)?$/)?.[0], bad = v !== undefined && !isNaN(v) && ((m.lo !== '' && m.lo != null && v < m.lo) || (m.hi !== '' && m.hi != null && v > m.hi)); return `<div class="omet"><span>${esc(m.name)}</span><b>${esc(pt.v)}<small>${esc(m.unit || '')}</small></b><em>${esc(String(pt.date || '').slice(5))}${bad ? ' ▲' : ''}</em></div>`; }).join('')}</div>` : `<p class="hblank">还没有记录指标。复诊前记下血压、血糖或化验数值，沟通会更清楚。</p>`;
@@ -5061,7 +5064,7 @@ function careEntryCard() {
     const t = careTenant();
     return '<div class="card care-deck"><h2>AI 六角色助手</h2><p class="sub">医院：' + esc(t || '未配置') + ' · 账号：' + esc(CARE_AUTH.user) + '</p>' +
         '<div class="care-role-grid">' + CARE_ROLES.map(function (r) {
-            return '<button class="care-role" data-care="role" data-role="' + r.id + '" style="--c:#0f766e"><em>' + r.id + ' · ' + r.code + '</em><b>' + esc(r.name) + '</b><small>' + esc(r.desc) + '</small></button>';
+            return '<button class="care-role" data-care="role" data-role="' + r.id + '" style="--c:#2563eb"><em>' + r.id + ' · ' + r.code + '</em><b>' + esc(r.name) + '</b><small>' + esc(r.desc) + '</small></button>';
         }).join('') + '</div><div class="bar"><button class="btn" data-care="open">七步任务</button></div></div>';
 }
 function careView() {
@@ -5073,7 +5076,7 @@ function careView() {
         '<div class="card care-deck"><h2>医院服务 · 六角色</h2><p class="sub">医院：' + esc(tenant || '未配置') + ' · 账号：' + esc(CARE_AUTH.user) + '</p>' +
         '<p class="care-note">六个角色共用同一份医院目录和同一套七步任务；角色只改变回答方式。</p><div class="care-role-grid">' +
         CARE_ROLES.map(function (r) {
-            return '<button class="care-role" data-care="role" data-role="' + r.id + '" aria-pressed="' + (r.id === role.id) + '" style="--c:#0f766e"><em>' + r.id + ' · ' + r.code + '</em><b>' + esc(r.name) + '</b><small>' + esc(r.desc) + '</small></button>';
+            return '<button class="care-role" data-care="role" data-role="' + r.id + '" aria-pressed="' + (r.id === role.id) + '" style="--c:#2563eb"><em>' + r.id + ' · ' + r.code + '</em><b>' + esc(r.name) + '</b><small>' + esc(r.desc) + '</small></button>';
         }).join('') + '</div></div>' +
         '<div class="card"><h2>' + esc(role.name) + ' <small>' + role.id + ' · ' + role.code + '</small></h2><p class="sub">' + esc(role.desc) + '</p>' +
         '<div class="care-chat" id="careChat">' + chat + '</div><label for="careInput">问 ' + esc(role.name) + '</label>' +
