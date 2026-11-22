@@ -2361,7 +2361,7 @@ const iget = async (k) => { const d = await idb(); return new Promise((s, j) => 
 const idel = k => idb().then(d => d.transaction('i', 'readwrite').objectStore('i').delete(k)).catch(() => { });
 const idelw = async (k) => { const d = await idb(); return new Promise((s, j) => { const t = d.transaction('i', 'readwrite'); t.objectStore('i').delete(k); t.oncomplete = s; t.onerror = () => j(t.error); t.onabort = () => j(t.error); }); };
 const tabs = () => `<nav class="tabs" aria-label="档案栏目">${[['info', '档案', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3h6v3H9zM8.5 11h7M8.5 15h5"/></svg>'], ['tl', '时间线', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>'], ['mx', '指标', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16h16"/><path d="M7 15l4-4 3 3 5-6"/></svg>'], ['sm', '摘要', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>'], ['ai', '助手', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a4 4 0 0 0-4 4v1a7 7 0 1 0 8 0V7a4 4 0 0 0-4-4z"/><path d="M9 11h.01M15 11h.01M9.5 15a3 3 0 0 0 5 0"/></svg>']].map(t => `<button class="tab" aria-pressed="${S.tab === t[0]}" data-act="tab" data-t="${t[0]}"><span class="ti" aria-hidden="true">${t[2]}</span><span class="tl">${t[1]}</span></button>`).join('')}</nav>`;
-const APP_VER = '2026.11.37';
+const APP_VER = '2026.11.38';
 const CC_SYM = ['发烧 / 怕冷', '咳嗽 / 咳痰', '头痛 / 头晕', '心慌 / 心悸', '肚子痛 / 胃不舒服', '拉肚子 / 便秘 / 恶心呕吐', '尿频 / 尿痛 / 血尿', '血压 / 血糖问题', '失眠 / 情绪差 / 记性差', '伤口 / 肿块', '腰腿痛 / 关节痛 / 脖子痛', '摔伤 / 扭伤', '牙痛 / 牙龈出血 / 口腔溃疡', '皮疹 / 瘙痒', '看东西模糊 / 眼红 / 眼痛', '耳鸣 / 听力下降 / 鼻塞 / 咽痛', '月经问题 / 备孕', '孩子不舒服', '常规体检 / 带着已有的检查报告', '想看中医 / 调理身体'];
 const CC_DUR = ['今天刚出现', '两三天内', '一周左右', '一个月内', '几个月了', '半年以上', '长期反复'];
 const CC_SEV = ['轻微，不影响生活', '有点难受，能忍', '比较难受，影响睡觉/吃饭', '很难受'];
@@ -2815,7 +2815,7 @@ async function aiCall(txt) {
     const p = cur(), who = (p && p.id) || 'web';
     let out;
     try {
-        const r = await fetch(base + '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: txt, who, chat: 'web:' + who }) });
+        const r = await fetch(base + '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: maskSensitive(txt), who, chat: 'web:' + who }) });
         const j = await r.json().catch(() => ({}));
         if (r.ok && j && j.ok !== false) {
             let t = String(j.reply || '').trim();
@@ -3107,6 +3107,10 @@ const hgreet = () => { const h = new Date().getHours(); return h < 6 ? '夜深�
 const hdate = d => { const x = new Date(d + 'T00:00:00'); return (x.getMonth() + 1) + '月' + x.getDate() + '日'; };
 const hwday = d => '周' + ['日', '一', '二', '三', '四', '五', '六'][new Date(d + 'T00:00:00').getDay()];
 const hlastPt = m => (m.pts || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)))[0] || null;
+const maskSensitive = s => String(s == null ? '' : s)
+    .replace(/\b\d{17}[\dXx]\b/g, m => m.slice(0, 6) + '********' + m.slice(-4))
+    .replace(/(^|\D)(1[3-9]\d{9})(?!\d)/g, (m, a, b) => a + b.slice(0, 3) + '****' + b.slice(-4));
+const maskAccount = s => /^\d{11}$/.test(s) ? s.slice(0, 3) + '****' + s.slice(-4) : (/^[^@\s]+@[^@\s]+$/.test(s) ? s.slice(0, 1) + '***@' + s.split('@')[1] : s);
 function hGreeting(cp) {
     let uname = ''; try { uname = localStorage.getItem('companion.auth.user') || ''; } catch (e) { }
     const nm = cp && niceMember(cp.member || '') ? niceMember(cp.member) : '';
@@ -3115,7 +3119,7 @@ function hGreeting(cp) {
     let st = nv ? (d === 0 ? '今天' : d === 1 ? '明天' : d > 1 ? '还有 ' + d + ' 天' : '复诊已过 ' + (-d) + ' 天') + ' · ' + dn(cp) : '还没有安排下次复诊';
     if (L.length) st += ' · 今天 ' + L.length + ' 项待处理';
     const chips = S.profiles.length > 1 ? `<div class="pchips">${S.profiles.map(q => `<button class="pchip" aria-pressed="${q.id === cp.id}" data-act="psel" data-id="${q.id}">${esc(niceMember(q.member))}</button>`).join('')}</div>` : '';
-    return `<header class="hello"><div><p class="hello-hi">${hgreet()}，${esc(uname || '朋友')}</p>${nm ? `<h1>${esc(nm)}</h1>` : ''}<p class="hello-sub">${esc(st)}</p></div><span class="hello-ava" aria-hidden="true">${esc(who.slice(0, 1))}</span></header>` + chips;
+    return `<header class="hello"><div><p class="hello-hi">${hgreet()}，${esc(maskAccount(uname) || '朋友')}</p>${nm ? `<h1>${esc(nm)}</h1>` : ''}<p class="hello-sub">${esc(st)}</p></div><span class="hello-ava" aria-hidden="true">${esc(who.slice(0, 1))}</span></header>` + chips;
 }
 function hNext(cp) {
     const nv = nextVisit(cp), fv = flowVisit(cp), sel = nv || fv;
@@ -4559,7 +4563,7 @@ catch (e) {
     storeFail();
 } };
 const sha = async (s) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map(x => x.toString(16).padStart(2, '0')).join('');
-const privacy = () => modal('<h2>隐私说明</h2><p class="sub">首次使用请先看一下，点底部按钮关闭后即可新建档案。</p><p>你录入的内容默认只保存在这台设备的浏览器里；仅当你主动上传打卡/核销，或使用智能助手提问时，相应内容才会发送到服务端。本机档案本身不会自动上传。</p>' + (UP_OK ? '<p>复诊打卡和核销记录是否上传给医院，由您自己选择；可随时在首页「更多工具与设置 → 上传记录」里修改。</p>' : '') + '<p>清理浏览器数据或更换设备会丢失资料，请定期在「数据备份」里导出。</p><p>本地保存不等于加密，请勿在公共设备使用。</p><details><summary>展开更多说明</summary><p>会保存的内容：档案信息、时间线记录、指标数值和你上传的图片。</p><p>清理浏览器数据、使用无痕模式或更换设备，都会丢失这些资料，请定期在「数据备份」里导出。</p><p><b>资料存在本机不等于已加密。</b>别人能打开你的手机或浏览器，就可能看到这些内容；备份文件默认也未加密（导出时可设密码），请勿放在公共设备或不可信的共享空间。</p><p>儿童档案请由监护人填写。</p><p class="sub">本工具仅作病程资料归档，不能替代医生面诊。</p></details><div class="bar"><button class="btn" data-go="x">我已阅读，开始使用</button></div>');
+const privacy = () => modal('<h2>隐私说明</h2><p class="sub">首次使用请先看一下，点底部按钮关闭后即可新建档案。</p><p>你录入的内容默认只保存在这台设备的浏览器里；仅当你主动上传打卡/核销，或使用智能助手提问时，相应内容才会发送到服务端。本机档案本身不会自动上传。</p><p>使用智能助手提问时，你的问题会连同最近几条对话发送到助手服务处理，服务端最多保留 7 天；请不要输入身份证号、完整手机号、住院号等敏感信息。</p>' + (UP_OK ? '<p>复诊打卡和核销记录是否上传给医院，由您自己选择；可随时在首页「更多工具与设置 → 上传记录」里修改。</p>' : '') + '<p>清理浏览器数据或更换设备会丢失资料，请定期在「数据备份」里导出。</p><p>本地保存不等于加密，请勿在公共设备使用。</p><details><summary>展开更多说明</summary><p>会保存的内容：档案信息、时间线记录、指标数值和你上传的图片。</p><p>清理浏览器数据、使用无痕模式或更换设备，都会丢失这些资料，请定期在「数据备份」里导出。</p><p><b>资料存在本机不等于已加密。</b>别人能打开你的手机或浏览器，就可能看到这些内容；备份文件默认也未加密（导出时可设密码），请勿放在公共设备或不可信的共享空间。</p><p>儿童档案请由监护人填写。</p><p class="sub">本工具仅作病程资料归档，不能替代医生面诊。</p></details><div class="bar"><button class="btn" data-go="x">我已阅读，开始使用</button></div>');
 function acctInit() {
     try {
         if (navigator.storage && navigator.storage.persist)
@@ -4999,6 +5003,7 @@ function careLogout() {
     if (!CARE_AUTH.token) { const g = document.getElementById('authGate'); if (g) g.hidden = false; careAuthShowChoices(); return; }
     if (!confirm('退出登录后，本机档案仍保留在这台设备上。\n如果这是共用设备，建议同时清除本机档案。\n\n点“确定”继续退出。')) return;
     if (confirm('是否同时清除本机档案数据？\n\n点“确定”=退出并清除；点“取消”=只退出、保留档案。')) {
+        try { Object.keys(localStorage).filter(k => k.indexOf('companion.care.chat.') === 0).forEach(k => localStorage.removeItem(k)); } catch (e) { }
         try { localStorage.removeItem('companion.v1'); } catch (e) { }
         location.reload();
         return;
@@ -5258,7 +5263,7 @@ document.addEventListener('click', async function (e) {
         careSaveChat();
         CARE_UI.busy = true; if (typeof view === 'function') view();
         try {
-            const r = await careApi('/api/chat', { method: 'POST', body: JSON.stringify({ role: role.id, text: text, history: history }) });
+            const r = await careApi('/api/chat', { method: 'POST', body: JSON.stringify({ role: role.id, text: maskSensitive(text), history: (history || []).map(x => ({ role: x.role, content: maskSensitive(x.content) })) }) });
             if (r.ok && r.data && r.data.ok && typeof r.data.reply === 'string') list.push({ role: 'assistant', content: r.data.reply });
             else list.push({ role: 'error', content: careErr(r.status, r.data) });
         } catch (err) { list.push({ role: 'error', content: '网络异常，请稍后再试。' }); }
