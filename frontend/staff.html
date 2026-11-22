@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>就医伴侣 · 院方工作台</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#f6f8fb">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://juyiibanlvzhinengai.tianxinyuan881.workers.dev; img-src data:; base-uri 'none'; form-action 'none'">
+<style>
+:root{--bg:#f6f8fb;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#e5eaf2;--accent:#0d9488;--accent-soft:#e6fffa;--ok:#16a34a;--warn:#d97706;--danger:#dc2626;--r:14px}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:radial-gradient(1000px 520px at 18% -12%,#e6fffa 0,transparent 60%),var(--bg);color:var(--ink);font:15px/1.6 "PingFang SC","Noto Sans SC","Microsoft YaHei",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,textarea{font:inherit}
+button{cursor:pointer}
+[hidden]{display:none!important}
+.wrap{max-width:980px;margin:0 auto;padding:24px 18px 80px}
+/* 登录 */
+.login{min-height:100svh;display:grid;place-items:center;padding:24px}
+.login-card{width:100%;max-width:400px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:30px 26px;box-shadow:0 24px 60px rgba(15,23,42,.08)}
+.mark{width:58px;height:58px;border-radius:16px;background:linear-gradient(140deg,#0d9488,#34d399);display:grid;place-items:center;position:relative;box-shadow:0 10px 24px rgba(13,148,136,.28)}
+.mark:before{content:"";width:26px;height:6px;background:#fff;border-radius:2px;position:absolute}
+.mark:after{content:"";width:6px;height:26px;background:#fff;border-radius:2px;position:absolute}
+.login-card h1{font-size:22px;margin:18px 0 4px;letter-spacing:-.3px}
+.login-card .sub{color:var(--muted);font-size:13px;margin:0 0 22px}
+label{display:block;font-size:12px;color:var(--muted);margin:12px 0 6px}
+input,textarea{width:100%;border:1px solid var(--line);background:#fbfcfe;color:var(--ink);border-radius:10px;padding:11px 12px;outline:none}
+input:focus,textarea:focus{border-color:#5eead4;box-shadow:0 0 0 3px rgba(13,148,136,.12)}
+.btn{border:0;border-radius:10px;background:var(--accent);color:#fff;padding:11px 16px;font-weight:600}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.small{padding:6px 10px;font-size:12px;border-radius:8px}
+.msg{font-size:13px;margin:12px 0 0;min-height:20px}
+.msg.err{color:var(--danger)}.msg.ok{color:var(--ok)}
+.hint{font-size:12px;color:var(--muted);margin:16px 0 0;line-height:1.6}
+/* 工作台 */
+.top{position:sticky;top:0;z-index:5;background:rgba(246,248,251,.86);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.top-in{max-width:980px;margin:0 auto;padding:12px 18px;display:flex;align-items:center;gap:12px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.2px}
+.brand .mark{width:32px;height:32px;border-radius:9px;box-shadow:none}
+.brand .mark:before{width:15px;height:3.5px}.brand .mark:after{width:3.5px;height:15px}
+.brand small{display:block;font-size:11px;color:var(--muted);font-weight:500}
+.sp{flex:1}
+.sess{font-size:12px;color:var(--muted);text-align:right;line-height:1.4;white-space:pre-line}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px;margin:16px 0}
+.card h2{font-size:16px;margin:0 0 4px}
+.card .sub{font-size:13px;color:var(--muted);margin:0 0 14px}
+.gl{font-size:11px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin:14px 0 8px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.role{text-align:left;border:1px solid var(--line);background:#fbfcfe;border-radius:12px;padding:12px;color:var(--ink)}
+.role em{display:block;font-style:normal;font-size:11px;color:var(--muted)}
+.role b{display:block;font-size:14px;margin:2px 0 4px}
+.role small{display:block;font-size:11px;color:var(--muted);line-height:1.5}
+.role[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 2px rgba(13,148,136,.12)}
+.role:disabled{opacity:.5;cursor:not-allowed}
+.chat{max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:12px;background:#fbfcfe;padding:12px;margin:12px 0}
+.m{font-size:13px;line-height:1.65;padding:8px 11px;border-radius:10px;margin:0 0 8px;white-space:pre-wrap;word-break:break-word}
+.m.me{background:#e0f2fe;margin-left:18%}
+.m.ai{background:#fff;border:1px solid var(--line);margin-right:8%}
+.m.err{background:#fdecec;color:#b91c1c}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.bar .btn{flex:0 0 auto}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.chip{display:inline-block;border-radius:999px;padding:2px 8px;font-size:11px;background:#f1f5f9;color:#475569}
+.chip.ok{background:#e9f9ef;color:#15803d}.chip.bad{background:#fdecec;color:#b91c1c}
+pre.json{margin:10px 0 0;max-height:380px;overflow:auto;background:#0f172a;color:#e2e8f0;border-radius:10px;padding:14px;font-size:12px;line-height:1.55}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(8px);background:#0f172a;color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:.2s;z-index:30}
+.toast.on{opacity:1;transform:translateX(-50%)}
+@media(max-width:640px){.grid{grid-template-columns:1fr 1fr}.wrap{padding:16px 14px 64px}.sess{display:none}.brand small{display:none}}
+</style></head>
+<body>
+
+<section id="login" class="login">
+  <form id="loginForm" class="login-card" autocomplete="off">
+    <div class="mark" aria-hidden="true"></div>
+    <h1>院方工作台</h1>
+    <p class="sub">就医伴侣 · 仅限医院工作人员</p>
+    <label for="user">医院账号</label>
+    <input id="user" type="text" autocomplete="username" placeholder="使用医院分配的账号" required>
+    <label for="pw">密码</label>
+    <input id="pw" type="password" autocomplete="current-password" placeholder="输入密码" required>
+    <p id="loginMsg" class="msg" role="status"></p>
+    <button id="loginBtn" class="btn" type="submit" style="width:100%;margin-top:12px">登录</button>
+    <p class="hint">院方账号由管理员开通，只有开通过的账号能看到院方工作台。</p>
+  </form>
+</section>
+
+<main id="app" class="wrap" hidden>
+  <header class="top" style="margin:-24px -18px 0">
+    <div class="top-in">
+      <div class="brand"><span class="mark" aria-hidden="true"></span><span>院方工作台<small>HOSPITAL STAFF</small></span></div>
+      <div class="sp"></div>
+      <span id="sessInfo" class="sess"></span>
+      <button id="refresh" class="btn ghost small" type="button">刷新</button>
+      <button id="logout" class="btn ghost small" type="button">退出</button>
+    </div>
+  </header>
+
+  <section class="card">
+    <h2>岗位助手</h2>
+    <p class="sub" id="hospLine">正在读取医院与权限…</p>
+    <div id="roles"></div>
+  </section>
+
+  <section class="card">
+    <h2 id="chatTitle">选择岗位后开始</h2>
+    <p class="sub" id="chatSub">只用管理员分配给您的岗位。没有权限的岗位会显示为不可用。</p>
+    <div class="chat" id="chat"></div>
+    <textarea id="text" rows="3" placeholder="输入要处理的内容"></textarea>
+    <div class="bar">
+      <button id="send" class="btn" type="button">发送</button>
+      <button id="clear" class="btn ghost small" type="button">清空对话</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>医院配置</h2>
+    <p class="sub">只读查看本院服务目录。需要修改请联系管理员。</p>
+    <div id="cfgMeta" class="sub"></div>
+    <div class="bar" id="tenantBar" hidden></div>
+    <pre id="cfgJson" class="json" hidden></pre>
+  </section>
+</main>
+
+<div id="toast" class="toast" role="status"></div>
+
+<script>
+(function () {
+  'use strict';
+  var API = 'https://juyiibanlvzhinengai.tianxinyuan881.workers.dev';
+  var TK = 'care.staff.token', UK = 'care.staff.user';
+  var token = sessionStorage.getItem(TK) || '';
+  var me = null, roleId = '', chat = {}, busy = false, tenant = '';
+
+  var ROLES = [
+    { id: 'R1', code: 'P-ASSIST', name: '患者陪伴' },
+    { id: 'R2', code: 'S-DEMO', name: '商务讲解' },
+    { id: 'R3', code: 'C-CONFIG', name: '配置交付' },
+    { id: 'R4', code: 'Q-AUDIT', name: '发布审计' },
+    { id: 'R5', code: 'F-REDEEM', name: '前台核销' },
+    { id: 'R6', code: 'L-REVIEW', name: '医务法务' }
+  ];
+
+  function $(id) { return document.getElementById(id); }
+  function esc(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function toast(t) {
+    var el = $('toast'); el.textContent = t; el.classList.add('on');
+    clearTimeout(el._t); el._t = setTimeout(function () { el.classList.remove('on'); }, 2200);
+  }
+  function api(path, opt) {
+    opt = opt || {};
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = 'Bearer ' + token;
+    return fetch(API + path, { method: opt.method || 'GET', headers: headers, body: opt.body }).then(function (r) {
+      return r.text().then(function (t) {
+        var d = null; try { d = t ? JSON.parse(t) : null; } catch (e) { }
+        return { status: r.status, ok: r.ok, data: d };
+      });
+    });
+  }
+  function drop() {
+    token = ''; me = null; roleId = ''; chat = {}; tenant = '';
+    sessionStorage.removeItem(TK); sessionStorage.removeItem(UK);
+    $('app').hidden = true; $('login').hidden = false;
+    $('pw').value = '';
+    $('loginBtn').disabled = false; $('loginBtn').textContent = '登录';
+  }
+  function showLogin(msg, ok) {
+    drop();
+    if (msg) { $('loginMsg').textContent = msg; $('loginMsg').className = ok ? 'msg ok' : 'msg err'; }
+    setTimeout(function () { try { $('user').focus(); } catch (e) { } }, 60);
+  }
+
+  function renderRoles() {
+    var allowed = me && Array.isArray(me.roles) ? me.roles : [];
+    var html = ROLES.map(function (r) {
+      var can = allowed.indexOf(r.id) >= 0;
+      return '<button class="role" type="button" data-role="' + r.id + '" aria-pressed="' + (roleId === r.id) + '"' + (can ? '' : ' disabled') + '>' +
+        '<em>' + r.id + ' · ' + r.code + (can ? '' : ' · 未开通') + '</em><b>' + esc(r.name) + '</b></button>';
+    }).join('');
+    $('roles').innerHTML = '<div class="grid">' + html + '</div>';
+  }
+
+  function renderChat() {
+    var list = chat[roleId] || [];
+    $('chat').innerHTML = list.length ? list.map(function (m) {
+      return '<div class="m ' + (m.role === 'user' ? 'me' : m.role === 'error' ? 'err' : 'ai') + '">' + esc(m.content) + '</div>';
+    }).join('') : '<div class="m ai">选择一个岗位后，在这里提问或粘贴需要处理的内容。</div>';
+    $('chat').scrollTop = $('chat').scrollHeight;
+  }
+
+  function enter() {
+    $('login').hidden = true; $('app').hidden = false;
+    var shown = me.tenant_ids && me.tenant_ids.length ? me.tenant_ids.join('、') : '未分配医院';
+    $('sessInfo').textContent = '账号 ' + me.user + '\n医院 ' + shown;
+    $('hospLine').textContent = '医院：' + shown + ' · 已开通岗位：' + (me.roles || []).join(' / ');
+    renderRoles(); renderChat(); loadConfig();
+  }
+
+  function check() {
+    return api('/api/staff/me').then(function (r) {
+      if (r.status === 401) { showLogin('登录已失效，请重新登录'); return false; }
+      if (r.status === 403) { showLogin((r.data && r.data.msg) || '该账号没有院方权限'); return false; }
+      if (!r.ok || !r.data || !r.data.ok) { toast((r.data && r.data.msg) || '读取权限失败'); return false; }
+      me = r.data;
+      if (me.tenant_ids && me.tenant_ids.length) tenant = me.tenant_ids[0];
+      if (!roleId || me.roles.indexOf(roleId) < 0) roleId = me.roles[0] || '';
+      enter();
+      return true;
+    }).catch(function () { showLogin('网络异常，请稍后重试'); return false; });
+  }
+
+  function loadConfig() {
+    var ids = (me && me.tenant_ids) || [];
+    $('tenantBar').hidden = ids.length < 2;
+    $('tenantBar').innerHTML = ids.map(function (t) {
+      return '<button class="btn ghost small" type="button" data-tenant="' + esc(t) + '"' + (t === tenant ? ' style="border-color:var(--accent);color:var(--accent)"' : '') + '>' + esc(t) + '</button>';
+    }).join('');
+    $('cfgJson').hidden = true;
+    $('cfgMeta').textContent = '正在读取…';
+    if (!tenant) { $('cfgMeta').textContent = '该账号还没有分配医院。'; return; }
+    api('/api/staff/config?tenant_id=' + encodeURIComponent(tenant)).then(function (r) {
+      if (r.status === 401) { showLogin('登录已失效，请重新登录'); return; }
+      if (!r.ok || !r.data || !r.data.ok) {
+        $('cfgMeta').textContent = (r.data && r.data.msg) || '读取医院配置失败';
+        return;
+      }
+      var d = r.data;
+      $('cfgMeta').innerHTML = '医院：<b class="mono">' + esc(d.tenant_id) + '</b> ' +
+        (d.valid ? '<span class="chip ok">配置有效</span>' : '<span class="chip bad">配置不完整</span>') +
+        (d.problem ? '<br><span class="mono">' + esc(d.problem) + '</span>' : '');
+      $('cfgJson').textContent = JSON.stringify(d.catalog, null, 2);
+      $('cfgJson').hidden = false;
+    }).catch(function () { $('cfgMeta').textContent = '网络异常，读取失败'; });
+  }
+
+  function send() {
+    if (busy || !roleId) return;
+    var el = $('text'), text = String(el.value || '').trim();
+    if (!text) { toast('先输入内容'); return; }
+    busy = true; $('send').disabled = true;
+    var list = chat[roleId] || (chat[roleId] = []);
+    var history = list.filter(function (m) { return m.role === 'user' || m.role === 'assistant'; }).slice(-10).map(function (m) { return { role: m.role, content: m.content }; });
+    list.push({ role: 'user', content: text }); el.value = ''; renderChat();
+    api('/api/chat', { method: 'POST', body: JSON.stringify({ role: roleId, text: text, history: history }) }).then(function (r) {
+      if (r.status === 401) { showLogin('登录已失效，请重新登录'); return; }
+      if (!r.ok || !r.data || !r.data.ok) {
+        var msg = (r.data && (r.data.msg || r.data.code)) || '请求失败';
+        list.push({ role: 'error', content: msg });
+      } else {
+        list.push({ role: 'assistant', content: r.data.reply || '（空回复）' });
+      }
+      renderChat();
+    }).catch(function () {
+      list.push({ role: 'error', content: '网络异常，请稍后重试' }); renderChat();
+    }).then(function () {
+      busy = false; $('send').disabled = false;
+    });
+  }
+
+  $('loginForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var user = String($('user').value || '').trim(), pw = String($('pw').value || '');
+    if (!user || !pw) { $('loginMsg').textContent = '请填写账号和密码'; $('loginMsg').className = 'msg err'; return; }
+    $('loginBtn').disabled = true; $('loginBtn').textContent = '登录中…';
+    $('loginMsg').textContent = ''; $('loginMsg').className = 'msg';
+    fetch(API + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: user, pw: pw }) })
+      .then(function (r) { return r.text().then(function (t) { var d = null; try { d = t ? JSON.parse(t) : null; } catch (err) { } return { ok: r.ok, data: d }; }); })
+      .then(function (r) {
+        if (!r.ok || !r.data || !r.data.ok) {
+          $('loginBtn').disabled = false; $('loginBtn').textContent = '登录';
+          $('loginMsg').textContent = (r.data && r.data.msg) || '账号或密码不正确';
+          $('loginMsg').className = 'msg err';
+          return;
+        }
+        token = r.data.token;
+        sessionStorage.setItem(TK, token);
+        sessionStorage.setItem(UK, r.data.user || user);
+        $('loginBtn').disabled = false; $('loginBtn').textContent = '登录';
+        check().then(function (ok) { if (!ok) return; });
+      })
+      .catch(function () {
+        $('loginBtn').disabled = false; $('loginBtn').textContent = '登录';
+        $('loginMsg').textContent = '网络异常，请稍后重试'; $('loginMsg').className = 'msg err';
+      });
+  });
+
+  $('roles').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-role]');
+    if (!b || b.disabled) return;
+    roleId = b.getAttribute('data-role');
+    var r = ROLES.filter(function (x) { return x.id === roleId; })[0];
+    $('chatTitle').textContent = roleId + ' · ' + r.name;
+    $('chatSub').textContent = '当前岗位：' + r.code + '。回复只基于医院配置与公开规则，不替代医生判断。';
+    renderRoles(); renderChat();
+  });
+  $('send').addEventListener('click', send);
+  $('clear').addEventListener('click', function () { chat[roleId] = []; renderChat(); });
+  $('refresh').addEventListener('click', function () { check().then(function (ok) { if (ok) toast('已刷新'); }); });
+  $('logout').addEventListener('click', function () { showLogin('已退出', true); });
+  $('tenantBar').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-tenant]');
+    if (!b) return;
+    tenant = b.getAttribute('data-tenant');
+    loadConfig();
+  });
+
+  if (token) {
+    $('user').value = sessionStorage.getItem(UK) || '';
+    check();
+  } else {
+    showLogin();
+  }
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (r) { r.unregister(); }); }).catch(function () { });
+  }
+})();
+</script>
+</body></html>

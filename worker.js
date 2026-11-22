@@ -1,5 +1,5 @@
 import { runCareChat, careActorFromReq, prepareCareTask, careTaskDo, CareHttpError } from "./care.js";
-import { careTenantId, careOptionIds, loadCareCatalog, matchCareCatalog, proxyFastGptMatch } from "./care-catalog.js";
+import { careTenantId, careOptionIds, loadCareCatalog, matchCareCatalog, proxyFastGptMatch, validateCareCatalog } from "./care-catalog.js";
 import { CARE_MODULES, normalizeCareRole } from "./care-prompts.js";
 
 // openmanus-gateway v99y：一个脑子。飞书消息不再自己猜意图，直接调前端同一个 runWorkChat（同一份 WORK_SYSTEM_PROMPT / 同一个模型轮换 / 同一张 FS_TOOLS）。选哪个工具完全由模型自己定：代码里没有关键词分流、没有白名单、没有预调工具，只给任务结构（工具表 + 会话态 + 多轮循环 + 最终自由文本）。删掉飞书先猜意图那层 / 关键词 if-else / 写文档先搜一遍 / 待办提醒与待办表混用。
@@ -4805,7 +4805,7 @@ async function handle(request, env, ctx) {
           await env.KV.put("user:" + user, JSON.stringify({ ...rec, salt, hash: await pbkdf2(pw, salt), created: rec.created || Date.now() }));
         }
       }
-      return json({ ok: true, token: await newToken(env, user), user, staff: !!(rec && rec.staff === true) });
+      return json({ ok: true, token: await newToken(env, user), user, staff: !!(rec && (rec.staff === true || (Array.isArray(rec.staff_roles) && rec.staff_roles.length))) });
     }
 
     // ---- 云端历史 ----
@@ -5733,6 +5733,81 @@ async function handle(request, env, ctx) {
         }
         return json({ ok: true, rows });
       }
+      if (path === "/api/admin/staff" && request.method === "GET") {
+        const q = String(url.searchParams.get("q") || "").trim().toLowerCase();
+        const keys = await adminListAll(env, "user:", 1000);
+        const rows = [];
+        for (const k of keys) {
+          const username = k.name.slice(5);
+          if (!username) continue;
+          if (q && username.toLowerCase().indexOf(q) < 0) continue;
+          const rec = await env.KV.get(k.name, "json").catch(() => null);
+          if (!rec) continue;
+          const roles = Array.isArray(rec.staff_roles) ? rec.staff_roles.map((x) => String(x).toUpperCase()).filter((x) => /^R[1-6]$/.test(x)) : [];
+          const scopes = Array.isArray(rec.care_scopes) ? rec.care_scopes : [];
+          const isStaff = rec.staff === true || roles.length > 0;
+          if (!q && !isStaff) continue;
+          rows.push({ username, staff: isStaff, roles, tenant_ids: [...new Set(scopes.map((s) => s && s.tenant_id).filter(Boolean))], created: rec.created || null });
+        }
+        rows.sort((a, b) => a.username.localeCompare(b.username));
+        return json({ ok: true, staff: rows.slice(0, 200) });
+      }
+      if (path === "/api/admin/staff" && request.method === "POST") {
+        const b = await request.json().catch(() => ({}));
+        const username = String(b.user || "").trim();
+        if (!username) return json({ ok: false, code: "INVALID_USER", msg: "请填写账号" }, 400);
+        const k = "user:" + username;
+        const rec = await env.KV.get(k, "json").catch(() => null);
+        if (!rec) return json({ ok: false, code: "USER_NOT_FOUND", msg: "账号不存在，请先让对方注册" }, 404);
+        if (b.enabled === false) {
+          await env.KV.put(k, JSON.stringify({ ...rec, staff: false, staff_roles: [] }));
+          await adminAudit(env, "staff-disable", username, ip);
+          return json({ ok: true, user: username, staff: false, roles: [], tenant_ids: [...new Set((Array.isArray(rec.care_scopes) ? rec.care_scopes : []).map((s) => s && s.tenant_id).filter(Boolean))] });
+        }
+        const roles = [...new Set((Array.isArray(b.roles) ? b.roles : []).map((x) => String(x).toUpperCase()).filter((x) => /^R[1-6]$/.test(x)))].sort();
+        if (!roles.length) return json({ ok: false, code: "INVALID_ROLES", msg: "至少选择一个岗位（R1–R6）" }, 400);
+        const scopes = Array.isArray(rec.care_scopes) ? rec.care_scopes.slice() : [];
+        const tenantId = String(b.tenant_id || "").trim();
+        if (tenantId) {
+          let safeTenant;
+          try { safeTenant = careTenantId(tenantId); }
+          catch (e) { return json({ ok: false, code: "INVALID_TENANT", msg: "医院租户 ID 格式不正确" }, 422); }
+          if (!scopes.some((s) => s && s.tenant_id === safeTenant)) {
+            scopes.push({ tenant_id: safeTenant, profile_id: String(b.profile_id || "staff") });
+          }
+        }
+        if (!scopes.length) return json({ ok: false, code: "TENANT_REQUIRED", msg: "请为该院方账号分配医院租户" }, 400);
+        await env.KV.put(k, JSON.stringify({ ...rec, staff: true, staff_roles: roles, care_scopes: scopes }));
+        await adminAudit(env, "staff-assign", username + " " + roles.join(",") + " " + scopes.map((s) => s && s.tenant_id).filter(Boolean).join(","), ip);
+        return json({ ok: true, user: username, staff: true, roles, tenant_ids: [...new Set(scopes.map((s) => s && s.tenant_id).filter(Boolean))] });
+      }
+      if (path === "/api/admin/config" && request.method === "GET") {
+        let tenantId;
+        const raw = String(url.searchParams.get("tenant_id") || "").trim();
+        if (!raw) return json({ ok: false, code: "INVALID_TENANT", msg: "缺少 tenant_id" }, 400);
+        try { tenantId = careTenantId(raw); }
+        catch (e) { return json({ ok: false, code: "INVALID_TENANT", msg: "医院租户 ID 格式不正确" }, 422); }
+        const catalog = await env.KV.get("care:catalog:" + tenantId, "json").catch(() => null);
+        if (!catalog) return json({ ok: false, code: "CATALOG_NOT_FOUND", msg: "该医院还没有配置" }, 404);
+        let valid = true, problem = "";
+        try { validateCareCatalog(catalog); }
+        catch (e) { valid = false; problem = String(e && e.message || e); }
+        return json({ ok: true, tenant_id: tenantId, valid, problem, catalog });
+      }
+      if (path === "/api/admin/config" && request.method === "PUT") {
+        const b = await request.json().catch(() => ({}));
+        let tenantId;
+        try { tenantId = careTenantId(b.tenant_id); }
+        catch (e) { return json({ ok: false, code: "INVALID_TENANT", msg: "医院租户 ID 格式不正确" }, 422); }
+        let catalog = b.catalog;
+        if (typeof catalog === "string") { try { catalog = JSON.parse(catalog); } catch (e) { return json({ ok: false, code: "INVALID_JSON", msg: "医院配置不是合法 JSON" }, 400); } }
+        let normalized;
+        try { normalized = validateCareCatalog(catalog); }
+        catch (e) { return json({ ok: false, code: "INVALID_CATALOG", msg: String(e && e.message || e) }, 422); }
+        await env.KV.put("care:catalog:" + tenantId, JSON.stringify(catalog));
+        await adminAudit(env, "config-save", tenantId + " " + normalized.catalog_version, ip);
+        return json({ ok: true, tenant_id: tenantId, catalog_version: normalized.catalog_version });
+      }
       if (path === "/api/admin/reveal" && request.method === "POST") {
         const b = await request.json().catch(() => ({}));
         const rk = "admin:reveal:" + ip;
@@ -5758,6 +5833,45 @@ async function handle(request, env, ctx) {
       return json({ ok: false, code: "NOT_FOUND", msg: "接口不存在" }, 404);
     }
 
+    // ---- 院方工作台：只能用医院自己的账号，权限由控制台分配 ----
+    if (path === "/api/staff/me" && request.method === "GET") {
+      const username = await userFromReq(request, env, url, "");
+      if (!username) return json({ ok: false, code: "UNAUTHORIZED", msg: "请先登录" }, 401);
+      const rec = await env.KV.get("user:" + username, "json").catch(() => null);
+      const roles = rec && Array.isArray(rec.staff_roles) ? rec.staff_roles.map((x) => String(x).toUpperCase()).filter((x) => /^R[1-6]$/.test(x)) : [];
+      const scopes = rec && Array.isArray(rec.care_scopes) ? rec.care_scopes.filter((s) => s && typeof s.tenant_id === "string" && s.tenant_id) : [];
+      const isStaff = !!(rec && (rec.staff === true || roles.length > 0));
+      if (!isStaff) return json({ ok: false, code: "STAFF_FORBIDDEN", msg: "该账号没有院方权限，请联系管理员开通" }, 403);
+      const allowed = roles.length ? [...new Set(roles)].sort() : ["R1", "R2", "R3", "R4", "R5", "R6"];
+      return json({ ok: true, user: username, roles: allowed, tenant_ids: [...new Set(scopes.map((s) => s.tenant_id))], scopes });
+    }
+    if (path === "/api/staff/config" && request.method === "GET") {
+      const username = await userFromReq(request, env, url, "");
+      if (!username) return json({ ok: false, code: "UNAUTHORIZED", msg: "请先登录" }, 401);
+      const rec = await env.KV.get("user:" + username, "json").catch(() => null);
+      const roles = rec && Array.isArray(rec.staff_roles) ? rec.staff_roles.map((x) => String(x).toUpperCase()).filter((x) => /^R[1-6]$/.test(x)) : [];
+      if (!(rec && (rec.staff === true || roles.length > 0))) return json({ ok: false, code: "STAFF_FORBIDDEN", msg: "该账号没有院方权限" }, 403);
+      const scopes = rec && Array.isArray(rec.care_scopes) ? rec.care_scopes.filter((s) => s && typeof s.tenant_id === "string" && s.tenant_id) : [];
+      if (!scopes.length) return json({ ok: false, code: "TENANT_REQUIRED", msg: "该账号还没有分配医院" }, 403);
+      const requested = String(url.searchParams.get("tenant_id") || "").trim();
+      let tenantId;
+      if (requested) {
+        try { tenantId = careTenantId(requested); }
+        catch (e) { return json({ ok: false, code: "INVALID_TENANT", msg: "医院租户 ID 格式不正确" }, 422); }
+        if (!scopes.some((s) => s.tenant_id === tenantId)) return json({ ok: false, code: "TENANT_FORBIDDEN", msg: "该账号没有这家医院的权限" }, 403);
+      } else {
+        const ids = [...new Set(scopes.map((s) => s.tenant_id))];
+        if (ids.length !== 1) return json({ ok: false, code: "TENANT_REQUIRED", msg: "请指定 tenant_id" }, 400);
+        tenantId = ids[0];
+      }
+      const catalog = await env.KV.get("care:catalog:" + tenantId, "json").catch(() => null);
+      if (!catalog) return json({ ok: false, code: "CATALOG_NOT_FOUND", msg: "该医院还没有配置服务目录" }, 404);
+      let valid = true, problem = "";
+      try { validateCareCatalog(catalog); }
+      catch (e) { valid = false; problem = String(e && e.message || e); }
+      return json({ ok: true, tenant_id: tenantId, valid, problem, catalog });
+    }
+
     if (path === "/api/chat" && request.method === "POST") {
       const b = await request.json().catch(() => ({}));
       const text = String(b.text == null ? (b.message || b.q || "") : b.text).trim();
@@ -5772,8 +5886,8 @@ async function handle(request, env, ctx) {
         const scopes = rec && Array.isArray(rec.care_scopes) ? rec.care_scopes.filter((s) => s && typeof s.tenant_id === "string" && s.tenant_id) : [];
         if (!scopes.length) return json({ ok: false, code: "CARE_SCOPE_FORBIDDEN", msg: "当前账号还没有医院授权，请联系医院开通" }, 403);
         const staffRoles = rec && Array.isArray(rec.staff_roles) ? rec.staff_roles.map((x) => String(x).toUpperCase()) : [];
-        const isStaff = !!(rec && (rec.staff === true || staffRoles.indexOf(roleId) >= 0 || staffRoles.indexOf(canonical) >= 0));
-        if (roleId !== "R1" && !isStaff) return json({ ok: false, code: "CARE_ROLE_FORBIDDEN", msg: "该角色只对院方账号开放" }, 403);
+        const roleAllowed = staffRoles.length ? (staffRoles.indexOf(roleId) >= 0 || staffRoles.indexOf(canonical) >= 0) : !!(rec && rec.staff === true);
+        if (roleId !== "R1" && !roleAllowed) return json({ ok: false, code: "CARE_ROLE_FORBIDDEN", msg: "该角色只对院方账号开放" }, 403);
         try {
           const r = await runCareChat({ env, role: canonical, text, history: b.history, l2: b.l2, budget_ms: b.budget_ms }, fsLLMMsgs);
           return json({ ok: true, build: FS_BUILD, role: r.role, reply: r.reply, awaiting: false, confirm: "", tools: [], steps: [] });

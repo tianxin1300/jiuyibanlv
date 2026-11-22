@@ -110,12 +110,52 @@ tr:last-child td{border-bottom:0}
   <nav class="tabs" role="tablist">
     <button class="tab" role="tab" data-tab="tenants" aria-selected="true">医院列表</button>
     <button class="tab" role="tab" data-tab="tokens" aria-selected="false">Token</button>
+    <button class="tab" role="tab" data-tab="staff" aria-selected="false">院方人员</button>
+    <button class="tab" role="tab" data-tab="config" aria-selected="false">医院配置</button>
     <button class="tab" role="tab" data-tab="audit" aria-selected="false">审计日志</button>
     <button class="tab" role="tab" data-tab="backups" aria-selected="false">备份</button>
   </nav>
 
   <section class="panel" id="panel-tenants"><h2>医院列表</h2><div class="tw"><table><thead><tr><th>tenant_id</th><th>Token 数</th><th>医院目录</th></tr></thead><tbody id="tbTenants"></tbody></table></div><div id="emptyTenants" class="empty" hidden>还没有医院数据</div></section>
   <section class="panel" id="panel-tokens" hidden><h2>二维码 Token</h2><div class="tw"><table><thead><tr><th>医院</th><th>Token</th><th>状态</th><th>到期</th><th>最近扫码</th><th></th></tr></thead><tbody id="tbTokens"></tbody></table></div><div id="emptyTokens" class="empty" hidden>还没有 Token 数据</div></section>
+  <section class="panel" id="panel-staff" hidden><h2>院方人员</h2>
+    <div style="padding:16px 18px">
+      <div class="row" style="display:flex;gap:8px;margin-bottom:14px">
+        <input id="staffQ" placeholder="搜索账号，留空只看已开通的院方人员" style="flex:1">
+        <button id="staffSearch" class="btn ghost small" type="button">搜索</button>
+      </div>
+      <div class="tw"><table><thead><tr><th>账号</th><th>院方</th><th>岗位</th><th>医院</th><th></th></tr></thead><tbody id="tbStaff"></tbody></table></div>
+      <div id="emptyStaff" class="empty" hidden>还没有院方人员，先让对方注册账号，再在这里开通</div>
+      <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
+      <h3 style="font-size:14px;margin:0 0 4px" id="staffFormTitle">开通 / 修改院方账号</h3>
+      <p class="sub" style="font-size:12px;color:var(--muted);margin:0 0 12px">先填写对方已注册的账号，再选择岗位和医院。</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><label for="staffUser">账号</label><input id="staffUser" placeholder="对方注册的用户名"></div>
+        <div><label for="staffTenant">医院租户 tenant_id</label><input id="staffTenant" placeholder="如 hosp-demo-001"></div>
+      </div>
+      <label style="margin-top:14px">岗位（至少选一个）</label>
+      <div id="staffRoles" style="display:flex;flex-wrap:wrap;gap:10px"></div>
+      <p id="staffMsg" class="msg" role="status"></p>
+      <div class="row" style="display:flex;gap:8px;margin-top:8px">
+        <button id="staffSave" class="btn" type="button">保存开通</button>
+        <button id="staffDisable" class="btn ghost" type="button">停用院方权限</button>
+      </div>
+    </div>
+  </section>
+  <section class="panel" id="panel-config" hidden><h2>医院配置（台账打通）</h2>
+    <div style="padding:16px 18px">
+      <div class="row" style="display:flex;gap:8px;margin-bottom:12px">
+        <input id="cfgTenant" placeholder="tenant_id，如 hosp-demo-001" style="flex:1">
+        <button id="cfgLoad" class="btn ghost small" type="button">读取</button>
+      </div>
+      <div id="cfgMeta" class="sub" style="font-size:12px;color:var(--muted)">输入医院租户后读取，保存前会按服务目录规则校验。</div>
+      <textarea id="cfgJson" rows="18" spellcheck="false" placeholder="读取后在这里编辑服务目录 JSON" style="width:100%;margin-top:10px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.55;border:1px solid var(--line);border-radius:10px;padding:12px;background:#0f172a;color:#e2e8f0;display:none"></textarea>
+      <p id="cfgMsg" class="msg" role="status"></p>
+      <div class="row" style="display:flex;gap:8px;margin-top:8px">
+        <button id="cfgSave" class="btn" type="button" disabled>校验并保存</button>
+      </div>
+    </div>
+  </section>
   <section class="panel" id="panel-audit" hidden><h2>审计日志</h2><div class="tw"><table><thead><tr><th>时间</th><th>操作</th><th>对象</th><th>IP</th></tr></thead><tbody id="tbAudit"></tbody></table></div><div id="emptyAudit" class="empty" hidden>还没有审计记录</div></section>
   <section class="panel" id="panel-backups" hidden><h2>备份快照</h2><div class="tw"><table><thead><tr><th>Key</th><th>时间</th><th>范围</th></tr></thead><tbody id="tbBackups"></tbody></table></div><div id="emptyBackups" class="empty" hidden>还没有备份快照</div></section>
 </main>
@@ -145,6 +185,13 @@ tr:last-child td{border-bottom:0}
   var SES_KEY = 'care.console.sess';
   var sess = sessionStorage.getItem(SES_KEY) || '';
   var revealRef = '', revealTimer = 0, lockTimer = 0;
+  var ROLES = [
+    ['R1', '患者陪伴'], ['R2', '商务讲解'], ['R3', '配置交付'],
+    ['R4', '发布审计'], ['R5', '前台核销'], ['R6', '医务法务']
+  ];
+  $('staffRoles').innerHTML = ROLES.map(function (r) {
+    return '<label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink);margin:0"><input type="checkbox" value="' + r[0] + '" style="width:auto">' + r[0] + ' ' + r[1] + '</label>';
+  }).join('');
 
   function $(id) { return document.getElementById(id); }
   function esc(v) {
@@ -216,7 +263,7 @@ tr:last-child td{border-bottom:0}
   function loadAll() {
     Promise.all([
       api('/api/admin/overview'), api('/api/admin/tenants'), api('/api/admin/tokens'),
-      api('/api/admin/audit'), api('/api/admin/backups')
+      api('/api/admin/audit'), api('/api/admin/backups'), api('/api/admin/staff')
     ]).then(function (r) {
       var o = (r[0].data && r[0].data.counts) || {};
       $('cTenants').textContent = o.tenants == null ? '—' : o.tenants;
@@ -227,6 +274,7 @@ tr:last-child td{border-bottom:0}
       renderTokens((r[2].data && r[2].data.tokens) || []);
       renderAudit((r[3].data && r[3].data.rows) || []);
       renderBackups((r[4].data && r[4].data.rows) || []);
+      renderStaff((r[5].data && r[5].data.staff) || []);
     }).catch(function (e) {
       if (!sess) showLogin(e.message || '请先登录');
       else toast(e.message || '加载失败');
@@ -256,6 +304,100 @@ tr:last-child td{border-bottom:0}
       return '<tr><td class="mono">' + esc(b.key) + '</td><td>' + fmt(b.at || b.created || b.time) + '</td><td class="mono">' + esc(b.tenant_id || b.scope || '') + '</td></tr>';
     }).join('');
     $('emptyBackups').hidden = rows.length > 0;
+  }
+  function renderStaff(rows) {
+    $('tbStaff').innerHTML = rows.map(function (s) {
+      return '<tr><td class="mono">' + esc(s.username) + '</td><td>' + (s.staff ? '<span class="chip ok">已开通</span>' : '<span class="chip">普通账号</span>') + '</td><td class="mono">' + esc((s.roles || []).join(' ') || '—') + '</td><td class="mono">' + esc((s.tenant_ids || []).join(' ') || '—') + '</td><td><button class="btn ghost small" type="button" data-staff="' + esc(s.username) + '" data-roles="' + esc((s.roles || []).join(',')) + '" data-tenants="' + esc((s.tenant_ids || []).join(',')) + '">编辑</button></td></tr>';
+    }).join('');
+    $('emptyStaff').hidden = rows.length > 0;
+  }
+  function setStaffMsg(t, ok) {
+    var el = $('staffMsg');
+    el.textContent = t || '';
+    el.className = 'msg' + (t ? (ok ? ' ok' : ' err') : '');
+  }
+  function loadStaff(q) {
+    api('/api/admin/staff' + (q ? '?q=' + encodeURIComponent(q) : '')).then(function (r) {
+      renderStaff((r.data && r.data.staff) || []);
+    }).catch(function (e) { toast(e.message || '读取院方人员失败'); });
+  }
+  function pickStaff(username, roles, tenants) {
+    $('staffUser').value = username || '';
+    $('staffTenant').value = (tenants || '').split(',')[0] || '';
+    var set = (roles || '').split(',');
+    document.querySelectorAll('#staffRoles input').forEach(function (c) { c.checked = set.indexOf(c.value) >= 0; });
+    $('staffFormTitle').textContent = username ? '修改院方账号：' + username : '开通 / 修改院方账号';
+    setStaffMsg('');
+  }
+  function staffPayload() {
+    var roles = [];
+    document.querySelectorAll('#staffRoles input').forEach(function (c) { if (c.checked) roles.push(c.value); });
+    return { user: $('staffUser').value.trim(), tenant_id: $('staffTenant').value.trim(), roles: roles };
+  }
+  function saveStaff() {
+    var b = staffPayload();
+    if (!b.user) { setStaffMsg('请填写要开通的账号'); return; }
+    if (!b.roles.length) { setStaffMsg('至少选择一个岗位'); return; }
+    $('staffSave').disabled = true; setStaffMsg('');
+    api('/api/admin/staff', { method: 'POST', body: JSON.stringify({ user: b.user, tenant_id: b.tenant_id, roles: b.roles }) }).then(function (r) {
+      $('staffSave').disabled = false;
+      if (!r.ok || !r.data || !r.data.ok) { setStaffMsg((r.data && r.data.msg) || '保存失败'); return; }
+      setStaffMsg('已保存：' + b.user + ' → ' + (r.data.roles || []).join(' '), true);
+      toast('已保存');
+      loadStaff($('staffQ').value.trim());
+    }).catch(function () { $('staffSave').disabled = false; setStaffMsg('网络异常'); });
+  }
+  function disableStaff() {
+    var user = $('staffUser').value.trim();
+    if (!user) { setStaffMsg('请先填写或选择账号'); return; }
+    if (!confirm('停用 ' + user + ' 的院方权限？对方将无法进入院方工作台。')) return;
+    $('staffDisable').disabled = true; setStaffMsg('');
+    api('/api/admin/staff', { method: 'POST', body: JSON.stringify({ user: user, enabled: false }) }).then(function (r) {
+      $('staffDisable').disabled = false;
+      if (!r.ok || !r.data || !r.data.ok) { setStaffMsg((r.data && r.data.msg) || '停用失败'); return; }
+      setStaffMsg('已停用：' + user, true);
+      loadStaff($('staffQ').value.trim());
+    }).catch(function () { $('staffDisable').disabled = false; setStaffMsg('网络异常'); });
+  }
+  function loadConfig() {
+    var t = $('cfgTenant').value.trim();
+    if (!t) { $('cfgMeta').textContent = '请填写 tenant_id'; return; }
+    $('cfgMeta').textContent = '正在读取…';
+    api('/api/admin/config?tenant_id=' + encodeURIComponent(t)).then(function (r) {
+      if (!r.ok || !r.data || !r.data.ok) {
+        $('cfgJson').style.display = 'none'; $('cfgSave').disabled = true;
+        $('cfgMeta').textContent = (r.data && r.data.msg) || '读取失败';
+        return;
+      }
+      var d = r.data;
+      $('cfgMeta').innerHTML = '医院 <b class="mono">' + esc(d.tenant_id) + '</b> ' +
+        (d.valid ? '<span class="chip ok">配置有效</span>' : '<span class="chip bad">配置不完整</span>' +
+          (d.problem ? ' <span class="mono">' + esc(d.problem) + '</span>' : ''));
+      $('cfgJson').value = JSON.stringify(d.catalog, null, 2);
+      $('cfgJson').style.display = 'block';
+      $('cfgSave').disabled = false;
+      $('cfgMsg').textContent = '';
+    }).catch(function () { $('cfgMeta').textContent = '网络异常'; });
+  }
+  function saveConfig() {
+    var t = $('cfgTenant').value.trim();
+    if (!t) { $('cfgMsg').textContent = '请填写 tenant_id'; return; }
+    var catalog;
+    try { catalog = JSON.parse($('cfgJson').value); }
+    catch (e) { $('cfgMsg').textContent = '不是合法 JSON：' + e.message; $('cfgMsg').className = 'msg err'; return; }
+    $('cfgSave').disabled = true; $('cfgMsg').textContent = '';
+    api('/api/admin/config', { method: 'PUT', body: JSON.stringify({ tenant_id: t, catalog: catalog }) }).then(function (r) {
+      $('cfgSave').disabled = false;
+      if (!r.ok || !r.data || !r.data.ok) {
+        $('cfgMsg').textContent = (r.data && (r.data.msg || r.data.code)) || '保存失败';
+        $('cfgMsg').className = 'msg err';
+        return;
+      }
+      $('cfgMsg').textContent = '已保存，版本 ' + (r.data.catalog_version || '');
+      $('cfgMsg').className = 'msg ok';
+      toast('配置已保存');
+      loadAll();
+    }).catch(function () { $('cfgSave').disabled = false; $('cfgMsg').textContent = '网络异常'; $('cfgMsg').className = 'msg err'; });
   }
 
   function openReveal(ref) {
@@ -325,9 +467,23 @@ tr:last-child td{border-bottom:0}
     b.addEventListener('click', function () {
       var name = b.getAttribute('data-tab');
       document.querySelectorAll('.tab').forEach(function (x) { x.setAttribute('aria-selected', String(x === b)); });
-      ['tenants', 'tokens', 'audit', 'backups'].forEach(function (k) { $('panel-' + k).hidden = k !== name; });
+      ['tenants', 'tokens', 'staff', 'config', 'audit', 'backups'].forEach(function (k) { $('panel-' + k).hidden = k !== name; });
     });
   });
+
+  // 院方人员
+  $('staffSearch').addEventListener('click', function () { loadStaff($('staffQ').value.trim()); });
+  $('staffQ').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); loadStaff($('staffQ').value.trim()); } });
+  $('tbStaff').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-staff]');
+    if (b) pickStaff(b.getAttribute('data-staff'), b.getAttribute('data-roles'), b.getAttribute('data-tenants'));
+  });
+  $('staffSave').addEventListener('click', saveStaff);
+  $('staffDisable').addEventListener('click', disableStaff);
+  // 医院配置
+  $('cfgLoad').addEventListener('click', loadConfig);
+  $('cfgSave').addEventListener('click', saveConfig);
+  $('cfgTenant').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); loadConfig(); } });
 
   // 显示完整 Token
   $('tbTokens').addEventListener('click', function (e) {
