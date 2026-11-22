@@ -374,6 +374,34 @@ async function newToken(env, user) {
   await env.KV.put("token:" + token, user, { expirationTtl: 30 * 24 * 3600 });
   return token;
 }
+
+// ---- 开发者控制台（唯一管理员）----
+// 管理员密钥只从 Cloudflare Secret 读取（ADMIN_KEY），不写代码、不写 KV、不写 wrangler.toml。
+const ADMIN_FAIL_MAX = 5, ADMIN_LOCK_SEC = 600, ADMIN_SESSION_SEC = 2 * 3600;
+async function adminListAll(env, prefix, max) {
+  const out = []; let cursor;
+  do {
+    const r = await env.KV.list({ prefix, cursor, limit: 1000 });
+    out.push(...(r.keys || []));
+    cursor = r.list_complete ? null : r.cursor;
+  } while (cursor && out.length < max);
+  return out.slice(0, max);
+}
+async function adminSessionUser(env, request, bodyToken) {
+  if (!env.KV) return null;
+  const m = /^Bearer (.+)$/.exec(request.headers.get("Authorization") || "");
+  const t = (m && m[1]) || bodyToken || "";
+  if (!t) return null;
+  const raw = await env.KV.get("admin:sess:" + t).catch(() => null);
+  return raw ? t : null;
+}
+async function adminAudit(env, op, detail, ip) {
+  try {
+    const day = new Date().toISOString().slice(0, 10);
+    const key = "audit:console:" + day + ":" + Date.now() + "-" + rand(4);
+    await env.KV.put(key, JSON.stringify({ op, detail: String(detail || ""), at: Date.now(), ip: String(ip || "") }), { expirationTtl: 180 * 24 * 3600 });
+  } catch (e) { /* 审计失败不阻断操作 */ }
+}
 async function userFromReq(request, env, url, bodyToken) {
   if (!env.KV) return null;
   const m = /^Bearer (.+)$/.exec(request.headers.get("Authorization") || "");
@@ -5609,6 +5637,127 @@ async function handle(request, env, ctx) {
     }
 
     // ---- v99x：/api/chat —— 前端和飞书同一个脑子（同一个 runWorkChat / 同一份 WORK_SYSTEM_PROMPT / 同一张 FS_TOOLS / 同一个模型轮换）----
+    // ---- 开发者控制台（唯一管理员，密钥只读 Secret ADMIN_KEY）----
+    if (path === "/api/admin/login" && request.method === "POST") {
+      if (!env.ADMIN_KEY) return json({ ok: false, code: "ADMIN_KEY_MISSING", msg: "管理员密钥未配置，请在 Cloudflare Secrets 设置 ADMIN_KEY" }, 503);
+      const b = await request.json().catch(() => ({}));
+      const key = String(b.key || "");
+      const ip = request.headers.get("CF-Connecting-IP") || "0";
+      const lk = "admin:lock:" + ip, ck = "admin:fail:" + ip;
+      const locked = Number(await env.KV.get(lk) || 0);
+      if (locked > Date.now()) {
+        return json({ ok: false, code: "ADMIN_LOCKED", retry_after: Math.ceil((locked - Date.now()) / 1000), msg: "尝试次数过多，已锁定" }, 429);
+      }
+      if (!sameStr(key, String(env.ADMIN_KEY))) {
+        const n = Number(await env.KV.get(ck) || 0) + 1;
+        if (n >= ADMIN_FAIL_MAX) {
+          await env.KV.put(lk, String(Date.now() + ADMIN_LOCK_SEC * 1000), { expirationTtl: ADMIN_LOCK_SEC });
+          await env.KV.delete(ck);
+          return json({ ok: false, code: "ADMIN_LOCKED", retry_after: ADMIN_LOCK_SEC, msg: "错误 5 次，已锁定 10 分钟" }, 429);
+        }
+        await env.KV.put(ck, String(n), { expirationTtl: ADMIN_LOCK_SEC });
+        return json({ ok: false, code: "ADMIN_BAD_KEY", remaining: ADMIN_FAIL_MAX - n, msg: "管理员密钥不正确" }, 401);
+      }
+      await env.KV.delete(ck); await env.KV.delete(lk);
+      const sess = rand(32);
+      await env.KV.put("admin:sess:" + sess, JSON.stringify({ ip, at: Date.now() }), { expirationTtl: ADMIN_SESSION_SEC });
+      await adminAudit(env, "login", "", ip);
+      return json({ ok: true, token: sess, expires_in: ADMIN_SESSION_SEC });
+    }
+    if (path === "/api/admin/session" && request.method === "GET") {
+      const sess = await adminSessionUser(env, request, "");
+      return sess ? json({ ok: true }) : json({ ok: false, code: "ADMIN_UNAUTHORIZED", msg: "请先登录" }, 401);
+    }
+    if (path === "/api/admin/logout" && request.method === "POST") {
+      const m = /^Bearer (.+)$/.exec(request.headers.get("Authorization") || "");
+      if (m && m[1]) { await env.KV.delete("admin:sess:" + m[1]); await adminAudit(env, "logout", "", request.headers.get("CF-Connecting-IP") || "0"); }
+      return json({ ok: true });
+    }
+    if (path.startsWith("/api/admin/")) {
+      const sess = await adminSessionUser(env, request, "");
+      if (!sess) return json({ ok: false, code: "ADMIN_UNAUTHORIZED", msg: "请先登录" }, 401);
+      const ip = request.headers.get("CF-Connecting-IP") || "0";
+      if (path === "/api/admin/overview" && request.method === "GET") {
+        const [qr, audits, backups, catalogs] = await Promise.all([
+          adminListAll(env, "qr:", 2000), adminListAll(env, "audit:", 1000),
+          adminListAll(env, "backup:", 500), adminListAll(env, "care:catalog:", 500)
+        ]);
+        const tenants = new Set();
+        qr.forEach((k) => { const p = k.name.split(":"); if (p[1]) tenants.add(p[1]); });
+        catalogs.forEach((k) => { const p = k.name.split(":"); if (p[2]) tenants.add(p[2]); });
+        return json({ ok: true, counts: { tenants: tenants.size, tokens: qr.length, audits: audits.length, backups: backups.length } });
+      }
+      if (path === "/api/admin/tenants" && request.method === "GET") {
+        const [qr, catalogs] = await Promise.all([adminListAll(env, "qr:", 2000), adminListAll(env, "care:catalog:", 500)]);
+        const map = new Map();
+        catalogs.forEach((k) => { const t = k.name.split(":")[2]; if (t) map.set(t, { tenant_id: t, tokens: 0, catalog: true }); });
+        qr.forEach((k) => { const t = k.name.split(":")[1]; if (!t) return; const r = map.get(t) || { tenant_id: t, tokens: 0, catalog: false }; r.tokens++; map.set(t, r); });
+        return json({ ok: true, tenants: [...map.values()].sort((a, b) => a.tenant_id.localeCompare(b.tenant_id)) });
+      }
+      if (path === "/api/admin/tokens" && request.method === "GET") {
+        const keys = await adminListAll(env, "qr:", 300);
+        const tokens = [];
+        for (const k of keys) {
+          const p = k.name.split(":"), tenant = p[1] || "", raw = p.slice(2).join(":");
+          const v = await env.KV.get(k.name, "json").catch(() => null);
+          tokens.push({
+            tenant_id: tenant,
+            masked: (raw.slice(0, 4) || "—") + "****",
+            ref: await sha256Hex(k.name),
+            state: (v && (v.state || v.status)) || "unknown",
+            expires_at: (v && (v.expires_at || v.exp)) || null,
+            created_at: (v && (v.created_at || v.created)) || null,
+            last_scan: (v && (v.last_scan || v.lastScan)) || null
+          });
+        }
+        tokens.sort((a, b) => (a.expires_at || 9e15) - (b.expires_at || 9e15));
+        return json({ ok: true, tokens });
+      }
+      if (path === "/api/admin/audit" && request.method === "GET") {
+        const keys = await adminListAll(env, "audit:", 300);
+        keys.sort((a, b) => b.name.localeCompare(a.name));
+        const rows = [];
+        for (const k of keys.slice(0, 200)) {
+          const v = await env.KV.get(k.name, "json").catch(() => null);
+          rows.push({ key: k.name, ...(v || {}) });
+        }
+        return json({ ok: true, rows });
+      }
+      if (path === "/api/admin/backups" && request.method === "GET") {
+        const keys = await adminListAll(env, "backup:", 300);
+        keys.sort((a, b) => b.name.localeCompare(a.name));
+        const rows = [];
+        for (const k of keys.slice(0, 200)) {
+          const v = await env.KV.get(k.name, "json").catch(() => null);
+          rows.push({ key: k.name, ...(v || {}) });
+        }
+        return json({ ok: true, rows });
+      }
+      if (path === "/api/admin/reveal" && request.method === "POST") {
+        const b = await request.json().catch(() => ({}));
+        const rk = "admin:reveal:" + ip;
+        const rn = Number(await env.KV.get(rk) || 0);
+        if (rn >= ADMIN_FAIL_MAX) return json({ ok: false, code: "ADMIN_LOCKED", retry_after: ADMIN_LOCK_SEC, msg: "验证失败次数过多，请稍后再试" }, 429);
+        if (!env.ADMIN_KEY) return json({ ok: false, code: "ADMIN_KEY_MISSING", msg: "管理员密钥未配置" }, 503);
+        if (!sameStr(String(b.key || ""), String(env.ADMIN_KEY))) {
+          await env.KV.put(rk, String(rn + 1), { expirationTtl: ADMIN_LOCK_SEC });
+          return json({ ok: false, code: "ADMIN_BAD_KEY", msg: "管理员密钥不正确" }, 401);
+        }
+        await env.KV.delete(rk);
+        const ref = String(b.ref || "");
+        const keys = await adminListAll(env, "qr:", 1000);
+        for (const k of keys) {
+          if (await sha256Hex(k.name) === ref) {
+            const p = k.name.split(":");
+            await adminAudit(env, "reveal", p[1] || "", ip);
+            return json({ ok: true, key: k.name, token: p.slice(2).join(":") });
+          }
+        }
+        return json({ ok: false, code: "NOT_FOUND", msg: "未找到该 Token" }, 404);
+      }
+      return json({ ok: false, code: "NOT_FOUND", msg: "接口不存在" }, 404);
+    }
+
     if (path === "/api/chat" && request.method === "POST") {
       const b = await request.json().catch(() => ({}));
       const text = String(b.text == null ? (b.message || b.q || "") : b.text).trim();
