@@ -528,7 +528,7 @@ body.pvmode h1::before{display:none!important}
 /* ===== v52 极简工作台：单一蓝色强调、轻顶栏、白卡、紧凑排版 ===== */
 :root:root{
   --bg:#f6f7f9!important;--card:#fff!important;--ink:#0d1522!important;--mute:#6b7482!important;
-  --line:#e8ecf2!important;--c:#2f6bff!important;--r:14px!important;color-scheme:light!important;
+  --line:#e8ecf2!important;--c:#2563eb!important;--r:14px!important;color-scheme:light!important;
   --soft:#f5f7fb;--blue-soft:#eef3ff;--ok:#0f9f6e
 }
 html{background:#f6f7f9!important}
@@ -542,13 +542,13 @@ h1 small{font-size:13px!important;font-weight:500!important;color:#6b7482!import
 .note{font-size:12.5px!important;line-height:1.65!important;color:#7a8493!important;border:0!important;padding:0!important;margin:0 0 20px!important;text-shadow:none!important}
 .note b,.note strong{color:#3c4655!important}
 .gt{font-size:11.5px!important;font-weight:600!important;letter-spacing:.08em!important;color:#8b94a3!important;margin:26px 2px 10px!important;text-shadow:none!important}
-.gt::before{content:"";display:inline-block;width:3px;height:12px;border-radius:2px;background:#2f6bff;vertical-align:-1px;margin-right:8px;opacity:1}
+.gt::before{content:"";display:inline-block;width:3px;height:12px;border-radius:2px;background:#2563eb;vertical-align:-1px;margin-right:8px;opacity:1}
 
 /* 品牌标：只用蓝色一个色系 */
-.brand-mark{border-radius:12px!important;background:linear-gradient(150deg,#5b8cff 0%,#2f6bff 55%,#1f4ed8 100%)!important;box-shadow:0 8px 18px -10px rgba(47,107,255,.65),inset 0 1px 0 rgba(255,255,255,.4)!important}
-.brand-mark .orbit{inset:-5px!important;border-radius:16px!important;border-color:rgba(47,107,255,.28)!important}
-.brand-mark .orbit::before{width:4px!important;height:4px!important;background:#2f6bff!important;box-shadow:0 0 8px rgba(47,107,255,.55)!important}
-.brand-mark .ripple{border-color:rgba(47,107,255,.42)!important}
+.brand-mark{border-radius:12px!important;background:linear-gradient(150deg,#5b8cff 0%,#2563eb 55%,#1f4ed8 100%)!important;box-shadow:0 8px 18px -10px rgba(37,99,235,.65),inset 0 1px 0 rgba(255,255,255,.4)!important}
+.brand-mark .orbit{inset:-5px!important;border-radius:16px!important;border-color:rgba(37,99,235,.28)!important}
+.brand-mark .orbit::before{width:4px!important;height:4px!important;background:#2563eb!important;box-shadow:0 0 8px rgba(37,99,235,.55)!important}
+.brand-mark .ripple{border-color:rgba(37,99,235,.42)!important}
 .brand-mark.burst{animation:brandPop .8s cubic-bezier(.2,.8,.2,1)}
 @keyframes brandSpin{to{transform:rotate(360deg)}}
 @keyframes brandPop{0%{transform:scale(1)}32%{transform:scale(1.08) rotate(-3deg)}62%{transform:scale(.98) rotate(2deg)}100%{transform:scale(1)}}
@@ -569,22 +569,22 @@ h1 small{font-size:13px!important;font-weight:500!important;color:#6b7482!import
 .card,.opt,.qk button,.tabs,.tip,.care-role,.care-step,.auth-card,.item,.mod,.toast{background:#fff!important;border:1px solid #e8ecf2!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 .card{border-radius:14px!important;padding:16px!important;margin-bottom:12px!important;position:relative}
 .card::before{display:none!important}
-.card.hd{box-shadow:inset 3px 0 0 #2f6bff!important}
+.card.hd{box-shadow:inset 3px 0 0 #2563eb!important}
 .card h2{font-size:15.5px!important;font-weight:650!important;letter-spacing:-.005em!important;color:#0b1220!important;margin:0 0 8px!important}
-.card h2 small{font-size:11px!important;color:#2f6bff!important;font-weight:600!important;letter-spacing:0!important}
+.card h2 small{font-size:11px!important;color:#2563eb!important;font-weight:600!important;letter-spacing:0!important}
 .card>b,.card summary b,.flow h2,.today h2,.wk summary b{color:#0b1220!important}
 .sub,.card small.sub,.item .sub,.action-note,.care-note{font-size:12.5px!important;line-height:1.6!important;color:#6b7482!important}
 .tip{padding:12px 14px!important;border-radius:12px!important;background:#fafbfd!important}
 .tip>summary{display:flex!important;align-items:center!important;gap:8px!important;list-style:none!important;font-size:13px!important;font-weight:600!important;color:#3c4655!important}
 .tip>summary::-webkit-details-marker{display:none!important}
-.tip>summary::after{content:"展开";margin-left:auto;color:#2f6bff!important;font-size:12px!important;font-weight:500!important}
+.tip>summary::after{content:"展开";margin-left:auto;color:#2563eb!important;font-size:12px!important;font-weight:500!important}
 .tip[open]>summary::after{content:"收起"}
 .tip p{font-size:12.5px!important;line-height:1.65!important;color:#6b7482!important}
 
 /* 按钮：全站只有一个蓝色主动作 */
-button.btn,.lnkb{background:#2f6bff!important;color:#fff!important;border:0!important;border-radius:10px!important;font-weight:600!important;font-size:14px!important;box-shadow:0 6px 14px -8px rgba(47,107,255,.5)!important}
+button.btn,.lnkb{background:#2563eb!important;color:#fff!important;border:0!important;border-radius:10px!important;font-weight:600!important;font-size:14px!important;box-shadow:0 6px 14px -8px rgba(37,99,235,.5)!important}
 button.ghost,.lnkg,.hb .ghost,.acct .ghost{background:#fff!important;color:#1a2230!important;border:1px solid #e1e6ee!important;border-radius:10px!important;font-weight:600!important;box-shadow:none!important}
-button.btn:focus-visible,button.ghost:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid #2f6bff;outline-offset:2px}
+button.btn:focus-visible,button.ghost:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
 input,select,textarea{background:#fbfcfe!important;border:1px solid #e1e6ee!important;color:#0b1220!important;border-radius:10px!important;font-size:14px!important}
 input::placeholder,textarea::placeholder{color:#9aa3b2!important}
 .chip{background:#f2f4f8!important;border-color:#e8ecf2!important;color:#4a5462!important;border-radius:999px!important;font-size:13px!important}
@@ -592,10 +592,10 @@ input::placeholder,textarea::placeholder{color:#9aa3b2!important}
 .tabs{background:#f2f4f8!important;border:0!important;border-radius:12px!important;padding:3px!important}
 .tab{color:#6b7482!important;border-radius:9px!important;font-weight:600!important}
 .tab[aria-pressed=true]{background:#fff!important;color:#1f4ed8!important;box-shadow:0 1px 3px rgba(16,24,40,.10)!important}
-.opt{border-radius:12px!important;border-left:1px solid #e8ecf2!important;box-shadow:inset 3px 0 0 #2f6bff!important}
+.opt{border-radius:12px!important;border-left:1px solid #e8ecf2!important;box-shadow:inset 3px 0 0 #2563eb!important}
 .opt b{font-size:15px!important;color:#0b1220!important}
 .opt small{font-size:12.5px!important;color:#6b7482!important}
-.opts .opt[aria-pressed=true]{background:#f5f8ff!important;border-color:#c9d8ff!important;box-shadow:inset 3px 0 0 #2f6bff!important}
+.opts .opt[aria-pressed=true]{background:#f5f8ff!important;border-color:#c9d8ff!important;box-shadow:inset 3px 0 0 #2563eb!important}
 .item{border-radius:10px!important;background:#fafbfd!important;border:1px solid #eef1f5!important}
 .item b{font-size:14px!important;color:#0b1220!important}
 .tag{background:#f2f4f8!important;color:#5b6472!important;border:1px solid #e8ecf2!important;border-radius:6px!important;font-size:11px!important;letter-spacing:0!important;font-weight:600!important}
@@ -621,20 +621,20 @@ input::placeholder,textarea::placeholder{color:#9aa3b2!important}
 details.fl{border:1px solid #eef1f5!important;background:#fafbfd!important;border-radius:10px!important;padding:10px 12px!important;margin:8px 0}
 details.fl>summary{color:#1a2230!important;font-size:13.5px!important}
 details>summary{cursor:pointer!important}
-details>summary:hover b{color:#2f6bff!important}
+details>summary:hover b{color:#2563eb!important}
 
 /* 六角色：白色卡片，不再用深色大块 */
 .care-deck{background:#fff!important;border:1px solid #e8ecf2!important;box-shadow:none!important;overflow:hidden}
 .care-deck::before{display:none!important}
 .care-deck>h2{color:#0b1220!important;font-size:17px!important;letter-spacing:-.01em!important;display:flex!important;align-items:center!important;gap:8px!important}
-.care-deck>h2::before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;background:#2f6bff;flex:none}
+.care-deck>h2::before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;background:#2563eb;flex:none}
 .care-deck>h2::after{content:"6 角色 · 7 步";float:right;font-size:10px!important;letter-spacing:.02em!important;color:#9aa3b2!important;font-weight:600!important;margin-top:4px}
 .care-deck>p.sub,.care-deck .care-note{color:#6b7482!important}
 .care-role-grid{gap:8px!important;margin:12px 0!important}
 .care-role{background:#fafbfd!important;border:1px solid #eef1f5!important;border-radius:11px!important;padding:12px!important;color:#0b1220!important;box-shadow:none!important}
 .care-role::after{display:none!important}
 .care-role em{color:#8b94a3!important;font-size:9.5px!important;letter-spacing:.10em!important;font-weight:600!important;margin-bottom:4px!important}
-.care-role em::before{content:"";display:inline-block;width:4px;height:4px;border-radius:50%;background:#2f6bff;box-shadow:none!important;margin-right:5px;vertical-align:1px}
+.care-role em::before{content:"";display:inline-block;width:4px;height:4px;border-radius:50%;background:#2563eb;box-shadow:none!important;margin-right:5px;vertical-align:1px}
 .care-role b{color:#0b1220!important;font-size:13.5px!important;font-weight:650!important;letter-spacing:0!important}
 .care-role small{color:#7a8493!important;font-size:11.5px!important;line-height:1.45!important}
 .care-role[aria-pressed=true]{background:#f5f8ff!important;border-color:#b9ccff!important;box-shadow:inset 0 0 0 1px #b9ccff!important}
@@ -647,7 +647,7 @@ details>summary:hover b{color:#2f6bff!important}
 .care-step.cur{border-color:#b9ccff!important;box-shadow:none!important}
 .care-step .n{background:#f2f4f8!important;border-color:#e8ecf2!important;color:#6b7482!important}
 .care-step.done .n{background:#0f9f6e!important;color:#fff!important;border-color:#0f9f6e!important}
-.care-step.cur .n{background:#2f6bff!important;color:#fff!important;border-color:#2f6bff!important}
+.care-step.cur .n{background:#2563eb!important;color:#fff!important;border-color:#2563eb!important}
 
 /* 登录 */
 #authGate{background:linear-gradient(180deg,#fbfcfe,#f4f6f9 70%)!important}
@@ -664,7 +664,7 @@ details>summary:hover b{color:#2f6bff!important}
 
 /* 品牌动画 */
 .brand-stage{background:rgba(10,16,28,.68)!important;backdrop-filter:blur(16px)!important;-webkit-backdrop-filter:blur(16px)!important}
-.brand-stage .brand-mark{width:88px!important;height:88px!important;border-radius:26px!important;box-shadow:0 24px 60px -18px rgba(47,107,255,.65)!important}
+.brand-stage .brand-mark{width:88px!important;height:88px!important;border-radius:26px!important;box-shadow:0 24px 60px -18px rgba(37,99,235,.65)!important}
 .brand-stage .brand-mark::before{width:12px!important;height:42px!important}
 .brand-stage .brand-mark::after{width:42px!important;height:12px!important}
 .brand-stage .brand-mark .orbit{inset:-11px!important;border-radius:34px!important;border-color:rgba(255,255,255,.4)!important}
@@ -682,7 +682,7 @@ details>summary:hover b{color:#2f6bff!important}
 .qk button{background:#fff!important;border:1px solid #e8ecf2!important;color:#3c4655!important;border-radius:11px!important;box-shadow:none!important}
 .qk button[aria-pressed=true]{color:#1f4ed8!important;border-color:#c9d8ff!important;background:#f5f8ff!important}
 .aib.a{background:#fafbfd!important;border-color:#eef1f5!important;color:#0b1220!important}
-.aib.u{background:#2f6bff!important;color:#fff!important}
+.aib.u{background:#2563eb!important;color:#fff!important}
 .aib.e{background:#fdf0ef!important;color:#9f2a20!important;border-color:#f6d4d0!important}
 p.sub[style*="background:#fff4e5"],b[style*="background:#fff4e5"]{background:#fdf0ef!important;color:#9f2a20!important}
 
@@ -698,8 +698,156 @@ p.sub[style*="background:#fff4e5"],b[style*="background:#fff4e5"]{background:#fd
 .empty{background:#fafbfd!important;border-style:dashed!important;border-color:#dfe5ee!important}
 .toast{background:#0b1220!important;color:#fff!important;border:1px solid rgba(255,255,255,.12)!important;box-shadow:0 12px 30px -12px rgba(16,24,40,.5)!important}
 #icp,.foot,.foot2{color:#9aa3b2!important;font-size:12px!important}
-#icp a,.foot a,.foot2 a{color:#2f6bff!important}
+#icp a,.foot a,.foot2 a{color:#2563eb!important}
 @media(max-width:420px){.authbar-brand b{display:none}.care-deck>h2::after{display:none}}
+
+/* ===== v53 重构：单一蓝、紧凑信息密度、清单式流程 ===== */
+body *{--c:#2563eb!important}
+html{scroll-padding-top:66px!important}
+:root:root{--c:#2563eb!important;--blue-soft:#eef4ff!important}
+body{font-size:14.5px!important}
+main{max-width:680px!important;padding:12px 14px calc(92px + env(safe-area-inset-bottom,0px))!important}
+h1{font-size:20px!important;margin:2px 0 6px!important}
+.note{font-size:12px!important;line-height:1.55!important;margin:0 0 12px!important}
+.card{padding:14px!important;margin-bottom:10px!important}
+.card h2{font-size:15px!important;margin-bottom:7px!important}
+.sub,.card small.sub,.item .sub,.action-note,.care-note{font-size:12px!important;line-height:1.55!important}
+
+/* 档案头：轻量返回 + 五等分标签，禁止换行 */
+.pnav{background:transparent!important;border:0!important;box-shadow:none!important;position:static!important;padding:0 0 8px!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+.pnav .phd{display:flex!important;align-items:center!important;gap:8px!important;margin:0 0 8px!important;padding:0!important}
+.pnav .back{flex:none!important;width:auto!important;min-height:30px!important;padding:4px 10px!important;font-size:12px!important;border-radius:999px!important;background:#fff!important;border:1px solid #e6eaf0!important;color:#4b5563!important;box-shadow:none!important}
+.pnav .pname{font-size:15px!important;font-weight:650!important;line-height:1.35!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+.tabs{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:2px!important;padding:3px!important;border-radius:12px!important;background:#eef1f6!important;height:auto!important}
+.tab{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:3px!important;min-height:50px!important;padding:5px 0!important;border-radius:9px!important;font-size:11px!important;line-height:1.1!important;white-space:nowrap!important;color:#6b7280!important;background:transparent!important;border:0!important;box-shadow:none!important}
+.tab .tl{font-size:11px!important;white-space:nowrap!important}
+.tab .ti svg,.tab .ic{width:17px!important;height:17px!important}
+.tab[aria-pressed=true]{color:#2563eb!important;background:#fff!important;box-shadow:0 1px 3px rgba(16,24,40,.08)!important}
+
+/* 复诊流程：去掉层层白卡，改成清单行 */
+.flow{padding:14px!important}
+.flow .flow-step{display:flex!important;align-items:center!important;gap:10px!important;padding:9px 0!important;background:transparent!important;border:0!important;border-bottom:1px solid #f1f4f8!important;border-radius:0!important}
+.flow .flow-num{flex:none!important;width:22px!important;height:22px!important;font-size:11px!important;background:#eef4ff!important;color:#2563eb!important}
+.flow .flow-done .flow-num{background:#e8f7f0!important;color:#0f9f6e!important}
+.flow .flow-main b{font-size:13.5px!important;line-height:1.35!important}
+.flow .flow-main small{font-size:12px!important;line-height:1.45!important;margin-top:1px!important}
+.flow .flow-step .btn,.flow .flow-step .ghost{flex:none!important;min-height:30px!important;padding:3px 10px!important;font-size:12px!important;font-weight:600!important;border-radius:8px!important;box-shadow:none!important}
+.flow .flow-step .btn{background:#fff!important;color:#1d4ed8!important;border:1px solid #c7d7fe!important}
+.flow .flow-step .ghost{background:#fff!important;color:#4b5563!important;border:1px solid #e6eaf0!important}
+.pv{margin-top:8px!important;padding-top:10px!important;border-top:1px solid #f1f4f8!important}
+.pv>summary{display:flex!important;align-items:baseline!important;gap:8px!important;list-style:none!important;cursor:pointer!important;padding:2px 0!important}
+.pv>summary::-webkit-details-marker{display:none!important}
+.pv>summary b{font-size:13.5px!important}
+.pv>summary small{font-size:11.5px!important;color:#8a93a1!important}
+.pv>summary::after{content:"展开";margin-left:auto!important;color:#2563eb!important;font-size:12px!important;font-weight:500!important}
+.pv[open]>summary::after{content:"收起"}
+.pv label{font-size:12px!important;margin:8px 0 4px!important;display:block!important}
+.pv textarea{min-height:60px!important;font-size:13px!important}
+.pv .row{gap:8px!important;align-items:flex-end!important}
+.pv .btn{min-height:38px!important;padding:7px 12px!important;font-size:12.5px!important}
+.pv .ghost{min-height:34px!important;font-size:12px!important}
+
+/* 指标 */
+.note2{color:#6b7280!important;text-shadow:none!important;font-size:12px!important;border:0!important}
+.seg{margin-bottom:8px!important}
+.ch{max-height:190px!important}
+
+/* 智能助手：轻量头部、可滚动会话、吸底输入 */
+.ai{padding:14px!important}
+.aihd{display:flex!important;align-items:center!important;gap:8px!important;flex-wrap:wrap!important;margin-bottom:6px!important}
+.aibadge{font-size:10px!important;padding:2px 7px!important;border-radius:6px!important;letter-spacing:.02em!important}
+.aihd b{font-size:14px!important}
+.aihd .sub{flex-basis:100%!important;font-size:11.5px!important;margin:1px 0 0!important;color:#8a93a1!important}
+.ai-clear{margin-left:auto!important;min-height:28px!important;padding:2px 8px!important;font-size:11.5px!important;border-radius:7px!important;box-shadow:none!important}
+.ai>.sub{font-size:11.5px!important;line-height:1.6!important;margin:0 0 8px!important}
+.aich{max-height:340px!important;overflow:auto!important;gap:8px!important;padding:2px 0 6px!important}
+.aib{font-size:13px!important;line-height:1.6!important;padding:9px 11px!important;border-radius:10px!important}
+.ai .chip{font-size:11.5px!important;padding:5px 9px!important;border-radius:999px!important;background:#f3f5f9!important;border:1px solid transparent!important;color:#4b5563!important}
+.ai .chip:hover{border-color:#dbe4f3!important;color:#1d4ed8!important}
+.composer{position:sticky!important;bottom:6px!important;z-index:3!important;background:#fff!important;padding-top:8px!important;margin-top:4px!important;border-top:1px solid #f1f4f8!important}
+.composer label{font-size:11.5px!important;margin:0 0 4px!important;color:#6b7280!important}
+.composer textarea{min-height:54px!important;font-size:13px!important}
+.composer .bar{margin-top:8px!important;gap:8px!important}
+.composer .btn{min-height:39px!important;padding:7px 18px!important;font-size:13px!important}
+.composer .ghost{min-height:39px!important;padding:7px 12px!important;font-size:12.5px!important}
+
+/* 首页与空状态更紧凑 */
+.chips{padding:2px 0 8px!important}
+.chip{padding:6px 12px!important;font-size:13px!important}
+.empty{padding:20px 16px!important}
+.empty h2{font-size:18px!important}
+.empty .btn,.empty .ghost{width:100%!important;margin-top:6px!important;min-height:40px!important}
+.care-deck{padding:14px!important}
+.care-role{padding:10px!important}
+
+/* ===== v54 患者任务优先首页 ===== */
+.hello{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:6px 2px 14px}
+.hello-hi{margin:0;font-size:12.5px;color:#6b7482;font-weight:500}
+.hello h1{margin:2px 0 4px!important;font-size:23px!important;line-height:1.25!important;font-weight:700!important;letter-spacing:-.01em!important}
+.hello-sub{margin:0;font-size:12.5px;color:#6b7482;line-height:1.5}
+.hello-ava{flex:none;width:44px;height:44px;border-radius:50%;background:#eef4ff;color:#2563eb;display:grid;place-items:center;font-size:17px;font-weight:700;border:1px solid #dbe7ff}
+.pchips{display:flex;gap:6px;overflow-x:auto;padding:0 2px 12px}
+.pchip{flex:none;border:1px solid #e5eaf1;background:#fff;color:#4a5462;border-radius:999px;padding:6px 12px;font:inherit;font-size:12.5px;cursor:pointer}
+.pchip[aria-pressed=true]{background:#eef4ff;border-color:#c9d9ff;color:#1d4ed8;font-weight:600}
+.nstep{background:#f7f9ff!important;border-color:#dbe6fb!important;padding:16px!important}
+.nstep-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.kicker{font-size:11px;font-weight:700;color:#2563eb;letter-spacing:.04em}
+.nstep-when{font-size:11.5px;color:#6b7482}
+.nstep h2{margin:6px 0 4px!important;font-size:19px!important;line-height:1.35!important}
+.nstep-sub{margin:0;font-size:12.5px;color:#5f6a78;line-height:1.5}
+.prep{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:12px;color:#4a5462}
+.prep i{flex:1;height:6px;border-radius:999px;background:#e6ecf7;overflow:hidden}
+.prep b{display:block;height:100%;background:#2563eb;border-radius:999px}
+.nstep-acts{display:flex;gap:8px;margin-top:13px}
+.nstep-acts .btn,.nstep-acts .ghost{flex:1;min-height:40px;padding:9px 12px;font-size:13.5px}
+.htoday{padding:13px 14px!important}
+.sech{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.sech b{font-size:14px}
+.sech span{font-size:11.5px;color:#8a93a1}
+.hrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid #f0f3f7}
+.hrow:first-of-type{border-top:0}
+.hrow-m{min-width:0}
+.hrow-m b{display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hrow-m small{display:block;font-size:11.5px;color:#7a8493;margin-top:1px}
+.hrow-a{flex:none;display:flex;gap:6px;align-items:center}
+.hrow-a .btn,.hrow-a .ghost{min-height:30px!important;height:30px!important;padding:0 10px!important;font-size:12px!important;border-radius:8px!important;box-shadow:none!important}
+.hrow-a .more>summary{font-size:12px;color:#8a93a1}
+.hlink{display:flex;justify-content:space-between;gap:8px;width:100%;background:none;border:0;border-top:1px solid #f0f3f7;padding:9px 0;font:inherit;font-size:12.5px;color:#4a5462;cursor:pointer;text-align:left}
+.hlink span:last-child{color:#2563eb;flex:none}
+.htoday-empty{padding:15px!important}
+.qgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}
+.qbtn{display:flex;flex-direction:column;align-items:center;gap:3px;background:#fff;border:1px solid #e9edf2;border-radius:13px;padding:12px 6px 10px;font:inherit;cursor:pointer;color:#0e1623}
+.qbtn:active{background:#f5f8ff}
+.qico{color:#2563eb;display:grid;place-items:center;width:24px;height:24px;margin-bottom:2px}
+.qico svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.qbtn b{font-size:12px;font-weight:600;white-space:nowrap}
+.qbtn small{font-size:10.5px;color:#8a93a1;white-space:nowrap}
+.airow{display:flex;align-items:center;gap:10px;width:100%;background:#fff;border:1px solid #e9edf2;border-radius:13px;padding:11px 12px;font:inherit;cursor:pointer;text-align:left;margin-bottom:12px}
+.airo{flex:none;width:34px;height:34px;border-radius:10px;background:#2563eb;color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700;letter-spacing:.02em}
+.airt{flex:1;min-width:0}
+.airt b{display:block;font-size:13.5px}
+.airt small{display:block;font-size:11.5px;color:#7a8493;margin-top:1px}
+.airc{color:#b3bcc9;font-size:18px}
+.hcard{padding:13px 14px!important}
+.hmore-btn{background:none;border:0;color:#2563eb;font:inherit;font-size:12px;cursor:pointer;padding:2px 0}
+.ovrow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.omet{background:#f8fafc;border:1px solid #eef1f5;border-radius:10px;padding:9px 10px}
+.omet span{display:block;font-size:11.5px;color:#7a8493}
+.omet b{display:block;font-size:17px;line-height:1.3;margin-top:1px}
+.omet b small{font-size:10.5px;color:#8a93a1;font-weight:500;margin-left:3px}
+.omet em{display:block;font-style:normal;font-size:10.5px;color:#9aa3b2;margin-top:2px}
+.hblank{margin:2px 0;font-size:12.5px;color:#7a8493;line-height:1.55}
+.hrec{display:flex;gap:10px;width:100%;background:none;border:0;border-top:1px solid #f0f3f7;padding:9px 0;font:inherit;text-align:left;cursor:pointer;color:inherit}
+.hrec:first-of-type{border-top:0}
+.hrec-d{flex:none;font-size:11.5px;color:#8a93a1;padding-top:2px;width:38px}
+.hrec-t{flex:1;min-width:0}
+.hrec-t b{display:block;font-size:12.5px;font-weight:600}
+.hrec-t small{display:block;font-size:11.5px;color:#7a8493;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.hfold{margin:12px 0 0;border-top:1px solid #edf0f4;padding-top:10px}
+.hfold>summary{font-size:12.5px;color:#7a8493;cursor:pointer;padding:4px 0}
+.hfold[open]>summary{margin-bottom:8px}
+.hfold .card{box-shadow:none}
+@media(max-width:360px){.qgrid{grid-template-columns:repeat(2,1fr)}.qbtn{flex-direction:row;justify-content:flex-start;gap:8px;padding:10px}}
 </style></head><body>
 <header id="authBar" hidden><div class="authbar-in"><div class="authbar-brand"><button class="brand-mark" data-brand type="button" aria-label="播放品牌动画"><i class="orbit"></i><i class="ripple"></i></button><b>就医伴侣</b></div><span id="authHi"></span><button class="ghost" id="authOut" type="button">退出登录</button></div></header>
 <main id="app"></main>
@@ -2154,7 +2302,8 @@ function view() {
     const a = document.getElementById('app');
     if (CFG_LOAD) { a.innerHTML = '<div class="card"><h2>正在加载医院服务…</h2><p class="sub">网络较慢时可能需要几秒钟。您的个人资料保存在本机，不受影响。</p><button class="ghost" onclick="CFG_LOAD=false;S.skipCfg=1;view()">先使用我的个人档案</button></div>'; return; }
     if (CFG_ERR && !S.skipCfg) { a.innerHTML = '<div class="card"><h2>这个入口暂时无法打开</h2><p class="sub">' + (CFG_EXP ? '这个演示链接已到期（演示有效期已过）。' : '没有读取到这个入口的配置（入口代号：' + esc(HP_KEY) + '）。可能是演示链接已到期、链接不完整，或网络不稳定。') + '请联系提供这个链接的人获取新的链接。您的个人资料没有受影响。</p><button class="btn" onclick="S.skipCfg=1;view()">先使用我的个人档案</button></div>'; return; }
-    let h = `<h1>${lgImg(30)}就医伴侣${HP ? '<small style="font-size:14px;color:var(--mute);font-weight:400"> · ' + esc(HP.n) + '</small>' : ''}</h1>` + '<p class="note" style="margin:0 0 12px;line-height:1.55"><b>本工具用于患者个人整理就诊资料，不是医院电子病历系统。</b><br>患者自行填写的资料不会自动发送给医院或医生。</p>' + banners() ;
+    const showHead = S.view === 'home' && !S.profiles.length;
+    let h = (showHead ? `<h1>${lgImg(30)}就医伴侣${HP ? '<small style="font-size:14px;color:var(--mute);font-weight:400"> · ' + esc(HP.n) + '</small>' : ''}</h1>` + '<p class="note" style="margin:0 0 12px;line-height:1.55"><b>本工具用于患者个人整理就诊资料，不是医院电子病历系统。</b><br>患者自行填写的资料不会自动发送给医院或医生。</p>' : '') + banners() ;
     if (S.view === 'care' && typeof careView === 'function')
         h += careView();
     else if (S.view === 'bk')
@@ -2205,8 +2354,8 @@ const iput = async (k, b) => { const d = await idb(); return new Promise((s, j) 
 const iget = async (k) => { const d = await idb(); return new Promise((s, j) => { const q = d.transaction('i').objectStore('i').get(k); q.onsuccess = () => s(q.result); q.onerror = () => j(q.error); }); };
 const idel = k => idb().then(d => d.transaction('i', 'readwrite').objectStore('i').delete(k)).catch(() => { });
 const idelw = async (k) => { const d = await idb(); return new Promise((s, j) => { const t = d.transaction('i', 'readwrite'); t.objectStore('i').delete(k); t.oncomplete = s; t.onerror = () => j(t.error); t.onabort = () => j(t.error); }); };
-const tabs = () => `<nav class="tabs" aria-label="档案栏目">${[['info', '档案', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3h6v3H9zM8.5 11h7M8.5 15h5"/></svg>'], ['tl', '时间线', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>'], ['mx', '指标', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16h16"/><path d="M7 15l4-4 3 3 5-6"/></svg>'], ['sm', '复诊摘要', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>'], ['ai', '智能助手', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a4 4 0 0 0-4 4v1a7 7 0 1 0 8 0V7a4 4 0 0 0-4-4z"/><path d="M9 11h.01M15 11h.01M9.5 15a3 3 0 0 0 5 0"/></svg>']].map(t => `<button class="tab" aria-pressed="${S.tab === t[0]}" data-act="tab" data-t="${t[0]}"><span class="ti" aria-hidden="true">${t[2]}</span><span class="tl">${t[1]}</span></button>`).join('')}</nav>`;
-const APP_VER = '2026.11.32';
+const tabs = () => `<nav class="tabs" aria-label="档案栏目">${[['info', '档案', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3h6v3H9zM8.5 11h7M8.5 15h5"/></svg>'], ['tl', '时间线', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>'], ['mx', '指标', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16h16"/><path d="M7 15l4-4 3 3 5-6"/></svg>'], ['sm', '摘要', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>'], ['ai', '助手', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a4 4 0 0 0-4 4v1a7 7 0 1 0 8 0V7a4 4 0 0 0-4-4z"/><path d="M9 11h.01M15 11h.01M9.5 15a3 3 0 0 0 5 0"/></svg>']].map(t => `<button class="tab" aria-pressed="${S.tab === t[0]}" data-act="tab" data-t="${t[0]}"><span class="ti" aria-hidden="true">${t[2]}</span><span class="tl">${t[1]}</span></button>`).join('')}</nav>`;
+const APP_VER = '2026.11.33';
 const CC_SYM = ['发烧 / 怕冷', '咳嗽 / 咳痰', '头痛 / 头晕', '心慌 / 心悸', '肚子痛 / 胃不舒服', '拉肚子 / 便秘 / 恶心呕吐', '尿频 / 尿痛 / 血尿', '血压 / 血糖问题', '失眠 / 情绪差 / 记性差', '伤口 / 肿块', '腰腿痛 / 关节痛 / 脖子痛', '摔伤 / 扭伤', '牙痛 / 牙龈出血 / 口腔溃疡', '皮疹 / 瘙痒', '看东西模糊 / 眼红 / 眼痛', '耳鸣 / 听力下降 / 鼻塞 / 咽痛', '月经问题 / 备孕', '孩子不舒服', '常规体检 / 带着已有的检查报告', '想看中医 / 调理身体'];
 const CC_DUR = ['今天刚出现', '两三天内', '一周左右', '一个月内', '几个月了', '半年以上', '长期反复'];
 const CC_SEV = ['轻微，不影响生活', '有点难受，能忍', '比较难受，影响睡觉/吃饭', '很难受'];
@@ -2409,7 +2558,7 @@ async function importBackup(f) {
         const have = o.payload.images || {}, miss = new Set();
         pr.forEach(q => (q.tl || []).forEach(r => (r.imgs || []).forEach(k => { if (!have[k])
             miss.add(k); })));
-        const rows = pr.map(q => { const ex = S.profiles.some(x => x.id === q.id), mc = (q.mx || []).reduce((n, m) => n + m.pts.length, 0), ic = (q.tl || []).reduce((n, r) => n + (r.imgs || []).length, 0); return '<li><b>' + esc(q.member + ' · ' + dn(q)) + '</b>：' + (q.tl || []).length + ' 条记录，' + mc + ' 个指标数值，' + ic + ' 张图片；' + (ex ? '<span class="bad">覆盖本机同一份档案</span>' : '新增') + '</li>'; }).join('');
+        const rows = pr.map(q => { const ex = S.profiles.some(x => x.id === q.id), mc = (q.mx || []).reduce((n, m) => n + m.pts.length, 0), ic = (q.tl || []).reduce((n, r) => n + (r.imgs || []).length, 0); return '<li><b>' + esc(niceMember(q.member) + ' · ' + dn(q)) + '</b>：' + (q.tl || []).length + ' 条记录，' + mc + ' 个指标数值，' + ic + ' 张图片；' + (ex ? '<span class="bad">覆盖本机同一份档案</span>' : '新增') + '</li>'; }).join('');
         if (!await askModal('<h2>恢复预览</h2><p class="sub">备份时间：' + esc((o.at || '').slice(0, 10)) + '</p><ul>' + rows + '</ul><p class="sub">本机上不在备份里的档案不受影响。</p>' + (hst.codes ? '<p class="sub" style="background:#fff4e5;color:#8a4b00;border-radius:8px;padding:8px 10px"><b>医院活动数据：</b>将合并 ' + hst.v + ' 张凭证（其中已核销 ' + hst.u + ' 张）、' + hst.n + ' 次整理打卡' + (hst.q ? '，并恢复 ' + hst.q + ' 条还没传上去的记录（联网后会自动继续上传）' : '') + '。合并不会删除本机已有的凭证，已核销的不会变回未核销。<br><b>恢复不会注销旧手机上的数据：两台手机都能看到同一张凭证，兑换以医院登记表为准。</b>备份可能不是最新的，恢复后请以现场登记表核对。</p>' : '') + (miss.size ? '<p class="bad">有 ' + miss.size + ' 张图片在备份文件里缺失，恢复后这些图片无法显示。</p>' : '')))
             return;
         if (Object.keys(have).length > 1000)
@@ -2569,7 +2718,7 @@ function smData(p, rgo) {
         top.push({ h: '上次就诊以来（患者自填）', lines: ['上次就诊：' + lastV.date + (lastV.hosp ? ' · ' + lastV.hosp : '')].concat(since.length ? since.slice(0, 6).map(line).concat(since.length > 6 ? ['另有 ' + (since.length - 6) + ' 条较早记录，见下方或时间线'] : []) : ['此后没有新记录']) });
     }
     sec.splice(1, 0, ...top);
-    let title = p.member + ' · ' + dn(p) + (p.disease === 'rare' ? (p.age === 'child' ? '（儿童）' : '（成人）') : '') + ' 复诊摘要', meta = '生成于 ' + today() + ' · 记录范围：' + ({ '3m': '近3个月', '6m': '近半年', all: '全部' }[rg]), note = '请先核对内容是否完整、准确，再带给医生。本摘要由用户自行录入的资料整理而成，仅供复诊参考，不含诊断或解读。标 ▲ 的指标，表示最新值超出页面中所设或通用的参考范围，仅作提示。';
+    let title = niceMember(p.member) + ' · ' + dn(p) + (p.disease === 'rare' ? (p.age === 'child' ? '（儿童）' : '（成人）') : '') + ' 复诊摘要', meta = '生成于 ' + today() + ' · 记录范围：' + ({ '3m': '近3个月', '6m': '近半年', all: '全部' }[rg]), note = '请先核对内容是否完整、准确，再带给医生。本摘要由用户自行录入的资料整理而成，仅供复诊参考，不含诊断或解读。标 ▲ 的指标，表示最新值超出页面中所设或通用的参考范围，仅作提示。';
     if (S.sbr) {
         const keep = ['关键提示', '这次想说的不适情况', '这次想问医生的问题', '上次就诊以来', '目前在用的药', '患者转述的医嘱', '指标变化', '近期症状与不良反应'];
         const ns = sec.filter(x => keep.some(k => x.h.startsWith(k))).map(x => ({ h: x.h, lines: x.lines.slice(0, 6).concat(x.lines.length > 6 ? ['另有 ' + (x.lines.length - 6) + ' 条，见详细版'] : []) }));
@@ -2642,17 +2791,17 @@ function pzOut(p) {
 /* ===== 智能助手（就医智能端）：调 /api/chat，界面明确标注为智能端 ===== */
 function aiView(p) {
     const c = S.chat || [];
-    const who = p ? p.member : '本人';
+    const who = p ? niceMember(p.member) : '本人';
     const blooms = c.map((m, i) => `<div class="aib ${m.r}"><button class="aidel" data-act="aidel" data-i="${i}" aria-label="删除这条" title="删除这条">×</button>${esc(m.t)}</div>`).join('');
     const quick = ['帮我整理这份档案', '复诊要带什么', '看看这些指标', '帮我写想问医生的问题'];
     return `<div class="card ai">
-<div class="aihd"><span class="aibadge">AI 智能端</span><b>智能助手 · 问答</b><span class="sub" style="margin:0">当前档案：${esc(who)}</span></div>
-<p class="sub">智能助手只帮你整理和解释你自己记录的资料，<b>不能看病、不能替代医生</b>；如有胸痛、呼吸困难、意识不清等紧急情况请拨 120。资料只在本页展示，不会自动发给医院。</p>
-<div class="aich" id="aich">${c.length ? blooms : '<div class="aib a">你好，我是就医智能助手，可以帮你整理档案、解释指标、准备复诊问题。你想问什么？</div>'}${S.chatBusy ? '<div class="aib a aibwait">正在思考…</div>' : ''}</div>
-<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">${quick.map(q => `<button class="chip" data-act="aiquick" data-v="${esc(q)}">${esc(q)}</button>`).join('')}</div>
-<label for="aiin">输入你想问的（请勿填写身份证号、手机号等敏感信息）</label>
+<div class="aihd"><span class="aibadge">AI</span><b>智能助手</b><button class="ghost ai-clear" data-act="aiclear">清空</button><span class="sub">当前档案：${esc(who)}</span></div>
+<p class="sub">只整理你自己记录的资料，不看病、不替代医生；紧急情况请拨 120。资料只在本页展示。</p>
+<div class="aich" id="aich">${c.length ? blooms : '<div class="aib a">你好，我可以帮你整理档案、解释指标、准备复诊问题。你想问什么？</div>'}${S.chatBusy ? '<div class="aib a aibwait">正在思考…</div>' : ''}</div>
+<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px">${quick.map(q => `<button class="chip" data-act="aiquick" data-v="${esc(q)}">${esc(q)}</button>`).join('')}</div>
+<div class="composer"><label for="aiin">输入你想问的（请勿填写身份证号、手机号等敏感信息）</label>
 <textarea id="aiin" placeholder="例如：帮我把最近的化验结果整理成一段话，复诊时给医生看"${S.chatBusy ? ' disabled' : ''}></textarea>
-<div class="bar"><button class="ghost" data-act="aiclear">清空对话</button><button class="ghost" data-act="aivoice"${S.chatBusy ? ' disabled' : ''} aria-label="语音输入"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M5 10v1a7 7 0 0 0 14 0v-1"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>语音</button><button class="btn" data-act="aisend"${S.chatBusy ? ' disabled' : ''}>发送</button></div>
+<div class="bar"><button class="ghost" data-act="aivoice"${S.chatBusy ? ' disabled' : ''} aria-label="语音输入"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M5 10v1a7 7 0 0 0 14 0v-1"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>语音</button><button class="btn" data-act="aisend"${S.chatBusy ? ' disabled' : ''}>发送</button></div></div>
 </div>`;
 }
 async function aiCall(txt) {
@@ -2877,8 +3026,8 @@ function visitFlowCard(p, nv) {
     const day = d === 0 ? '今天' : d < 0 ? '已过期 ' + (-d) + ' 天' : d + ' 天后';
     const status = visitDone ? '用户确认已完成' : summaryDone ? '等待复诊' : calendarDone ? '日历文件已下载' : prepared ? '准备中' : '已设置日期';
     const step = (n, title, desc, done, action, label) => `<div class="flow-step${done ? ' flow-done' : ''}"><span class="flow-num">${done ? '✓' : n}</span><div class="flow-main"><b>${title}</b><small>${done ? '已完成本步骤' : desc}</small></div>${!done && action ? `<button class="${n === 4 ? 'ghost' : 'btn'}" data-act="${action}" data-pid="${p.id}">${label}</button>` : ''}</div>`;
-    const follow = visitDone ? `<div class="post-visit"><b>复诊后，补记下一步</b><p class="sub">把医生新交代的内容记下来；填写下一次复诊日期后，会自动建立下一轮复诊准备。没有新增内容也可以直接结束。</p><textarea id="vf_text" placeholder="如：两周后复查血常规；继续按医生交代用药">${esc(p.data.visitFollowupText || '')}</textarea><div class="row"><input id="vf_date" type="date" value="${esc(p.data.visitFollowupDate || '')}" aria-label="下一次复诊日期"><button class="btn" data-act="vfollowup" data-pid="${p.id}">保存复诊后记录</button></div><p class="sub">只有复诊日期当天或之后保存，才会计入整理打卡；日期填错请先修改日期。</p><button class="ghost" data-act="vfollowup" data-pid="${p.id}" data-skip="1" style="margin-top:8px">没有新增内容，仅结束本次（不记整理打卡）</button></div>` : '';
-    return `<div class="card flow"><div class="tlh"><h2 style="margin:0">${visitDone ? '复诊完成，补记下一步' : '复诊准备'}</h2><span class="tag ${d < 0 ? 'bad' : ''}">${esc(status)} · ${day} · ${esc(nv)}</span></div><p class="sub">${esc(label(p))} · 只根据你自己填写的日期和资料生成，不会判断病情。复诊日期只是个人提醒，不是预约。</p>${step(1, '准备个人复诊清单', prepared ? '清单已建立，当前勾选 ' + ckDone + '/' + c.items.length + ' 项' : '选择“复查”模板，系统会建立一份可编辑清单。', prepared, 'vprepare', prepared ? '查看清单' : '去准备')}${step(2, '准备日历提醒文件', calendarDone ? '文件已下载；是否导入系统日历需由你确认。' : '下载文件后，请在系统日历中打开并确认导入。', calendarDone, 'vcalendar', '下载文件')}${step(3, '核对复诊摘要', summaryDone ? '摘要已标记为本次复诊材料。' : '打开摘要，核对范围、未完成事项和想问医生的问题。', summaryDone, 'vsummary', '去核对')}${step(4, '确认本次复诊完成', visitDone ? '你已确认完成；不代表医院系统已完成记录。' : '看完医生后由你确认；不代表医院系统已完成记录。', visitDone, 'vdone', '我已自行确认看完')}${(!visitDone && jnyList().length) ? `<div class="row" style="margin-top:10px"><button class="ghost" data-act="jgo">去做医院就诊流程（可获得整理打卡）</button></div>` : ''}${follow}</div>`;
+    const follow = visitDone ? `<details class="pv"${(p.data.visitFollowupText || p.data.visitFollowupDate) ? ' open' : ''}><summary><b>复诊后补记</b><small>可选 · 填下一次复诊日期会自动建立下一轮准备</small></summary><div class="pv-body"><label for="vf_text">医生新交代的内容</label><textarea id="vf_text" placeholder="如：两周后复查血常规；继续按医生交代用药">${esc(p.data.visitFollowupText || '')}</textarea><label for="vf_date">下一次复诊日期（可不填）</label><div class="row"><input id="vf_date" type="date" value="${esc(p.data.visitFollowupDate || '')}" aria-label="下一次复诊日期"><button class="btn" data-act="vfollowup" data-pid="${p.id}">保存记录</button></div><p class="sub">复诊日期当天或之后保存才会计入整理打卡。</p><button class="ghost" data-act="vfollowup" data-pid="${p.id}" data-skip="1">没有新增内容，仅结束本次（不打卡）</button></div></details>` : '';
+    return `<div class="card flow"><div class="tlh"><h2 style="margin:0">${visitDone ? '复诊完成，补记下一步' : '复诊准备'}</h2><span class="tag ${d < 0 ? 'bad' : ''}">${esc(status)} · ${day} · ${esc(nv)}</span></div><p class="sub">${esc(label(p))} · 只按你填写的日期提醒，不是预约，也不判断病情。</p>${step(1, '准备个人复诊清单', prepared ? '清单已建立，当前勾选 ' + ckDone + '/' + c.items.length + ' 项' : '选择“复查”模板，系统会建立一份可编辑清单。', prepared, 'vprepare', prepared ? '查看清单' : '去准备')}${step(2, '准备日历提醒文件', calendarDone ? '文件已下载；是否导入系统日历需由你确认。' : '下载文件后，请在系统日历中打开并确认导入。', calendarDone, 'vcalendar', '下载文件')}${step(3, '核对复诊摘要', summaryDone ? '摘要已标记为本次复诊材料。' : '打开摘要，核对范围、未完成事项和想问医生的问题。', summaryDone, 'vsummary', '去核对')}${step(4, '确认本次复诊完成', visitDone ? '你已确认完成；不代表医院系统已完成记录。' : '看完医生后由你确认；不代表医院系统已完成记录。', visitDone, 'vdone', '我已自行确认看完')}${(!visitDone && jnyList().length) ? `<div class="row" style="margin-top:10px"><button class="ghost" data-act="jgo">去做医院就诊流程（可获得整理打卡）</button></div>` : ''}${follow}</div>`;
 }
 function todayItems() {
     const out = [], sz = snzGet(), t0 = today();
@@ -2888,12 +3037,12 @@ function todayItems() {
             const k = 'o' + o.id;
             if (sz[k] === t0) return;
             const d = daysTo(o.due);
-            out.push({ k, pr: d < 0 ? 0 : 1, bad: d < 0, tag: d < 0 ? '已过期 ' + (-d) + ' 天' : d === 0 ? '今天到期' : d + ' 天后到期', who: label(p), text: (o.cat === '复诊后记录' ? '你自己记的：' : o.cat + '：') + o.text, btns: `<button class="btn" data-act="tdone" data-pid="${p.id}" data-id="${o.id}">标记已完成</button>` + more(`<button class="ghost" data-act="tics" data-pid="${p.id}" data-id="${o.id}">下载日历提醒文件</button><button class="ghost" data-act="tsnz" data-k="${k}">今天不提醒</button>`) });
+            out.push({ k, pr: d < 0 ? 0 : 1, bad: d < 0, tag: d < 0 ? '已过期 ' + (-d) + ' 天' : d === 0 ? '今天到期' : d + ' 天后到期', pid: p.id, who: label(p), text: (o.cat === '复诊后记录' ? '你自己记的：' : o.cat + '：') + o.text, btns: `<button class="btn" data-act="tdone" data-pid="${p.id}" data-id="${o.id}">标记已完成</button>` + more(`<button class="ghost" data-act="tics" data-pid="${p.id}" data-id="${o.id}">下载日历提醒文件</button><button class="ghost" data-act="tsnz" data-k="${k}">今天不提醒</button>`) });
         });
         (p.meds || []).filter(medDaily).forEach(m => {
             const c = medCnt(p, m), k = 'M' + m.id;
             if (c >= m.per || sz[k] === t0) return;
-            out.push({ k, pr: 1, tag: '今天 ' + c + '/' + m.per + ' 次', who: label(p), text: m.name, btns: `<button class="btn" data-act="mdlog" data-pid="${p.id}" data-id="${m.id}">记一次</button>` + more(`<button class="ghost" data-act="tsnz" data-k="${k}">今天不提醒</button>`) });
+            out.push({ k, pr: 1, tag: '今天 ' + c + '/' + m.per + ' 次', pid: p.id, who: label(p), text: m.name, btns: `<button class="btn" data-act="mdlog" data-pid="${p.id}" data-id="${m.id}">记一次</button>` + more(`<button class="ghost" data-act="tsnz" data-k="${k}">今天不提醒</button>`) });
         });
         // 只依据用户在“我的药”中明确确认的当前药物生成任务；不再从历史自由文本猜测常用药或服药时间。
     });
@@ -2947,7 +3096,72 @@ function archiveSection() {
     const q = S.profiles.slice().sort((a, b) => ((b.tl || []).map(r => r.date).sort().pop() || '').localeCompare((a.tl || []).map(r => r.date).sort().pop() || ''))[0];
     return `<h2 class="gt">我的档案（${S.profiles.length}）</h2><div class="opts">${cards}</div>` + (q ? `<div class="row hb"><button class="btn" data-act="qadd" data-id="${q.id}">继续记录：${esc(label(q))}</button></div>` : '') + `<div class="row hb" style="margin-top:8px"><button class="ghost" data-act="new">＋ 新建档案</button></div>`;
 }
-const homeView = () => todayCard() + (typeof careEntryCard === 'function' ? careEntryCard() : '') + archiveSection() + hospitalZone() + weekCard() + hubData() + homeDemo() + posCard();
+const hgreet = () => { const h = new Date().getHours(); return h < 6 ? '夜深了' : h < 11 ? '早上好' : h < 13 ? '中午好' : h < 18 ? '下午好' : '晚上好'; };
+const hdate = d => { const x = new Date(d + 'T00:00:00'); return (x.getMonth() + 1) + '月' + x.getDate() + '日'; };
+const hwday = d => '周' + ['日', '一', '二', '三', '四', '五', '六'][new Date(d + 'T00:00:00').getDay()];
+const hlastPt = m => (m.pts || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)))[0] || null;
+function hGreeting(cp) {
+    const L = todayItems().filter(x => x.pid === cp.id), nv = nextVisit(cp), d = nv ? daysTo(nv) : null;
+    let st = nv ? (d === 0 ? '今天' : d === 1 ? '明天' : d > 1 ? '还有 ' + d + ' 天' : '复诊已过 ' + (-d) + ' 天') + ' · ' + dn(cp) : '还没有安排下次复诊';
+    if (L.length) st += ' · 今天 ' + L.length + ' 项待处理';
+    const chips = S.profiles.length > 1 ? `<div class="pchips">${S.profiles.map(q => `<button class="pchip" aria-pressed="${q.id === cp.id}" data-act="psel" data-id="${q.id}">${esc(niceMember(q.member))}</button>`).join('')}</div>` : '';
+    return `<header class="hello"><div><p class="hello-hi">${hgreet()}，</p><h1>${esc(niceMember(cp.member))}</h1><p class="hello-sub">${esc(st)}</p></div><span class="hello-ava" aria-hidden="true">${esc(niceMember(cp.member).slice(0, 1))}</span></header>` + chips;
+}
+function hNext(cp) {
+    const nv = nextVisit(cp), fv = flowVisit(cp), sel = nv || fv;
+    if (!sel)
+        return `<article class="card nstep"><div class="nstep-top"><span class="kicker">下一步</span></div><h2>安排下次复诊</h2><p class="nstep-sub">填一个日期，复诊前会提醒你准备材料。只作个人备忘，不是预约。</p><div class="nstep-acts"><button class="btn" data-act="tab" data-t="info">填写复诊日期</button></div></article>`;
+    const d = daysTo(sel), done = cp.data && cp.data.visitDoneAt === sel;
+    const ck = cp.ck && Array.isArray(cp.ck.items) ? cp.ck.items : null, ckDone = ck ? ck.filter(x => x.done).length : 0;
+    const title = done ? '复诊已完成，补记下一步' : d < 0 ? '补记这次复诊' : d === 0 ? '今天复诊' : '复诊准备';
+    const when = d === 0 ? '今天' : d === 1 ? '明天' : d > 0 ? d + ' 天后' : '已过 ' + (-d) + ' 天';
+    let acts = '';
+    if (done) acts = `<button class="btn" data-act="tab" data-t="info">去补记</button>`;
+    else if (d < 0) acts = `<button class="btn" data-act="tab" data-t="tl">补记这次就诊</button><button class="ghost" data-act="vdone" data-pid="${cp.id}">我已看完</button>`;
+    else acts = `<button class="btn" data-act="vprepare" data-pid="${cp.id}">${ck ? '查看准备清单' : '开始准备'}</button><button class="ghost" data-act="vsummary" data-pid="${cp.id}">复诊摘要</button>`;
+    const prep = (!done && d >= 0) ? `<div class="prep"><span>准备清单 ${ck ? ckDone + '/' + ck.length : '未建立'}</span><i><b style="width:${ck && ck.length ? Math.round(ckDone / ck.length * 100) : 0}%"></b></i></div>` : '';
+    return `<article class="card nstep"><div class="nstep-top"><span class="kicker">下一步</span><span class="nstep-when">${esc(when)} · ${esc(hdate(sel))} ${esc(hwday(sel))}</span></div><h2>${esc(title)}</h2><p class="nstep-sub">${esc(dn(cp))}${cp.data.hosp ? ' · ' + esc(cp.data.hosp) : ''} · 只按你填的日期提醒</p>${prep}<div class="nstep-acts">${acts}</div></article>`;
+}
+function hToday(cp) {
+    const L = todayItems().filter(x => x.pid === cp.id);
+    const rows = L.map(i => `<div class="hrow"><div class="hrow-m"><b>${esc(i.text)}</b><small>${esc(i.tag)}</small></div><div class="hrow-a">${i.btns}</div></div>`).join('');
+    const more = [];
+    const ask = String((cp.data || {}).ask || '').split('\n').filter(x => x.trim()).length;
+    const imgs = (cp.tl || []).reduce((n, r) => n + ((r.imgs || []).length), 0);
+    const ck = cp.ck && Array.isArray(cp.ck.items) ? cp.ck.items : null, ckLeft = ck ? ck.filter(x => !x.done).length : 0;
+    const nv0 = nextVisit(cp);
+    if (ckLeft && nv0 && daysTo(nv0) <= 14) more.push(`<button class="hlink" data-act="vprepare" data-pid="${cp.id}"><span>准备清单还有 ${ckLeft} 项未勾选</span><span>去准备 ›</span></button>`);
+    if (ask) more.push(`<button class="hlink" data-act="tab" data-t="sm"><span>有 ${ask} 个想问医生的问题</span><span>查看 ›</span></button>`);
+    if (imgs) more.push(`<button class="hlink" data-act="tab" data-t="tl"><span>已保存 ${imgs} 张检查报告图片</span><span>查看 ›</span></button>`);
+    if (!rows && !more.length) return `<section class="card htoday-empty"><b>今天没有到期的用药或医嘱</b><p class="sub">有新的情况，随时记录到时间线。</p></section>`;
+    return `<section class="card htoday">${rows ? `<div class="sech"><b>今天</b><span>${L.length} 项</span></div>${rows}` : ''}${more.slice(0, 3).join('')}</section>`;
+}
+function hQuick(cp) {
+    const tlN = (cp.tl || []).length, imgN = (cp.tl || []).reduce((n, r) => n + ((r.imgs || []).length), 0), medN = (cp.meds || []).filter(m => !m.stopped).length, mxN = (cp.mx || []).filter(m => (m.pts || []).length).length;
+    const ic = {
+        add: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+        img: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="M4 17l5-5 4 4 3-3 4 4"/></svg>',
+        pill: '<svg viewBox="0 0 24 24"><rect x="3.5" y="8" width="17" height="8" rx="4"/><path d="M12 8v8"/></svg>',
+        chart: '<svg viewBox="0 0 24 24"><path d="M4 4v16h16"/><path d="M7 15l4-4 3 3 5-6"/></svg>'
+    };
+    return `<nav class="qgrid" aria-label="常用操作"><button class="qbtn" data-act="tab" data-t="tl"><span class="qico">${ic.add}</span><b>记录就诊</b><small>${tlN} 条记录</small></button><button class="qbtn" data-act="tab" data-t="tl"><span class="qico">${ic.img}</span><b>报告图片</b><small>${imgN} 张</small></button><button class="qbtn" data-act="tab" data-t="info"><span class="qico">${ic.pill}</span><b>我的用药</b><small>${medN} 种在用</small></button><button class="qbtn" data-act="tab" data-t="mx"><span class="qico">${ic.chart}</span><b>指标趋势</b><small>${mxN} 项</small></button></nav>`;
+}
+const hAI = () => `<button class="airow" data-act="care"><span class="airo">AI</span><span class="airt"><b>六角色助手</b><small>陪诊整理 · 核对材料 · 沟通准备</small></span><span class="airc">›</span></button>`;
+function hOverview(cp) {
+    const ms = (cp.mx || []).map(m => ({ m, pt: hlastPt(m) })).filter(x => x.pt).slice(0, 2);
+    const body = ms.length ? `<div class="ovrow">${ms.map(({ m, pt }) => { const v = +String(pt.v).match(/^-?\d+(\.\d+)?$/)?.[0], bad = v !== undefined && !isNaN(v) && ((m.lo !== '' && m.lo != null && v < m.lo) || (m.hi !== '' && m.hi != null && v > m.hi)); return `<div class="omet"><span>${esc(m.name)}</span><b>${esc(pt.v)}<small>${esc(m.unit || '')}</small></b><em>${esc(String(pt.date || '').slice(5))}${bad ? ' ▲' : ''}</em></div>`; }).join('')}</div>` : `<p class="hblank">还没有记录指标。复诊前记下血压、血糖或化验数值，沟通会更清楚。</p>`;
+    return `<section class="card hcard"><div class="sech"><b>健康概览</b><button class="hmore-btn" data-act="tab" data-t="mx">指标趋势 ›</button></div>${body}</section>`;
+}
+function hHistory(cp) {
+    const all = (cp.tl || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 2);
+    if (!all.length) return `<section class="card hcard"><div class="sech"><b>最近记录</b></div><p class="hblank">还没有记录。点上方“记录就诊”开始。</p></section>`;
+    return `<section class="card hcard"><div class="sech"><b>最近记录</b><button class="hmore-btn" data-act="tab" data-t="tl">全部 ›</button></div>${all.map(r => `<button class="hrec" data-act="tab" data-t="tl"><span class="hrec-d">${esc(String(r.date).slice(5))}</span><span class="hrec-t"><b>${esc(r.kind || '记录')}</b><small>${esc(String(r.text || r.hosp || '').slice(0, 46))}${(r.imgs || []).length ? ' · ' + r.imgs.length + ' 张图' : ''}</small></span></button>`).join('')}</section>`;
+}
+function hMore() {
+    const hz = hospitalZone();
+    return (hz ? `<details class="hfold"><summary><b>医院服务与惠民活动</b></summary>${hz}</details>` : '') + `<details class="hfold"><summary><b>档案与更多工具</b></summary>${archiveSection()}${weekCard()}${homeDemo()}</details>` + hubData();
+}
+const homeView = () => { const cp = cur() || S.profiles[0]; return hGreeting(cp) + hNext(cp) + hToday(cp) + hQuick(cp) + hAI() + hOverview(cp) + hHistory(cp) + hMore() + posCard(); };
 function bkToast() { if (A.bk && Date.now() - new Date(A.bk).getTime() < 7 * 864e5)
     return; const t = document.createElement('div'); t.className = 'toast'; t.innerHTML = '已保存到本机（未加密，也不等于已备份） <button>去备份</button>'; document.body.appendChild(t); const x = setTimeout(() => t.remove(), 5000); t.querySelector('button').onclick = () => { clearTimeout(x); t.remove(); S.view = 'bk'; view(); scrollTo(0, 0); }; }
 function inAppModal() {
@@ -2987,7 +3201,7 @@ function csvDialog(p) {
     document.body.appendChild(o);
     o.querySelector('#cv_x').onclick = () => o.remove();
     o.querySelector('#cv_d').onclick = async () => { try {
-        await saveFile('就医伴侣_' + String(p.member).replace(/[\\/:*?"<>|]/g, '') + '_' + today().replace(/-/g, '') + '.csv', new Blob(['\ufeff' + t], { type: 'text/csv;charset=utf-8' }));
+        await saveFile('就医伴侣_' + niceMember(p.member).replace(/[\\/:*?"<>|]/g, '') + '_' + today().replace(/-/g, '') + '.csv', new Blob(['\ufeff' + t], { type: 'text/csv;charset=utf-8' }));
     }
     catch (e) {
         alert('下载失败，请改用复制内容');
@@ -3149,23 +3363,24 @@ function mxView(p) {
         save();
     }
     syncT(p);
-    let h = `<div class="seg">${[['week', '周'], ['month', '月'], ['all', '全病程']].map(r => `<button class="chip" aria-pressed="${S.range === r[0]}" data-act="range" data-r="${r[0]}">${r[1]}</button>`).join('')}</div>` + '<p class="sub note2" style="color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.5)">范围线只是提示：超出或在范围内，都不代表病情好坏，请以医生的判断为准。</p>' + bpCard(p) + p.mx.map(mCard).join('');
+    let h = `<div class="seg">${[['week', '周'], ['month', '月'], ['all', '全病程']].map(r => `<button class="chip" aria-pressed="${S.range === r[0]}" data-act="range" data-r="${r[0]}">${r[1]}</button>`).join('')}</div>` + '<p class="sub note2">范围线只是提示：超出或在范围内，都不代表病情好坏，请以医生的判断为准。</p>' + bpCard(p) + p.mx.map(mCard).join('');
     const kid = p.disease === 'rare' && p.age === 'child';
     return h + `<details class="card"><summary><b>＋ ${p.disease === 'rare' ? '添加检验项目 / 评估得分' : '添加自定义指标'}</b></summary>${p.disease === 'rare' && !p.mx.length ? '<p class="sub">罕见病指标因人而异，请按化验单或评估报告自行添加。</p>' : ''}<label>名称</label><input id="nn" placeholder="${kid ? '如 粗大运动得分、语言评估得分' : '如 肌酸激酶'}"><label>单位</label><input id="nu" placeholder="如 U/L、分"><div class="row"><div><label>下限</label><input id="nl" type="number" step="any" inputmode="decimal"></div><div><label>上限</label><input id="nh" type="number" step="any" inputmode="decimal"></div></div><div class="bar"><button class="btn" data-act="mxnew">添加指标</button></div></details>`;
 }
 function sensitiveGate(kind, onConfirm) { const o = document.createElement('div'); o.className = 'ov'; o.innerHTML = '<div class="mod"><h2>分享前请确认</h2><p>即将' + kind + '病情资料。请确认接收方可信，并检查摘要中是否包含不必要的个人信息。</p><label class="checkline"><input id="sg_ok" type="checkbox"> <span>我已检查内容，并确认不包含身份证号、手机号、住址、住院号等不必要敏感信息。</span></label><div class="bar"><button class="ghost" id="sg_n">取消</button><button class="btn" id="sg_y" disabled>继续</button></div></div>'; document.body.appendChild(o); const ok=o.querySelector('#sg_ok'), yes=o.querySelector('#sg_y'); ok.onchange=()=>{yes.disabled=!ok.checked}; o.querySelector('#sg_n').onclick=()=>o.remove(); yes.onclick=()=>{o.remove();onConfirm()}; }
 function extra(act, b, p) {
     const g = id => document.getElementById(id), f = s => { s = s.trim(); return s === '' || isNaN(+s) ? '' : +s; };
+    if (act === 'psel') { S.cur = b.dataset.id; S.view = 'home'; S.tab = 'info'; return 1; }
     if (act === 'consent') { if (!UP_OK) { toastMsg('这家医院还没有开启记录上传'); return 2; } consentAsk(() => { }); return 2; }
     if (act === 'showask') {
         const it = (HP && Array.isArray(HP.show) ? HP.show : [])[+b.dataset.i];
         if (!it) return 2;
         const line = '想咨询：' + it.t + '（医院项目，是否适合请医生判断）';
-        const add = p0 => { p0.data = p0.data || {}; const cu = String(p0.data.ask || ''); if (cu.split('\n').some(x => x.trim() === line)) { toastMsg('已在“' + p0.member + '”的想问清单里'); return; } p0.data.ask = (cu.trim() ? cu.replace(/\s+$/, '') + '\n' : '') + line; save(); toastMsg('已加入“' + p0.member + '”的想问清单（不是预约）'); };
+        const add = p0 => { p0.data = p0.data || {}; const cu = String(p0.data.ask || ''); if (cu.split('\n').some(x => x.trim() === line)) { toastMsg('已在“' + niceMember(p0.member) + '”的想问清单里'); return; } p0.data.ask = (cu.trim() ? cu.replace(/\s+$/, '') + '\n' : '') + line; save(); toastMsg('已加入“' + niceMember(p0.member) + '”的想问清单（不是预约）'); };
         if (!S.profiles.length) { modal('<h2>请先建立档案</h2><p class="sub">想问清单记在档案的复诊摘要里。先新建一份档案，再回来加入。</p><div class="bar"><button class="btn" data-go>知道了</button></div>'); return 2; }
         if (S.profiles.length === 1) { add(S.profiles[0]); return 2; }
         const o = document.createElement('div'); o.className = 'ov';
-        o.innerHTML = '<div class="mod"><h2>加到谁的想问清单？</h2>' + S.profiles.map((q, k) => '<button class="ghost" style="display:block;width:100%;margin:6px 0" data-pk="' + k + '">' + esc(q.member) + '</button>').join('') + '<div class="bar"><button class="ghost" data-go>取消</button></div></div>';
+        o.innerHTML = '<div class="mod"><h2>加到谁的想问清单？</h2>' + S.profiles.map((q, k) => '<button class="ghost" style="display:block;width:100%;margin:6px 0" data-pk="' + k + '">' + esc(niceMember(q.member)) + '</button>').join('') + '<div class="bar"><button class="ghost" data-go>取消</button></div></div>';
         o.onclick = ev => { const t = ev.target; if (t === o || (t.hasAttribute && t.hasAttribute('data-go'))) o.remove(); else if (t.dataset && t.dataset.pk !== undefined) { const q = S.profiles[+t.dataset.pk]; o.remove(); if (q) add(q); } };
         document.body.appendChild(o);
         return 2;
@@ -3671,6 +3886,7 @@ function extra(act, b, p) {
         S.tab = b.dataset.t;
         S.edit = null;
         S.mxe = null;
+        if (S.view === 'home') { S.view = 'list'; scrollTo(0, 0); }
         return 1;
     }
     if (act === 'aisend' || act === 'aiquick') {
@@ -3915,7 +4131,7 @@ catch (e) {
    tel:{n,num} 服务电话（点击拨打）；book:{n,url} 医院自有预约入口链接（https，仅跳转，不新建号源）
    campus:[{n,addr,tel}] 多院区信息（只展示）
    show:[{t,d,img,price,tag}] 医院项目展示（基础版≤3、升级版≤8；img 只能是本站 img/<代号>/文件名.jpg|png|webp；价格不写则显示“以门诊公示为准”；患者可“加入想问清单”，不是预约） */
-const HOSP = { demo: { hideRef: true, ai: 'https://juyiibanlvzhinengai.tianxinyuan881.workers.dev', c: '#2f6bff', n: '康宁医院', w: '本工具是医院为 VIP 客户提供的病程资料整理工具，资料只保存在您自己的设备上。',
+const HOSP = { demo: { hideRef: true, ai: 'https://juyiibanlvzhinengai.tianxinyuan881.workers.dev', c: '#2563eb', n: '康宁医院', w: '本工具是医院为 VIP 客户提供的病程资料整理工具，资料只保存在您自己的设备上。',
         vip: [{ t: '专属服务电话', d: '工作日 8:00–17:00 由 VIP 服务专员接听，协助了解医院的服务安排。' }, { t: '就诊引导', d: '到院后可向导诊台出示本页面，由工作人员引导至 VIP 服务区（示例内容）。' }, { t: '体检预约咨询', d: '体检套餐与时间请联系服务电话咨询（示例内容）。' }],
         ann: [{ t: '国庆假期门诊安排（示例）', d: '10月1日至7日门诊时间调整，请以医院官方通知为准。', date: '2026-09-28' }, { t: '秋季流感疫苗接种提示（示例）', d: '接种时间、对象与禁忌请咨询接种门诊或您的医生。', date: '2026-10-10' }],
         show: [{ t: '儿童口腔检查（示例）', d: '了解牙齿萌出和清洁情况，是否需要其他处理由医生判断。', img: 'img/demo/oral.jpg', tag: '口腔' }, { t: '成人洁牙（示例）', d: '用于展示服务项目的呈现方式。' }],
@@ -3926,7 +4142,7 @@ const HOSP = { demo: { hideRef: true, ai: 'https://juyiibanlvzhinengai.tianxinyu
         campus: [{ n: '本部', addr: '康宁路 1 号', tel: '010-00000001' }, { n: '东院', addr: '康宁路 99 号', tel: '010-00000002' }],
         l:'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTIiIGZpbGw9IiMyZjZiZmYiLz48cGF0aCBkPSJNMjYgMTRoMTJ2MTJoMTJ2MTJIMzh2MTJIMjZWMzhIMTRWMjZoMTJ6IiBmaWxsPSIjZmZmIi8+PC9zdmc+' } };
 /* 民营医院门诊演示：只开放部分科室，不显示专科病种（dis:[]） */
-HOSP.minying = { hideRef: true, ai: 'https://juyiibanlvzhinengai.tianxinyuan881.workers.dev', c: '#2f6bff', n: '康宁门诊', w: '本工具是门诊为 VIP 客户提供的就诊资料整理工具，资料只保存在您自己的设备上。', dept: ['内科', '儿科', '口腔科', '皮肤科', '中医科', '体检中心'], dis: [],
+HOSP.minying = { hideRef: true, ai: 'https://juyiibanlvzhinengai.tianxinyuan881.workers.dev', c: '#2563eb', n: '康宁门诊', w: '本工具是门诊为 VIP 客户提供的就诊资料整理工具，资料只保存在您自己的设备上。', dept: ['内科', '儿科', '口腔科', '皮肤科', '中医科', '体检中心'], dis: [],
     vip: [{ t: '专属服务电话', d: '预约、改约请联系门诊服务台（示例内容）。' }], pre: [{ t: '空腹抽血', d: '一般需空腹 8–12 小时，具体以检查通知为准。' }], tel: { n: '门诊服务电话', num: '021-00000000' }, sched: [{ wd: '周一', ap: '上午', dp: '内科', dr: '张医生' }, { wd: '周二', ap: '下午', dp: '口腔科', dr: '李医生' }, { wd: '周三', ap: '上午', dp: '内科', dr: '张医生' }, { wd: '周四', ap: '下午', dp: '儿科', dr: '王医生' }, { wd: '周五', ap: '上午', dp: '中医科', dr: '陈医生', nt: '以当日排班为准' }, { wd: '周六', ap: '上午', dp: '内科', dr: '张医生' }], l: HOSP.demo.l };
 /* 内置体验配置只去掉展示用的“示例/演示”后缀，不改动任何业务字段 */
 const tidyText = s => typeof s === 'string' ? s.replace(/（示例内容）|（示例）|（演示）|（可删除）/g, '').replace(/示例内容，/g, '') : s;
@@ -4137,7 +4353,7 @@ function jnyCard() {
     const L = jnyList();
     if (!L.length) return '';
     const g = jnyGet(), lo = S.lo || {}, hn = HP ? esc(HP.n) : '医院';
-    const hc = HP && /^#[0-9a-fA-F]{6}$/.test(HP.c || '') ? HP.c : '#2f6bff';
+    const hc = HP && /^#[0-9a-fA-F]{6}$/.test(HP.c || '') ? HP.c : '#2563eb';
     return '<details class="card hosp-jny"' + (S.jnyOpen ? ' open' : '') + ' style="border-left:4px solid ' + hc + '"><summary style="cursor:pointer"><div><b>医院就诊流程清单</b><div class="sub" style="margin:2px 0 0">' + L.length + ' 个流程 · 勾选只记在您自己的手机里' + (actList().some(a => a.need) ? ' · 勾完一个流程得 1 次整理打卡，每天最多 1 次（现有 ' + chkAvail() + ' 次）' : '') + '</div></div></summary><p class="sub">以下步骤由' + hn + '提供，是一般性的就诊准备提示，不构成对您个人病情的建议，具体请以医院和医生的安排为准。勾选进度只保存在本机。点流程名称可展开步骤。同一天完成多条流程，整理打卡也只记 1 次。</p>'
         + L.map((j, ji) => { const done = new Set(g[j.id] || []), n = j.steps.filter((x, i) => done.has(i)).length;
             return '<details class="fl" data-fk="jny_' + esc(j.id) + '"' + ((lo['jny_' + j.id] || (S.jnyOpen && ji === 0 && !L.some(x => lo['jny_' + x.id]))) ? ' open' : '') + '><summary><b>' + esc(j.t) + '</b>（' + n + '/' + j.steps.length + (n === j.steps.length ? ' 已完成' : '') + '）</summary>' + (j.note ? '<p class="sub">' + esc(j.note) + '</p>' : '')
