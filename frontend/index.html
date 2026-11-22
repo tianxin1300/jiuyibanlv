@@ -2361,7 +2361,7 @@ const iget = async (k) => { const d = await idb(); return new Promise((s, j) => 
 const idel = k => idb().then(d => d.transaction('i', 'readwrite').objectStore('i').delete(k)).catch(() => { });
 const idelw = async (k) => { const d = await idb(); return new Promise((s, j) => { const t = d.transaction('i', 'readwrite'); t.objectStore('i').delete(k); t.oncomplete = s; t.onerror = () => j(t.error); t.onabort = () => j(t.error); }); };
 const tabs = () => `<nav class="tabs" aria-label="档案栏目">${[['info', '档案', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3h6v3H9zM8.5 11h7M8.5 15h5"/></svg>'], ['tl', '时间线', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>'], ['mx', '指标', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16h16"/><path d="M7 15l4-4 3 3 5-6"/></svg>'], ['sm', '摘要', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>'], ['ai', '助手', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a4 4 0 0 0-4 4v1a7 7 0 1 0 8 0V7a4 4 0 0 0-4-4z"/><path d="M9 11h.01M15 11h.01M9.5 15a3 3 0 0 0 5 0"/></svg>']].map(t => `<button class="tab" aria-pressed="${S.tab === t[0]}" data-act="tab" data-t="${t[0]}"><span class="ti" aria-hidden="true">${t[2]}</span><span class="tl">${t[1]}</span></button>`).join('')}</nav>`;
-const APP_VER = '2026.11.38';
+const APP_VER = '2026.11.39';
 const CC_SYM = ['发烧 / 怕冷', '咳嗽 / 咳痰', '头痛 / 头晕', '心慌 / 心悸', '肚子痛 / 胃不舒服', '拉肚子 / 便秘 / 恶心呕吐', '尿频 / 尿痛 / 血尿', '血压 / 血糖问题', '失眠 / 情绪差 / 记性差', '伤口 / 肿块', '腰腿痛 / 关节痛 / 脖子痛', '摔伤 / 扭伤', '牙痛 / 牙龈出血 / 口腔溃疡', '皮疹 / 瘙痒', '看东西模糊 / 眼红 / 眼痛', '耳鸣 / 听力下降 / 鼻塞 / 咽痛', '月经问题 / 备孕', '孩子不舒服', '常规体检 / 带着已有的检查报告', '想看中医 / 调理身体'];
 const CC_DUR = ['今天刚出现', '两三天内', '一周左右', '一个月内', '几个月了', '半年以上', '长期反复'];
 const CC_SEV = ['轻微，不影响生活', '有点难受，能忍', '比较难受，影响睡觉/吃饭', '很难受'];
@@ -2991,7 +2991,7 @@ function doDelete(p) {
     t.querySelector('#tu').onclick = () => { clearTimeout(e.timer); S.profiles.splice(Math.min(idx, S.profiles.length), 0, p); S.cur = p.id; UNDO = null; t.remove(); save(); view(); };
 }
 const backBar = () => S.profiles.length ? `<div class="bar" style="margin:0 0 12px;justify-content:flex-start"><button class="ghost" data-act="home">‹ 全部档案</button></div>` : '';
-const hubData = () => `<details class="home-tools"><summary>更多工具与设置</summary><div class="qk"><button data-act="bk"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg></span>备份</button><button data-act="notice"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V4h10v5"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><path d="M7 14h10v6H7z"/></svg></span>须知</button><button data-act="priv"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>隐私</button>${UP_OK ? '<button data-act="consent"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V9M7 14l5-5 5 5"/><path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2"/></svg></span>上传记录</button>' : ''}<button data-act="big" aria-pressed="${document.documentElement.classList.contains('big')}"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7V5h10v2M9 5v14M7 19h4M14 12v-1h6v1M17 11v8M15.5 19h3"/></svg></span>${document.documentElement.classList.contains('big') ? '大字' : '标准字'}</button><button data-care="staff"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V6l8-3 8 3v14"/><path d="M9 20v-5h6v5"/></svg></span>院方</button></div></details>`;
+const hubData = () => `<details class="home-tools"><summary>更多工具与设置</summary><div class="qk"><button data-act="bk"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg></span>备份</button><button data-act="notice"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V4h10v5"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><path d="M7 14h10v6H7z"/></svg></span>须知</button><button data-act="priv"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>隐私</button>${UP_OK ? '<button data-act="consent"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V9M7 14l5-5 5 5"/><path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2"/></svg></span>上传记录</button>' : ''}<button data-act="big" aria-pressed="${document.documentElement.classList.contains('big')}"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7V5h10v2M9 5v14M7 19h4M14 12v-1h6v1M17 11v8M15.5 19h3"/></svg></span>${document.documentElement.classList.contains('big') ? '大字' : '标准字'}</button>${(function () { try { return localStorage.getItem('companion.auth.staff') === '1'; } catch (e) { return false; } })() ? '<button data-care="staff"><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V6l8-3 8 3v14"/><path d="M9 20v-5h6v5"/></svg></span>院方</button>' : ''}</div></details>`;
 const posCard = () => `<p class="note"><svg class="ic il" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/></svg>只整理资料，不替代医生 · 资料只存本机${UP_OK ? ' · 打卡记录按您的选择上传' : ''}${HP ? ' · ' + esc(HP.n) : ''}</p>`;
 
 /* ===== 今日待办：只根据您自己记录的内容，在本机计算 ===== */
@@ -4891,7 +4891,7 @@ const CARE_ROLES = [
     { id: 'R5', code: 'F-REDEEM', name: '前台核销', desc: '处理四步核销和异常留痕；不承诺补发。', ex: '患者凭证核销时提示已使用，按四步流程告诉我怎么处理' },
     { id: 'R6', code: 'L-REVIEW', name: '医务法务', desc: '核对产品事实、审查文案、出审批草案；不下法律结论。', ex: '审查这段对外文案，标出未经证实的事实和需要医务科确认的内容' }
 ];
-const CARE_AUTH = { token: '', user: '' };
+const CARE_AUTH = { token: '', user: '', staff: false };
 const CARE_UI = { mode: 'patient', role: 'R1', chat: {}, drafts: {}, busy: false, match: null, task: null, taskMsg: '', options: 'opt-001,opt-002', idem: {} };
 let careAuthMode = 'login';
 
@@ -4938,10 +4938,12 @@ function careAuthShowForm(mode) {
     careSetAuthMsg('');
     setTimeout(function () { const u = document.getElementById('authUser'); if (u) { try { u.focus(); } catch (e) { } } }, 30);
 }
-function careSaveAuth(token, user) {
+function careSaveAuth(token, user, staff) {
     CARE_AUTH.token = token;
     CARE_AUTH.user = user || '用户';
+    CARE_AUTH.staff = !!staff;
     const a = careStoreSet(CARE_TOKEN_KEY, CARE_AUTH.token), b = careStoreSet(CARE_USER_KEY, CARE_AUTH.user);
+    careStoreSet('companion.auth.staff', CARE_AUTH.staff ? '1' : '0');
     try { sessionStorage.removeItem('companion.guest'); } catch (e) { }
     if (!a || !b) { if (typeof toastMsg === 'function') toastMsg('浏览器无法保存登录状态，下次打开需要重新登录'); }
 }
@@ -4971,8 +4973,10 @@ function careSaveChat() {
 function careClearAuth(msg) {
     CARE_AUTH.token = '';
     CARE_AUTH.user = '';
+    CARE_AUTH.staff = false;
     careStoreDel(CARE_TOKEN_KEY);
     careStoreDel(CARE_USER_KEY);
+    careStoreDel('companion.auth.staff');
     try { sessionStorage.removeItem('companion.guest'); } catch (e) { }
     CARE_UI.chat = {};
     CARE_UI.drafts = {};
@@ -5037,6 +5041,8 @@ async function careApi(path, options) {
 function careErr(status, data) {
     const code = data && data.code;
     if (status === 401) return '登录已失效，请退出后重新登录。';
+    if (code === 'CARE_ROLE_FORBIDDEN') return '这是院方角色，当前账号没有院方权限，请联系管理员开通。';
+    if (code === 'CARE_ROLE_INVALID') return '角色不存在，请刷新页面后重试。';
     if (status === 403 || code === 'CARE_SCOPE_FORBIDDEN' || code === 'TASK_FORBIDDEN') return '当前账号没有这家医院的权限，请联系医院开通后再试。';
     if (code === 'KV_NOT_BOUND') return 'Cloudflare 还没有绑定 KV。';
     if (code === 'CATALOG_UNAVAILABLE') return '医院目录还没有写入 KV：care:catalog:' + (careTenant() || '…') + '。';
@@ -5300,7 +5306,7 @@ document.getElementById('authForm').addEventListener('submit', async function (e
     try {
         let d = await careAuthRequest(careAuthMode === 'register' ? '/api/register' : '/api/login', user, pw);
         if (careAuthMode === 'register' && !d.token) d = await careAuthRequest('/api/login', user, pw);
-        careSaveAuth(d.token, d.user || user);
+        careSaveAuth(d.token, d.user || user, !!d.staff);
         careApplyAuth();
         if (typeof toastMsg === 'function') toastMsg(careAuthMode === 'register' ? '注册成功，已登录' : '登录成功');
     } catch (err) { careSetAuthMsg(err && err.message ? err.message : '请求失败，请稍后再试。'); }
@@ -5309,6 +5315,7 @@ document.getElementById('authForm').addEventListener('submit', async function (e
 (function careBoot() {
     CARE_AUTH.token = careStoreGet(CARE_TOKEN_KEY);
     CARE_AUTH.user = careStoreGet(CARE_USER_KEY) || '用户';
+    CARE_AUTH.staff = careStoreGet('companion.auth.staff') === '1';
     let guest = false; try { guest = !!sessionStorage.getItem('companion.guest'); } catch (e) { }
     if (CARE_AUTH.token) careApplyAuth();
     else if (guest) careSkipAuth();

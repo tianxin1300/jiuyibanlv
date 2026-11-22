@@ -1,5 +1,5 @@
 /* 患者页离线缓存：页面「先给缓存、后台更新」，医院配置「先联网、4 秒不通再用缓存」。只缓存本站的 index、config 和 img 项目图片。 */
-const V = 'companion-sw-2026.11.38';
+const V = 'companion-sw-2026.11.39';
 const key = u => { const p = u.pathname.endsWith('/') ? u.pathname + 'index.html' : u.pathname; return new Request(u.origin + p); };
 self.addEventListener('install', e => { self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())); });

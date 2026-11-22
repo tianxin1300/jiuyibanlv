@@ -1,5 +1,6 @@
 import { runCareChat, careActorFromReq, prepareCareTask, careTaskDo, CareHttpError } from "./care.js";
 import { careTenantId, careOptionIds, loadCareCatalog, matchCareCatalog, proxyFastGptMatch } from "./care-catalog.js";
+import { CARE_MODULES, normalizeCareRole } from "./care-prompts.js";
 
 // openmanus-gateway v99y：一个脑子。飞书消息不再自己猜意图，直接调前端同一个 runWorkChat（同一份 WORK_SYSTEM_PROMPT / 同一个模型轮换 / 同一张 FS_TOOLS）。选哪个工具完全由模型自己定：代码里没有关键词分流、没有白名单、没有预调工具，只给任务结构（工具表 + 会话态 + 多轮循环 + 最终自由文本）。删掉飞书先猜意图那层 / 关键词 if-else / 写文档先搜一遍 / 待办提醒与待办表混用。
 // v99w：1101 已定位修好，恢复模块顶层直接执行；表全从 FEISHU_BITABLE_TABLES 变量读；读信类代码整体移除。
@@ -4535,7 +4536,7 @@ async function runWorkChat(o) {
   }
   if (!reply) {
     if (cx.confirmQ) reply = cx.confirmQ;
-    else if (cx.steps.length) reply = cx.steps.slice(-3).map((s) => (s.ok ? "✅ " : "❌ ") + s.text).join("\n") + (modelFail ? "\n（没来得及总结。回复「继续」我再接着办。）" : "");
+    else if (cx.steps.length) reply = "这次只完成了 " + cx.steps.length + " 步，还没整理出结果。回复「继续」我再试一次。";
     else reply = "❌ 这次没处理成：模型这轮没接上，任务已记下。回复「继续」我再试一次。";
   }
   return { reply, direct, awaiting, taskDone, taskNote, taskIntent, modelFail, decided, steps: cx.steps, confirmQ: cx.confirmQ };
@@ -4776,7 +4777,7 @@ async function handle(request, env, ctx) {
           await env.KV.put("user:" + user, JSON.stringify({ ...rec, salt, hash: await pbkdf2(pw, salt), created: rec.created || Date.now() }));
         }
       }
-      return json({ ok: true, token: await newToken(env, user), user });
+      return json({ ok: true, token: await newToken(env, user), user, staff: !!(rec && rec.staff === true) });
     }
 
     // ---- 云端历史 ----
@@ -5240,7 +5241,9 @@ async function handle(request, env, ctx) {
         if (!b || typeof b !== "object" || Array.isArray(b)) return json({ ok: false, code: "INVALID_JSON", msg: "请求必须是 JSON 对象" }, 400);
         const tenantId = careTenantId(b.tenant_id), optionIds = careOptionIds(b.option_ids, 400);
         await careActorFromReq(request, env, url, tenantId, userFromReq);
-        const upstream = await proxyFastGptMatch(env, tenantId, optionIds);
+        let upstream = null;
+        try { upstream = await proxyFastGptMatch(env, tenantId, optionIds); }
+        catch (e) { console.error("[care] FastGPT 匹配失败，回落本地目录：" + String(e && e.message || e).slice(0, 120)); }
         if (upstream) return careUpstream(upstream);
         const catalog = await loadCareCatalog(env, tenantId);
         return json({ ok: true, tenant_id: tenantId, source: "local", ...matchCareCatalog(catalog, optionIds) });
@@ -5611,13 +5614,31 @@ async function handle(request, env, ctx) {
       const text = String(b.text == null ? (b.message || b.q || "") : b.text).trim();
       if (!text) return json({ ok: false, msg: "缺少 text" }, 400);
       if (String(b.role == null ? "" : b.role).trim()) {
+        const canonical = normalizeCareRole(b.role);
+        if (!canonical) return json({ ok: false, code: "CARE_ROLE_INVALID", msg: "角色不存在" }, 400);
+        const roleId = { "P-ASSIST": "R1", "S-DEMO": "R2", "C-CONFIG": "R3", "Q-AUDIT": "R4", "F-REDEEM": "R5", "L-REVIEW": "R6" }[canonical];
+        const user = await userFromReq(request, env, url, String(b.token || "")).catch(() => null);
+        if (!user) return json({ ok: false, code: "UNAUTHORIZED", msg: "请先登录后再使用角色助手" }, 401);
+        const rec = env.KV ? await env.KV.get("user:" + user, "json").catch(() => null) : null;
+        const scopes = rec && Array.isArray(rec.care_scopes) ? rec.care_scopes.filter((s) => s && typeof s.tenant_id === "string" && s.tenant_id) : [];
+        if (!scopes.length) return json({ ok: false, code: "CARE_SCOPE_FORBIDDEN", msg: "当前账号还没有医院授权，请联系医院开通" }, 403);
+        const staffRoles = rec && Array.isArray(rec.staff_roles) ? rec.staff_roles.map((x) => String(x).toUpperCase()) : [];
+        const isStaff = !!(rec && (rec.staff === true || staffRoles.indexOf(roleId) >= 0 || staffRoles.indexOf(canonical) >= 0));
+        if (roleId !== "R1" && !isStaff) return json({ ok: false, code: "CARE_ROLE_FORBIDDEN", msg: "该角色只对院方账号开放" }, 403);
         try {
-          const r = await runCareChat({ env, role: b.role, text, history: b.history, l2: b.l2, budget_ms: b.budget_ms }, fsLLMMsgs);
+          const r = await runCareChat({ env, role: canonical, text, history: b.history, l2: b.l2, budget_ms: b.budget_ms }, fsLLMMsgs);
           return json({ ok: true, build: FS_BUILD, role: r.role, reply: r.reply, awaiting: false, confirm: "", tools: [], steps: [] });
         } catch (e) { return careFail(e); }
       }
       const user = await userFromReq(request, env, url, String(b.token || "")).catch(() => null);
       const who = String(user || b.who || "web"), chat = String(b.chat || b.chat_id || ("web:" + who));
+      // 患者网页来源：不走飞书多工具 Agent，只带 M2 医疗红线做纯聊天，避免患者看到内部工具与步骤
+      if (/^web:/.test(chat)) {
+        const info = {}, budget = Math.max(6000, Math.min(22000, (Number(b.budget_ms) || 45000) - 1500));
+        let raw = "";
+        try { raw = String(await fsLLMMsgs(env, [{ role: "system", content: FS_CHAT_SYS + "\n\n" + CARE_MODULES.M2 }, { role: "user", content: text }], info, budget) || "").trim(); } catch (e) { raw = ""; }
+        return json({ ok: true, build: FS_BUILD, reply: raw || "这次没接上助手服务，请稍后再试。如有胸痛、呼吸困难、意识不清等紧急情况，请立即就医或拨打 120。", awaiting: false, confirm: "", tools: [], steps: [] });
+      }
       const pkey = fsPendKey(chat, who), tkey = fsTurnKey(chat, who);
       const cx = { request, env, ctx, chat, tag: "", msg: {}, openId: String(b.open_id || ""), userText: text, T: fsTables(env), deadline: Date.now() + Math.max(20000, Math.min(120000, Number(b.budget_ms) || 45000)), materials: [], links: [], pkey, tkey, last: await fsTurnGet(env, tkey), pend: await fsPendGet(env, pkey), task: await fsTaskGet(env, fsTaskKey(chat, who)), taskKey: fsTaskKey(chat, who), wikiSpaces: [], pendNew: false, pendUsed: false, confirmQ: "", ack: null, aborted: false, steps: [], left: (reserve, cap) => Math.max(3000, Math.min(cap, cx.deadline - Date.now() - reserve)) };
       let r; try { r = await runWorkChat({ env, request, ctx, text, cx }); } catch (e) { return json({ ok: false, msg: "聊天核心出错：" + String(e && e.message || e).slice(0, 200) }, 500); }
