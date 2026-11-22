@@ -859,11 +859,15 @@ h1{font-size:20px!important;margin:2px 0 6px!important}
 <button class="brand-mark" data-brand type="button" aria-label="播放品牌动画"><i class="orbit"></i><i class="ripple"></i></button>
 <p class="brand-eyebrow">AI CARE COMPANION</p>
 <h1 id="authTitle">就医伴侣</h1>
-<p class="sub">登录后使用医院服务、六角色助手和七步任务。</p>
+<p class="sub">登录后使用医院服务、智能助手和七步任务。本机档案仍只保存在这台设备上。</p>
 <div id="authChoices" class="auth-actions"><button class="btn" id="authGoRegister" type="button">注册</button><button class="ghost" id="authGoLogin" type="button">登录</button></div>
+<button class="ghost" id="authSkip" type="button" style="width:100%;margin-top:10px">暂不登录，先记资料</button>
+<p class="sub" style="margin:8px 0 0">不登录也能新建档案、记录就诊和用药；医院服务与智能助手需要登录。</p>
 <form id="authForm" hidden>
 <label for="authUser">用户名</label><input id="authUser" name="user" autocomplete="username" maxlength="64" required>
 <label for="authPw">密码</label><input id="authPw" name="pw" type="password" autocomplete="current-password" minlength="6" maxlength="128" required>
+<label for="authPw2" id="authPw2L" hidden>确认密码</label><input id="authPw2" type="password" autocomplete="new-password" minlength="6" maxlength="128" hidden>
+<p class="sub" style="margin:8px 0 0">密码无法找回，请记牢；忘记后可注册新账号，本机档案不受影响。</p>
 <p id="authMsg" class="warn" role="alert" hidden></p>
 <div class="bar"><button class="ghost" id="authBack" type="button">返回</button><button class="btn" id="authSubmit" type="submit">登录</button></div>
 </form>
@@ -2357,7 +2361,7 @@ const iget = async (k) => { const d = await idb(); return new Promise((s, j) => 
 const idel = k => idb().then(d => d.transaction('i', 'readwrite').objectStore('i').delete(k)).catch(() => { });
 const idelw = async (k) => { const d = await idb(); return new Promise((s, j) => { const t = d.transaction('i', 'readwrite'); t.objectStore('i').delete(k); t.oncomplete = s; t.onerror = () => j(t.error); t.onabort = () => j(t.error); }); };
 const tabs = () => `<nav class="tabs" aria-label="档案栏目">${[['info', '档案', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3h6v3H9zM8.5 11h7M8.5 15h5"/></svg>'], ['tl', '时间线', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>'], ['mx', '指标', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16h16"/><path d="M7 15l4-4 3 3 5-6"/></svg>'], ['sm', '摘要', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>'], ['ai', '助手', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a4 4 0 0 0-4 4v1a7 7 0 1 0 8 0V7a4 4 0 0 0-4-4z"/><path d="M9 11h.01M15 11h.01M9.5 15a3 3 0 0 0 5 0"/></svg>']].map(t => `<button class="tab" aria-pressed="${S.tab === t[0]}" data-act="tab" data-t="${t[0]}"><span class="ti" aria-hidden="true">${t[2]}</span><span class="tl">${t[1]}</span></button>`).join('')}</nav>`;
-const APP_VER = '2026.11.35';
+const APP_VER = '2026.11.36';
 const CC_SYM = ['发烧 / 怕冷', '咳嗽 / 咳痰', '头痛 / 头晕', '心慌 / 心悸', '肚子痛 / 胃不舒服', '拉肚子 / 便秘 / 恶心呕吐', '尿频 / 尿痛 / 血尿', '血压 / 血糖问题', '失眠 / 情绪差 / 记性差', '伤口 / 肿块', '腰腿痛 / 关节痛 / 脖子痛', '摔伤 / 扭伤', '牙痛 / 牙龈出血 / 口腔溃疡', '皮疹 / 瘙痒', '看东西模糊 / 眼红 / 眼痛', '耳鸣 / 听力下降 / 鼻塞 / 咽痛', '月经问题 / 备孕', '孩子不舒服', '常规体检 / 带着已有的检查报告', '想看中医 / 调理身体'];
 const CC_DUR = ['今天刚出现', '两三天内', '一周左右', '一个月内', '几个月了', '半年以上', '长期反复'];
 const CC_SEV = ['轻微，不影响生活', '有点难受，能忍', '比较难受，影响睡觉/吃饭', '很难受'];
@@ -2798,7 +2802,7 @@ function aiView(p) {
     const quick = ['帮我整理这份档案', '复诊要带什么', '看看这些指标', '帮我写想问医生的问题'];
     return `<div class="card ai">
 <div class="aihd"><span class="aibadge">AI</span><b>智能助手</b><button class="ghost ai-clear" data-act="aiclear">清空</button><span class="sub">当前档案：${esc(who)}</span></div>
-<p class="sub">只整理你自己记录的资料，不看病、不替代医生；紧急情况请拨 120。资料只在本页展示。</p>
+<p class="sub">只整理你自己记录的资料，不看病、不替代医生；紧急情况请拨 120。点“发送”后，问题会发送到助手服务处理，请勿填写身份证号、手机号等敏感信息。</p>
 <div class="aich" id="aich">${c.length ? blooms : '<div class="aib a">你好，我可以帮你整理档案、解释指标、准备复诊问题。你想问什么？</div>'}${S.chatBusy ? '<div class="aib a aibwait">正在思考…</div>' : ''}</div>
 <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px">${quick.map(q => `<button class="chip" data-act="aiquick" data-v="${esc(q)}">${esc(q)}</button>`).join('')}</div>
 <div class="composer"><label for="aiin">输入你想问的（请勿填写身份证号、手机号等敏感信息）</label>
@@ -3031,7 +3035,7 @@ function visitFlowCard(p, nv) {
     const follow = visitDone ? `<details class="pv"${(p.data.visitFollowupText || p.data.visitFollowupDate) ? ' open' : ''}><summary><b>复诊后补记</b><small>可选 · 填下一次复诊日期会自动建立下一轮准备</small></summary><div class="pv-body"><label for="vf_text">医生新交代的内容</label><textarea id="vf_text" placeholder="如：两周后复查血常规；继续按医生交代用药">${esc(p.data.visitFollowupText || '')}</textarea><label for="vf_date">下一次复诊日期（可不填）</label><div class="row"><input id="vf_date" type="date" value="${esc(p.data.visitFollowupDate || '')}" aria-label="下一次复诊日期"><button class="btn" data-act="vfollowup" data-pid="${p.id}">保存记录</button></div><p class="sub">复诊日期当天或之后保存才会计入整理打卡。</p><button class="ghost" data-act="vfollowup" data-pid="${p.id}" data-skip="1">没有新增内容，仅结束本次（不打卡）</button></div></details>` : '';
     return `<div class="card flow"><div class="tlh"><h2 style="margin:0">${visitDone ? '复诊完成，补记下一步' : '复诊准备'}</h2><span class="tag ${d < 0 ? 'bad' : ''}">${esc(status)} · ${day} · ${esc(nv)}</span></div><p class="sub">${esc(label(p))} · 只按你填写的日期提醒，不是预约，也不判断病情。</p>${step(1, '准备个人复诊清单', prepared ? '清单已建立，当前勾选 ' + ckDone + '/' + c.items.length + ' 项' : '选择“复查”模板，系统会建立一份可编辑清单。', prepared, 'vprepare', prepared ? '查看清单' : '去准备')}${step(2, '准备日历提醒文件', calendarDone ? '文件已下载；是否导入系统日历需由你确认。' : '下载文件后，请在系统日历中打开并确认导入。', calendarDone, 'vcalendar', '下载文件')}${step(3, '核对复诊摘要', summaryDone ? '摘要已标记为本次复诊材料。' : '打开摘要，核对范围、未完成事项和想问医生的问题。', summaryDone, 'vsummary', '去核对')}${step(4, '确认本次复诊完成', visitDone ? '你已确认完成；不代表医院系统已完成记录。' : '看完医生后由你确认；不代表医院系统已完成记录。', visitDone, 'vdone', '我已自行确认看完')}${(!visitDone && jnyList().length) ? `<div class="row" style="margin-top:10px"><button class="ghost" data-act="jgo">去做医院就诊流程（可获得整理打卡）</button></div>` : ''}${follow}</div>`;
 }
-function todayItems() {
+function todayItems(all) {
     const out = [], sz = snzGet(), t0 = today();
     S.profiles.forEach(p => {
         const nv = nextVisit(p), nd = nv ? daysTo(nv) : 99;
@@ -3048,7 +3052,8 @@ function todayItems() {
         });
         // 只依据用户在“我的药”中明确确认的当前药物生成任务；不再从历史自由文本猜测常用药或服药时间。
     });
-    return out.sort((a, b) => a.pr - b.pr).slice(0, 6);
+    out.sort((a, b) => a.pr - b.pr);
+    return all ? out : out.slice(0, 6);
 }
 function flowVisit(p) {
     const nv = nextVisit(p), d = p.data || {};
@@ -3128,7 +3133,7 @@ function hNext(cp) {
     return `<article class="card nstep"><div class="nstep-top"><span class="kicker">下一步</span><span class="nstep-when">${esc(when)} · ${esc(hdate(sel))} ${esc(hwday(sel))}</span></div><h2>${esc(title)}</h2><p class="nstep-sub">${esc(dn(cp))}${cp.data.hosp ? ' · ' + esc(cp.data.hosp) : ''} · 只按你填的日期提醒</p>${prep}<div class="nstep-acts">${acts}</div></article>`;
 }
 function hToday(cp) {
-    const L = todayItems().filter(x => x.pid === cp.id);
+    const ALL = todayItems(true).filter(x => x.pid === cp.id), L = ALL.slice(0, 6);
     const rows = L.map(i => `<div class="hrow"><div class="hrow-m"><b>${esc(i.text)}</b><small>${esc(i.tag)}</small></div><div class="hrow-a">${i.btns}</div></div>`).join('');
     const more = [];
     const ask = String((cp.data || {}).ask || '').split('\n').filter(x => x.trim()).length;
@@ -3138,8 +3143,10 @@ function hToday(cp) {
     if (ckLeft && nv0 && daysTo(nv0) <= 14) more.push(`<button class="hlink" data-act="vprepare" data-pid="${cp.id}"><span>准备清单还有 ${ckLeft} 项未勾选</span><span>去准备 ›</span></button>`);
     if (ask) more.push(`<button class="hlink" data-act="tab" data-t="sm"><span>有 ${ask} 个想问医生的问题</span><span>查看 ›</span></button>`);
     if (imgs) more.push(`<button class="hlink" data-act="tab" data-t="tl"><span>已保存 ${imgs} 张检查报告图片</span><span>查看 ›</span></button>`);
-    if (!rows && !more.length) return `<section class="card htoday-empty"><b>今天没有到期的用药或医嘱</b><p class="sub">有新的情况，随时记录到时间线。</p></section>`;
-    return `<section class="card htoday">${rows ? `<div class="sech"><b>今天</b><span>${L.length} 项</span></div>${rows}` : ''}${more.slice(0, 3).join('')}</section>`;
+    const over = ALL.length - L.length;
+    if (!rows && !more.length && !over) return `<section class="card htoday-empty"><b>今天没有到期的用药或医嘱</b><p class="sub">有新的情况，随时记录到时间线。</p></section>`;
+    const moreHtml = more.slice(0, 3).join('') + (over > 0 ? `<button class="hlink" data-act="tab" data-t="info"><span>另有 ${over} 项待办未展开</span><span>去档案查看 ›</span></button>` : '');
+    return `<section class="card htoday">${rows ? `<div class="sech"><b>今天</b><span>${ALL.length} 项</span></div>${rows}` : ''}${moreHtml}</section>`;
 }
 function hQuick(cp) {
     const tlN = (cp.tl || []).length, imgN = (cp.tl || []).reduce((n, r) => n + ((r.imgs || []).length), 0), medN = (cp.meds || []).filter(m => !m.stopped).length, mxN = (cp.mx || []).filter(m => (m.pts || []).length).length;
@@ -3251,7 +3258,7 @@ const PLAUS = { '空腹血糖': [1, 40], '餐后2h血糖': [1, 40], 'HbA1c': [3,
 const MFREQ = { day: '每天', week: '每周一次', alt: '隔天一次', prn: '需要时才吃', course: '按疗程' };
 const medDaily = m => !m.stopped && (!m.freq || m.freq === 'day');
 const medTxt = m => (m.dose ? m.dose + ' · ' : '') + ((!m.freq || m.freq === 'day') ? '每天 ' + m.per + ' 次' : MFREQ[m.freq]) + (m.note ? '（' + m.note + '）' : '') + (m.start ? ' · ' + m.start + ' 开始' : '') + (m.stopped ? ' · 已停用' + (m.stopAt ? '（' + m.stopAt + '）' : '') + (m.stopWhy ? '，原因：' + m.stopWhy : '') : '') + ((m.log || []).length ? ' · 调整：' + m.log.slice(-3).join('；') : '');
-const medCnt = (p, m) => (p.tl || []).filter(r => r.kind === '用药' && r.date === today() && r.text === '已服药：' + m.name).length;
+const medCnt = (p, m) => (p.tl || []).filter(r => r.kind === '用药' && r.date === today() && (r.medId === m.id || (!r.medId && r.text === '已服药：' + m.name))).length;
 function medsView(p) {
     const L = p.meds || [], A_ = L.filter(m => !m.stopped), Z_ = L.filter(m => m.stopped);
     const row = m => `<div class="item"${m.stopped ? ' style="opacity:.65"' : ''}><div class="tlh"><b>${esc(m.name)}</b>${m.stopped ? '<span class="tag">已停用</span>' : ''}</div><div class="sub">${esc(medTxt(m).replace(' · 已停用', ''))}</div><div class="row">${m.stopped ? '' : `<button class="ghost" data-act="mddose" data-id="${m.id}">调整剂量</button>`}<button class="ghost" data-act="mdstop" data-id="${m.id}">${m.stopped ? '恢复使用' : '标记停用'}</button><button class="ghost del" data-act="mddel" data-id="${m.id}">删除</button></div></div>`;
@@ -3470,7 +3477,7 @@ function extra(act, b, p) {
     if (act === 'mdlog') {
         const q = S.profiles.find(x => x.id === b.dataset.pid), m = q && (q.meds || []).find(x => x.id === b.dataset.id);
         if (m) {
-            const r = { id: 'r' + Date.now(), kind: '用药', date: today(), hosp: '', text: '已服药：' + m.name, imgs: [] };
+            const r = { id: 'r' + Date.now(), kind: '用药', date: today(), hosp: '', text: '已服药：' + m.name, medId: m.id, imgs: [] };
             (q.tl = q.tl || []).push(r); S.mtOpen = true; save();
             showActionUndo('已记录：' + m.name, () => { q.tl = (q.tl || []).filter(x => x !== r); save(); });
         }
@@ -4117,11 +4124,11 @@ const banners = () => lockBanner() + (STO && IDBOK ? '' : `<div class="card" sty
 async function shrink(f) { try {
     if (!/^image\/(jpeg|png|webp)$/.test(f.type) || f.size < 300000)
         return f;
-    const bm = await createImageBitmap(f), s = Math.min(1, 2000 / Math.max(bm.width, bm.height)), c = document.createElement('canvas');
+    const bm = await createImageBitmap(f), s = Math.min(1, 3000 / Math.max(bm.width, bm.height)), c = document.createElement('canvas');
     c.width = Math.round(bm.width * s);
     c.height = Math.round(bm.height * s);
     c.getContext('2d').drawImage(bm, 0, 0, c.width, c.height);
-    const b = await new Promise(r => c.toBlob(r, 'image/jpeg', .85));
+    const b = await new Promise(r => c.toBlob(r, 'image/jpeg', .86));
     return b && b.size < f.size ? b : f;
 }
 catch (e) {
@@ -4552,7 +4559,7 @@ catch (e) {
     storeFail();
 } };
 const sha = async (s) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map(x => x.toString(16).padStart(2, '0')).join('');
-const privacy = () => modal('<h2>隐私说明</h2><p class="sub">首次使用请先看一下，点底部按钮关闭后即可新建档案。</p><p>你录入的内容只保存在这台设备的浏览器里，页面不会上传到服务器。</p>' + (UP_OK ? '<p>复诊打卡和核销记录是否上传给医院，由您自己选择；可随时在首页「更多工具与设置 → 上传记录」里修改。</p>' : '') + '<p>清理浏览器数据或更换设备会丢失资料，请定期在「数据备份」里导出。</p><p>本地保存不等于加密，请勿在公共设备使用。</p><details><summary>展开更多说明</summary><p>会保存的内容：档案信息、时间线记录、指标数值和你上传的图片。</p><p>清理浏览器数据、使用无痕模式或更换设备，都会丢失这些资料，请定期在「数据备份」里导出。</p><p><b>资料存在本机不等于已加密。</b>别人能打开你的手机或浏览器，就可能看到这些内容；备份文件默认也未加密（导出时可设密码），请勿放在公共设备或不可信的共享空间。</p><p>儿童档案请由监护人填写。</p><p class="sub">本工具仅作病程资料归档，不能替代医生面诊。</p></details><div class="bar"><button class="btn" data-go="x">我已阅读，开始使用</button></div>');
+const privacy = () => modal('<h2>隐私说明</h2><p class="sub">首次使用请先看一下，点底部按钮关闭后即可新建档案。</p><p>你录入的内容默认只保存在这台设备的浏览器里；仅当你主动上传打卡/核销，或使用智能助手提问时，相应内容才会发送到服务端。本机档案本身不会自动上传。</p>' + (UP_OK ? '<p>复诊打卡和核销记录是否上传给医院，由您自己选择；可随时在首页「更多工具与设置 → 上传记录」里修改。</p>' : '') + '<p>清理浏览器数据或更换设备会丢失资料，请定期在「数据备份」里导出。</p><p>本地保存不等于加密，请勿在公共设备使用。</p><details><summary>展开更多说明</summary><p>会保存的内容：档案信息、时间线记录、指标数值和你上传的图片。</p><p>清理浏览器数据、使用无痕模式或更换设备，都会丢失这些资料，请定期在「数据备份」里导出。</p><p><b>资料存在本机不等于已加密。</b>别人能打开你的手机或浏览器，就可能看到这些内容；备份文件默认也未加密（导出时可设密码），请勿放在公共设备或不可信的共享空间。</p><p>儿童档案请由监护人填写。</p><p class="sub">本工具仅作病程资料归档，不能替代医生面诊。</p></details><div class="bar"><button class="btn" data-go="x">我已阅读，开始使用</button></div>');
 function acctInit() {
     try {
         if (navigator.storage && navigator.storage.persist)
@@ -4616,6 +4623,8 @@ function okAsk(msg, o2) {
     } o.remove(); if (b && b.isConnected) {
         b._ok = 1;
         b.click();
+    } else {
+        toastMsg('页面已刷新，请重试刚才的操作');
     } };
     return false;
 }
@@ -4902,17 +4911,23 @@ function careSetAuthMsg(msg) {
 }
 function careAuthShowChoices() {
     careAuthMode = 'login';
-    const c = document.getElementById('authChoices'), f = document.getElementById('authForm'), t = document.getElementById('authTitle');
+    const c = document.getElementById('authChoices'), f = document.getElementById('authForm'), t = document.getElementById('authTitle'), p2 = document.getElementById('authPw2'), l2 = document.getElementById('authPw2L');
     if (c) c.hidden = false;
+    const sk = document.getElementById('authSkip'); if (sk) sk.hidden = false;
     if (f) { f.hidden = true; f.reset(); }
+    if (p2) { p2.hidden = true; p2.value = ''; }
+    if (l2) l2.hidden = true;
     if (t) t.textContent = '就医伴侣';
     careSetAuthMsg('');
 }
 function careAuthShowForm(mode) {
     careAuthMode = mode;
-    const c = document.getElementById('authChoices'), f = document.getElementById('authForm'), t = document.getElementById('authTitle'), b = document.getElementById('authSubmit'), p = document.getElementById('authPw');
+    const c = document.getElementById('authChoices'), f = document.getElementById('authForm'), t = document.getElementById('authTitle'), b = document.getElementById('authSubmit'), p = document.getElementById('authPw'), p2 = document.getElementById('authPw2'), l2 = document.getElementById('authPw2L');
     if (c) c.hidden = true;
     if (f) f.hidden = false;
+    const sk = document.getElementById('authSkip'); if (sk) sk.hidden = true;
+    if (p2) { p2.hidden = mode !== 'register'; p2.value = ''; }
+    if (l2) l2.hidden = mode !== 'register';
     if (t) t.textContent = mode === 'register' ? '注册账号' : '登录';
     if (b) b.textContent = mode === 'register' ? '注册并登录' : '登录';
     if (p) p.autocomplete = mode === 'register' ? 'new-password' : 'current-password';
@@ -4923,6 +4938,7 @@ function careSaveAuth(token, user) {
     CARE_AUTH.token = token;
     CARE_AUTH.user = user || '用户';
     const a = careStoreSet(CARE_TOKEN_KEY, CARE_AUTH.token), b = careStoreSet(CARE_USER_KEY, CARE_AUTH.user);
+    try { sessionStorage.removeItem('companion.guest'); } catch (e) { }
     if (!a || !b) { if (typeof toastMsg === 'function') toastMsg('浏览器无法保存登录状态，下次打开需要重新登录'); }
 }
 function careApplyAuth() {
@@ -4930,13 +4946,30 @@ function careApplyAuth() {
     if (gate) gate.hidden = true;
     if (bar) bar.hidden = false;
     if (hi) hi.textContent = '你好，' + (CARE_AUTH.user || '用户');
+    const out = document.getElementById('authOut'); if (out) out.textContent = '退出登录';
+    careLoadChat();
     if (typeof view === 'function') { try { view(); } catch (e) { } }
+}
+function careChatKey() { return 'companion.care.chat.' + (CARE_AUTH.user || 'anon'); }
+function careLoadChat() {
+    try {
+        const o = JSON.parse(localStorage.getItem(careChatKey()) || '{}');
+        CARE_UI.chat = o && typeof o === 'object' && !Array.isArray(o) ? o : {};
+    } catch (e) { CARE_UI.chat = {}; }
+    Object.keys(CARE_UI.chat).forEach(function (k) {
+        const a = CARE_UI.chat[k];
+        if (Array.isArray(a) && a.length > 40) CARE_UI.chat[k] = a.slice(-40);
+    });
+}
+function careSaveChat() {
+    try { localStorage.setItem(careChatKey(), JSON.stringify(CARE_UI.chat)); } catch (e) { }
 }
 function careClearAuth(msg) {
     CARE_AUTH.token = '';
     CARE_AUTH.user = '';
     careStoreDel(CARE_TOKEN_KEY);
     careStoreDel(CARE_USER_KEY);
+    try { sessionStorage.removeItem('companion.guest'); } catch (e) { }
     CARE_UI.chat = {};
     CARE_UI.drafts = {};
     CARE_UI.task = null;
@@ -4951,6 +4984,26 @@ function careClearAuth(msg) {
     careAuthShowChoices();
     careSetAuthMsg(msg || '');
     if (typeof view === 'function') { try { view(); } catch (e) { } }
+}
+function careSkipAuth() {
+    const gate = document.getElementById('authGate'), bar = document.getElementById('authBar'), hi = document.getElementById('authHi'), out = document.getElementById('authOut');
+    try { sessionStorage.setItem('companion.guest', '1'); } catch (e) { }
+    if (gate) gate.hidden = true;
+    if (bar) bar.hidden = false;
+    if (hi) hi.textContent = '未登录 · 仅本机';
+    if (out) out.textContent = '登录';
+    careSetAuthMsg('');
+    if (typeof view === 'function') { try { view(); } catch (e) { } }
+}
+function careLogout() {
+    if (!CARE_AUTH.token) { const g = document.getElementById('authGate'); if (g) g.hidden = false; careAuthShowChoices(); return; }
+    if (!confirm('退出登录后，本机档案仍保留在这台设备上。\n如果这是共用设备，建议同时清除本机档案。\n\n点“确定”继续退出。')) return;
+    if (confirm('是否同时清除本机档案数据？\n\n点“确定”=退出并清除；点“取消”=只退出、保留档案。')) {
+        try { localStorage.removeItem('companion.v1'); } catch (e) { }
+        location.reload();
+        return;
+    }
+    careClearAuth();
 }
 async function careAuthRequest(path, user, pw) {
     let r;
@@ -4979,7 +5032,7 @@ async function careApi(path, options) {
 function careErr(status, data) {
     const code = data && data.code;
     if (status === 401) return '登录已失效，请退出后重新登录。';
-    if (status === 403 || code === 'CARE_SCOPE_FORBIDDEN' || code === 'TASK_FORBIDDEN') return '当前账号没有这家医院的授权。请管理员在 KV 的 user:<用户名> 里加入 care_scopes（tenant_id=' + (careTenant() || '未配置') + '）。';
+    if (status === 403 || code === 'CARE_SCOPE_FORBIDDEN' || code === 'TASK_FORBIDDEN') return '当前账号没有这家医院的权限，请联系医院开通后再试。';
     if (code === 'KV_NOT_BOUND') return 'Cloudflare 还没有绑定 KV。';
     if (code === 'CATALOG_UNAVAILABLE') return '医院目录还没有写入 KV：care:catalog:' + (careTenant() || '…') + '。';
     if (code === 'CATALOG_VERSION_CONFLICT') return '医院目录已更新，请重新匹配服务。';
@@ -5108,13 +5161,20 @@ document.addEventListener('click', async function (e) {
     if (!b) return;
     const act = b.getAttribute('data-care');
     e.preventDefault();
+    if ((act === 'open' || act === 'staff') && !CARE_AUTH.token) {
+        const g = document.getElementById('authGate'); if (g) g.hidden = false;
+        careAuthShowForm('login');
+        careSetAuthMsg('登录后才能使用智能助手和医院服务。本机档案不受影响。');
+        return;
+    }
     if (act === 'open') { CARE_UI.mode = 'patient'; careEnter('R1'); return; }
     if (act === 'staff') { CARE_UI.mode = 'staff'; careEnter('R5'); return; }
     if (act === 'home') { if (typeof S !== 'undefined') S.view = 'home'; if (typeof view === 'function') view(); return; }
     if (act === 'role') { careEnter(b.getAttribute('data-role') || 'R1'); return; }
-    if (act === 'logout') { careClearAuth(); return; }
+    if (act === 'sanitize') return 0;
+    if (act === 'logout') { careLogout(); return; }
     if (act === 'useExample') { CARE_UI.drafts[CARE_UI.role] = careRole(CARE_UI.role).ex; if (typeof view === 'function') view(); return; }
-    if (act === 'clearChat') { CARE_UI.chat[CARE_UI.role] = []; if (typeof view === 'function') view(); return; }
+    if (act === 'clearChat') { CARE_UI.chat[CARE_UI.role] = []; careSaveChat(); if (typeof view === 'function') view(); return; }
     if (act === 'rematch') { CARE_UI.match = null; CARE_UI.taskMsg = ''; if (typeof view === 'function') view(); return; }
     if (act === 'clearTask') {
         if (!confirm('结束本机的任务入口？服务端任务记录不会删除。')) return;
@@ -5195,12 +5255,14 @@ document.addEventListener('click', async function (e) {
         const history = careHistory(list);
         list.push({ role: 'user', content: text });
         CARE_UI.drafts[role.id] = '';
+        careSaveChat();
         CARE_UI.busy = true; if (typeof view === 'function') view();
         try {
             const r = await careApi('/api/chat', { method: 'POST', body: JSON.stringify({ role: role.id, text: text, history: history }) });
             if (r.ok && r.data && r.data.ok && typeof r.data.reply === 'string') list.push({ role: 'assistant', content: r.data.reply });
             else list.push({ role: 'error', content: careErr(r.status, r.data) });
         } catch (err) { list.push({ role: 'error', content: '网络异常，请稍后再试。' }); }
+        careSaveChat();
         CARE_UI.busy = false; if (typeof view === 'function') view();
     }
 });
@@ -5218,14 +5280,16 @@ document.addEventListener('keydown', function (e) {
 document.getElementById('authGoRegister').addEventListener('click', function () { careAuthShowForm('register'); });
 document.getElementById('authGoLogin').addEventListener('click', function () { careAuthShowForm('login'); });
 document.getElementById('authBack').addEventListener('click', careAuthShowChoices);
-document.getElementById('authOut').addEventListener('click', function () { careClearAuth(); });
+document.getElementById('authSkip').addEventListener('click', careSkipAuth);
+document.getElementById('authOut').addEventListener('click', function () { careLogout(); });
 document.getElementById('authForm').addEventListener('submit', async function (e) {
     e.preventDefault();
-    const uEl = document.getElementById('authUser'), pEl = document.getElementById('authPw'), btn = document.getElementById('authSubmit');
+    const uEl = document.getElementById('authUser'), pEl = document.getElementById('authPw'), p2El = document.getElementById('authPw2'), btn = document.getElementById('authSubmit');
     const user = String(uEl && uEl.value || '').trim(), pw = String(pEl && pEl.value || '');
     if (!user) { careSetAuthMsg('请填写用户名。'); return; }
     if (/\s/.test(user) || user.length > 64) { careSetAuthMsg('用户名不能含空格，且不超过 64 位。'); return; }
     if (pw.length < 6 || pw.length > 128) { careSetAuthMsg('密码需为 6-128 位。'); return; }
+    if (careAuthMode === 'register' && pw !== String(p2El && p2El.value || '')) { careSetAuthMsg('两次输入的密码不一致。'); return; }
     if (btn) btn.disabled = true;
     careSetAuthMsg('');
     try {
@@ -5240,7 +5304,9 @@ document.getElementById('authForm').addEventListener('submit', async function (e
 (function careBoot() {
     CARE_AUTH.token = careStoreGet(CARE_TOKEN_KEY);
     CARE_AUTH.user = careStoreGet(CARE_USER_KEY) || '用户';
+    let guest = false; try { guest = !!sessionStorage.getItem('companion.guest'); } catch (e) { }
     if (CARE_AUTH.token) careApplyAuth();
+    else if (guest) careSkipAuth();
     else { careAuthShowChoices(); const g = document.getElementById('authGate'); if (g) g.hidden = false; }
 })();
 </script><script>
