@@ -23,3 +23,8 @@ new_sqlite_classes = ["CareTask"]
 [[kv_namespaces]]
 binding = "KV"
 id = "6f56242d19284338b3d2332d823e412d"
+
+# 医院公开目录素材：仅声明绑定；bucket 由管理员在部署前另行创建和授权。
+[[r2_buckets]]
+binding = "CARE_ASSETS"
+bucket_name = "jiuyibanlv-care-assets"

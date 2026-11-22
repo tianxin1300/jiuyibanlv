@@ -4,13 +4,14 @@
 <title>就医伴侣 · 院方工作台</title>
 <meta name="robots" content="noindex,nofollow">
 <meta name="theme-color" content="#f6f8fb">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://juyiibanlvzhinengai.tianxinyuan881.workers.dev; img-src data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; img-src data: blob:; base-uri 'none'; form-action 'none'">
+<script src="deploy-config.js"></script>
 <style>
 :root{--bg:#f6f8fb;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#e5eaf2;--accent:#0d9488;--accent-soft:#e6fffa;--ok:#16a34a;--warn:#d97706;--danger:#dc2626;--r:14px}
 *{box-sizing:border-box}
 html,body{margin:0;min-height:100%}
 body{background:radial-gradient(1000px 520px at 18% -12%,#e6fffa 0,transparent 60%),var(--bg);color:var(--ink);font:15px/1.6 "PingFang SC","Noto Sans SC","Microsoft YaHei",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
-button,input,textarea{font:inherit}
+button,input,textarea,select{font:inherit}
 button{cursor:pointer}
 [hidden]{display:none!important}
 .wrap{max-width:980px;margin:0 auto;padding:24px 18px 80px}
@@ -23,8 +24,20 @@ button{cursor:pointer}
 .login-card h1{font-size:22px;margin:18px 0 4px;letter-spacing:-.3px}
 .login-card .sub{color:var(--muted);font-size:13px;margin:0 0 22px}
 label{display:block;font-size:12px;color:var(--muted);margin:12px 0 6px}
-input,textarea{width:100%;border:1px solid var(--line);background:#fbfcfe;color:var(--ink);border-radius:10px;padding:11px 12px;outline:none}
-input:focus,textarea:focus{border-color:#5eead4;box-shadow:0 0 0 3px rgba(13,148,136,.12)}
+input,textarea,select{width:100%;border:1px solid var(--line);background:#fbfcfe;color:var(--ink);border-radius:10px;padding:11px 12px;outline:none}
+input:focus,textarea:focus,select:focus{border-color:#5eead4;box-shadow:0 0 0 3px rgba(13,148,136,.12)}
+input[type="checkbox"]{width:auto;flex:0 0 auto}
+.cfg-section{border-top:1px solid var(--line);margin-top:18px;padding-top:14px}
+.cfg-section summary{cursor:pointer;font-weight:700}
+.cfg-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.cfg-grid .wide{grid-column:1/-1}
+.cfg-item{border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0;background:#fbfcfe}
+.cfg-item h3{font-size:14px;margin:0 0 6px}.cfg-item h4{font-size:13px;margin:10px 0 4px}
+.cfg-check{display:flex;align-items:center;gap:8px;color:var(--ink);margin:10px 0}
+.cfg-image{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px;border:1px dashed var(--line);border-radius:10px;margin:8px 0}
+.cfg-image img{width:120px;height:90px;object-fit:cover;border-radius:8px;background:#e2e8f0}
+.cfg-note{font-size:12px;color:var(--muted);margin:6px 0}.cfg-danger{color:var(--danger)}
+@media(max-width:640px){.cfg-grid{grid-template-columns:1fr}.cfg-grid .wide{grid-column:auto}}
 .btn{border:0;border-radius:10px;background:var(--accent);color:#fff;padding:11px 16px;font-weight:600}
 .btn:disabled{opacity:.55;cursor:not-allowed}
 .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
@@ -138,10 +151,10 @@ tr:last-child td{border-bottom:0}
     <div class="bar" id="tenantBar" hidden></div>
     <pre id="cfgJson" class="json" hidden></pre>
     <div id="cfgEdit" hidden>
-      <label for="cfgEditor">本院配置 JSON</label>
-      <textarea id="cfgEditor" class="config-editor" spellcheck="false"></textarea>
-      <div class="bar"><button id="cfgSave" class="btn" type="button">保存本院配置</button></div>
+      <div id="cfgForm"></div>
+      <div class="bar"><button id="cfgSave" class="btn" type="button" disabled>保存并发布</button></div>
       <p id="cfgMsg" class="msg" role="status"></p>
+      <p class="hint">只发布医院公开资料。订阅、合同档位、患者上传设置和系统字段由开发者控制台独占管理；这里不能修改价格套餐、到期日或确认续费。</p>
     </div>
   </section>
 
@@ -179,10 +192,11 @@ tr:last-child td{border-bottom:0}
 <script>
 (function () {
   'use strict';
-  var API = 'https://juyiibanlvzhinengai.tianxinyuan881.workers.dev';
+  var API = String(window.CARE_API_BASE_URL || window.location.origin).replace(/\/+$/, '');
   var TK = 'care.staff.token', UK = 'care.staff.user';
   var token = sessionStorage.getItem(TK) || '';
   var me = null, roleId = '', chat = {}, busy = false, tenant = '';
+  var cfgDraft = null, cfgDirty = false, cfgSaving = false, cfgPreviewUrls = [];
   var renewals = [], selectedRenewal = '', renewLocated = false;
   var renewToken = '';
   try { renewToken = String(new URLSearchParams(window.location.search).get('renew') || '').trim(); } catch (e) { }
@@ -238,7 +252,9 @@ tr:last-child td{border-bottom:0}
     $('app').hidden = true; $('login').hidden = false;
     $('memberRows').innerHTML = ''; $('renewalRows').innerHTML = '';
     $('renewalDetail').innerHTML = ''; $('renewalDetail').hidden = true;
-    $('cfgEditor').value = ''; $('cfgJson').textContent = '';
+    cfgDraft = null; cfgDirty = false; cfgSaving = false;
+    cfgPreviewUrls.forEach(function (u) { try { URL.revokeObjectURL(u); } catch (e) { } }); cfgPreviewUrls = [];
+    $('cfgForm').innerHTML = ''; $('cfgJson').textContent = '';
     $('pw').value = '';
     $('loginBtn').disabled = false; $('loginBtn').textContent = '登录';
   }
@@ -272,7 +288,7 @@ tr:last-child td{border-bottom:0}
     var canEdit = isR3();
     $('sessInfo').textContent = '账号 ' + me.user + '\n医院 ' + shown;
     $('hospLine').textContent = '医院：' + shown + ' · 已开通岗位：' + (me.roles || []).join(' / ');
-    $('cfgSub').textContent = canEdit ? 'R3 可编辑并保存本院服务目录 JSON，保存时仍会由服务端校验。' : '只读查看本院服务目录。需要修改请联系本院 R3 或管理员。';
+    $('cfgSub').textContent = canEdit ? 'R3 配置本院全部公开资料、项目/惠民服务、七步流程和互动活动；保存并发布后同步到患者端。' : '只读查看本院公开配置。需要修改请联系本院 R3；订阅和系统字段只能由开发者控制台修改。';
     $('cfgEdit').hidden = true; $('cfgJson').hidden = true; $('cfgSave').disabled = true;
     $('membersCard').hidden = !canEdit;
     renderRoles(); renderChat();
@@ -308,52 +324,316 @@ tr:last-child td{border-bottom:0}
     else loadBilling();
   }
 
+  function P() { return Array.prototype.slice.call(arguments).map(function (x) { return encodeURIComponent(String(x)); }).join('.'); }
+  function getPath(object, path) {
+    return path.split('.').reduce(function (value, key) { return value == null ? undefined : value[decodeURIComponent(key)]; }, object);
+  }
+  function setPath(object, path, value) {
+    var keys = path.split('.').map(decodeURIComponent), last = keys.pop(), target = object;
+    keys.forEach(function (key) { if (!target[key] || typeof target[key] !== 'object') target[key] = /^\d+$/.test(key) ? [] : {}; target = target[key]; });
+    target[last] = value;
+  }
+  function emptySteps() {
+    return Array.from({ length: 7 }, function (_, i) { return { step: i + 1, text: '', materials: [], time: '', location: '', official_url: '' }; });
+  }
+  function newService(id) {
+    return { service_id: id, name: '', department: '', price: '', clinic_hours: '', materials: [], booking_channel: '', image_url: '', service_type: 'project', steps: emptySteps() };
+  }
+  function newActivity(serviceId) {
+    var service = cfgDraft.services[serviceId] || {}, base = 'act-' + serviceId.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 20), id = base, suffix = 2;
+    while (cfgDraft.act.some(function (a) { return a.id === id; })) { id = (base + '-' + suffix).slice(0, 30); suffix++; }
+    return { id: id, service_id: serviceId, t: service.name || '惠民活动', kind: 'draw', per: 'day', need: 1, start: '', end: '', valid: 30, pin: '', rule: '', note: '', items: [
+      { t: '惠民服务', d: '', g: '', q: '', w: 1, n: false }, { t: '谢谢参与', d: '', g: '', q: '', w: 1, n: true }
+    ] };
+  }
+  function clientCatalog(raw) {
+    var c = JSON.parse(JSON.stringify(raw && typeof raw === 'object' ? raw : {}));
+    c.catalog_version = String(c.catalog_version || 'draft'); c.n = String(c.n || c.hospital_name || ''); c.w = String(c.w || c.welcome || '');
+    c.c = String(c.c || c.theme || '#2563eb'); c.l = String(c.l || c.logo || ''); c.splash = String(c.splash || '');
+    ['dept', 'vip', 'ann', 'pre', 'campus', 'sched', 'dis', 'act'].forEach(function (key) { if (!Array.isArray(c[key])) c[key] = []; });
+    if (!c.tel || typeof c.tel !== 'object') c.tel = { n: '服务电话', num: '' };
+    if (!c.book || typeof c.book !== 'object') c.book = { n: '医院预约入口', url: '' };
+    if (!c.rg || typeof c.rg !== 'object' || Array.isArray(c.rg)) c.rg = {};
+    c.showRef = c.showRef === true; c.hideRef = c.hideRef !== false;
+    if (!c.options || typeof c.options !== 'object' || Array.isArray(c.options)) c.options = {};
+    if (!c.services || typeof c.services !== 'object' || Array.isArray(c.services)) c.services = {};
+    Object.keys(c.services).forEach(function (id) {
+      var s = c.services[id], base = newService(id); Object.keys(base).forEach(function (key) { if (s[key] === undefined) s[key] = base[key]; });
+      s.service_id = id; if (!Array.isArray(s.steps) || s.steps.length !== 7) s.steps = emptySteps();
+      s.steps.forEach(function (step, i) { step.step = i + 1; ['text', 'time', 'location', 'official_url'].forEach(function (key) { if (step[key] === undefined) step[key] = ''; }); if (step.materials === undefined) step.materials = []; });
+    });
+    c.act.forEach(function (a) { if (!Array.isArray(a.items)) a.items = []; });
+    return c;
+  }
+  function markDirty(message) {
+    cfgDirty = true; $('cfgSave').disabled = cfgSaving;
+    if (message !== false) setMsg('cfgMsg', message || '有尚未发布的修改。', false);
+  }
+  function field(path, label, type, wide) {
+    var value = getPath(cfgDraft, path), html = '';
+    if (type === 'checkbox') return '<label class="cfg-check' + (wide ? ' wide' : '') + '"><input type="checkbox" data-path="' + esc(path) + '"' + (value ? ' checked' : '') + '><span>' + esc(label) + '</span></label>';
+    if (type === 'textarea') html = '<textarea rows="3" data-path="' + esc(path) + '">' + esc(value == null ? '' : value) + '</textarea>';
+    else html = '<input type="' + (type || 'text') + '"' + (type === 'number' ? ' step="any"' : '') + ' data-path="' + esc(path) + '" value="' + esc(value == null ? '' : value) + '">';
+    return '<label class="' + (wide ? 'wide' : '') + '">' + esc(label) + html + '</label>';
+  }
+  function selectField(path, label, choices) {
+    var value = String(getPath(cfgDraft, path) || '');
+    return '<label>' + esc(label) + '<select data-path="' + esc(path) + '">' + choices.map(function (x) { return '<option value="' + esc(x[0]) + '"' + (value === x[0] ? ' selected' : '') + '>' + esc(x[1]) + '</option>'; }).join('') + '</select></label>';
+  }
+  function listField(key, label) {
+    return '<label class="wide">' + esc(label) + '<textarea rows="3" data-list-path="' + esc(key) + '" placeholder="每行一项">' + esc((cfgDraft[key] || []).join('\n')) + '</textarea></label>';
+  }
+  function materialsField(path, label) {
+    var value = getPath(cfgDraft, path); if (!Array.isArray(value)) value = value ? String(value).split('\n') : [];
+    return '<label class="wide">' + esc(label) + '<textarea rows="2" data-materials-path="' + esc(path) + '" placeholder="每行一项">' + esc(value.join('\n')) + '</textarea></label>';
+  }
+  function imageEditor(path, label) {
+    var ref = String(getPath(cfgDraft, path) || ''), asset = /^asset:([A-Za-z0-9][A-Za-z0-9._-]{0,127})$/.exec(ref);
+    return '<div class="cfg-image wide"><div><b>' + esc(label) + '</b><div class="cfg-note">PNG / JPEG / WebP，单张硬限 2 MiB；建议最长边 1600 像素、尽量压到 500 KiB 内。禁止 SVG、GIF。</div><div class="mono">' + esc(ref || '尚未上传') + '</div></div>' +
+      '<img data-preview-path="' + esc(path) + '"' + (asset ? ' data-asset="' + esc(asset[1]) + '"' : '') + ' hidden alt="' + esc(label) + '预览">' +
+      '<input type="file" accept="image/png,image/jpeg,image/webp" data-image-target="' + esc(path) + '" aria-label="上传' + esc(label) + '">' +
+      (ref ? '<button class="btn ghost small" type="button" data-remove-image="' + esc(path) + '">移除图片</button>' : '') + '</div>';
+  }
+  function clearConfigPreviews() {
+    cfgPreviewUrls.forEach(function (u) { try { URL.revokeObjectURL(u); } catch (e) { } }); cfgPreviewUrls = [];
+  }
+  function loadConfigPreviews() {
+    document.querySelectorAll('#cfgForm img[data-asset]').forEach(function (img) {
+      var asset = img.getAttribute('data-asset'), selected = tenant;
+      fetch(API + '/api/staff/config/image?tenant_id=' + encodeURIComponent(selected) + '&asset_id=' + encodeURIComponent(asset), { headers: { Authorization: 'Bearer ' + token } })
+        .then(function (r) { if (!r.ok) throw new Error('preview'); return r.blob(); })
+        .then(function (blob) { if (selected !== tenant || !img.isConnected) return; var url = URL.createObjectURL(blob); cfgPreviewUrls.push(url); img.src = url; img.hidden = false; })
+        .catch(function () { if (img.isConnected) img.insertAdjacentText('afterend', '预览读取失败'); });
+    });
+  }
+  function shrinkImage(file) {
+    return new Promise(function (resolve, reject) {
+      var sourceUrl = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        try {
+          var scale = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+          if (scale === 1 && file.size <= 500 * 1024) { URL.revokeObjectURL(sourceUrl); resolve(file); return; }
+          var canvas = document.createElement('canvas'); canvas.width = Math.max(1, Math.round(img.naturalWidth * scale)); canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob(function (blob) {
+            URL.revokeObjectURL(sourceUrl);
+            if (!blob) { resolve(file); return; }
+            resolve(blob.size < file.size ? blob : file);
+          }, file.type, 0.82);
+        } catch (e) { URL.revokeObjectURL(sourceUrl); resolve(file); }
+      };
+      img.onerror = function () { URL.revokeObjectURL(sourceUrl); reject(new Error('无法读取这张图片')); };
+      img.src = sourceUrl;
+    });
+  }
+  function uploadConfigImage(input) {
+    var file = input.files && input.files[0], target = input.getAttribute('data-image-target') || '';
+    if (!file || !cfgDraft || !isR3()) return;
+    if (['image/png', 'image/jpeg', 'image/webp'].indexOf(file.type) < 0) { setMsg('cfgMsg', '只支持 PNG、JPEG、WebP，不支持 SVG 或 GIF。', false); input.value = ''; return; }
+    var selected = tenant, draft = cfgDraft, oldPreview = input.parentNode.querySelector('img[data-preview-path]'), previewUrl = URL.createObjectURL(file);
+    cfgPreviewUrls.push(previewUrl); if (oldPreview) { oldPreview.src = previewUrl; oldPreview.hidden = false; }
+    input.disabled = true; setMsg('cfgMsg', '已选择 ' + file.name + '（' + (file.size / 1024).toFixed(1) + ' KiB），正在优化并上传…', true);
+    shrinkImage(file).then(function (blob) {
+      if (blob.size > 2 * 1024 * 1024) throw new Error('压缩后仍超过 2 MiB，请缩小图片或降低分辨率');
+      var parts = target.split('.'), serviceId = parts[0] === 'services' ? decodeURIComponent(parts[1]) : '';
+      return fetch(API + '/api/staff/config/image?tenant_id=' + encodeURIComponent(selected) + (serviceId ? '&service_id=' + encodeURIComponent(serviceId) : ''), {
+        method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': file.type }, body: blob
+      }).then(function (r) { return r.json().then(function (d) { if (!r.ok || !d.ok) throw new Error(d.msg || '图片上传失败'); return d; }); });
+    }).then(function (d) {
+      if (selected !== tenant || draft !== cfgDraft) return;
+      setPath(cfgDraft, target, d.image_url); markDirty(false); renderConfig();
+      setMsg('cfgMsg', '图片已上传（' + (d.size / 1024).toFixed(1) + ' KiB）。还需点击“保存并发布”，患者端才会显示。', true);
+    }).catch(function (e) { if (selected === tenant && draft === cfgDraft) { setMsg('cfgMsg', e.message || '图片上传失败，草稿未丢失。', false); input.disabled = false; } });
+  }
   function loadConfig() {
     var selected = tenant;
     $('cfgJson').hidden = true; $('cfgEdit').hidden = true; $('cfgSave').disabled = true;
-    setMsg('cfgMsg', '');
-    $('cfgMeta').textContent = '正在读取…';
+    setMsg('cfgMsg', ''); $('cfgMeta').textContent = '正在读取…';
     if (!selected) { $('cfgMeta').textContent = '该账号还没有分配医院。'; return; }
     return api('/api/staff/config?tenant_id=' + encodeURIComponent(selected)).then(function (r) {
       if (selected !== tenant) return;
       if (r.status === 401) { showLogin('登录已失效，请重新登录'); return; }
-      if (!r.ok || !r.data || !r.data.ok) {
-        $('cfgMeta').textContent = (r.data && r.data.msg) || '读取医院配置失败';
-        return;
-      }
+      if (!r.ok || !r.data || !r.data.ok) { $('cfgMeta').textContent = (r.data && r.data.msg) || '读取医院配置失败'; return; }
       var d = r.data;
-      $('cfgMeta').innerHTML = '医院：<b class="mono">' + esc(d.tenant_id) + '</b> ' +
-        (d.valid ? '<span class="chip ok">配置有效</span>' : '<span class="chip bad">配置不完整</span>') +
-        (d.problem ? '<br><span class="mono">' + esc(d.problem) + '</span>' : '');
+      $('cfgMeta').innerHTML = '医院：<b class="mono">' + esc(d.tenant_id) + '</b> · 版本 <span class="mono">' + esc(d.catalog.catalog_version || '') + '</span> ' +
+        (d.valid ? '<span class="chip ok">配置有效</span>' : '<span class="chip bad">请补全后发布</span>') + (d.problem ? '<br><span class="mono">' + esc(d.problem) + '</span>' : '');
       if (isR3()) {
-        $('cfgEditor').value = JSON.stringify(d.catalog, null, 2);
-        $('cfgEdit').hidden = false; $('cfgSave').disabled = false;
-      } else {
-        $('cfgJson').textContent = JSON.stringify(d.catalog, null, 2);
-        $('cfgJson').hidden = false;
+        cfgDraft = clientCatalog(d.catalog); cfgDirty = false; cfgSaving = false; $('cfgEdit').hidden = false; renderConfig();
+      } else { $('cfgJson').textContent = JSON.stringify(d.catalog, null, 2); $('cfgJson').hidden = false; }
+    }).catch(function () { if (selected === tenant) $('cfgMeta').textContent = '网络异常，读取失败；当前草稿未被清除。'; });
+  }
+  function saveConfig() {
+    if (!isR3() || !tenant || !cfgDraft || !cfgDirty || cfgSaving) return;
+    var selected = tenant, draft = cfgDraft;
+    cfgSaving = true; $('cfgSave').disabled = true; setMsg('cfgMsg', '正在校验并发布…', true);
+    api('/api/staff/config', { method: 'PUT', body: JSON.stringify({ tenant_id: selected, catalog: draft }) }).then(function (r) {
+      if (selected !== tenant || draft !== cfgDraft) return;
+      cfgSaving = false; $('cfgSave').disabled = false;
+      if (r.status === 401) { showLogin('登录已失效，请重新登录'); return; }
+      if (!r.ok || !r.data || !r.data.ok) { setMsg('cfgMsg', (r.data && r.data.msg) || '保存发布失败；草稿已保留，请修正后重试。', false); return; }
+      cfgDraft.catalog_version = r.data.catalog_version; cfgDirty = false; $('cfgSave').disabled = true;
+      $('cfgMeta').innerHTML = '医院：<b class="mono">' + esc(selected) + '</b> · 版本 <span class="mono">' + esc(r.data.catalog_version) + '</span> <span class="chip ok">已发布</span>';
+      setMsg('cfgMsg', '已保存并发布，患者端通常在一分钟内更新。', true); toast('医院公开配置已发布');
+    }).catch(function () { if (selected === tenant && draft === cfgDraft) { cfgSaving = false; $('cfgSave').disabled = false; setMsg('cfgMsg', '网络异常，发布失败；草稿已保留。', false); } });
+  }
+  function cfgSection(title, body, open) {
+    return '<details class="cfg-section"' + (open ? ' open' : '') + '><summary>' + esc(title) + '</summary>' + body + '</details>';
+  }
+  function publicItemList(key, title, withDate) {
+    var rows = (cfgDraft[key] || []).map(function (_, i) {
+      var base = P(key, i);
+      return '<div class="cfg-item"><div class="bar"><b>第 ' + (i + 1) + ' 条</b><span class="sp"></span><button class="btn ghost small cfg-danger" type="button" data-remove-path="' + esc(P(key, i)) + '">删除</button></div><div class="cfg-grid">' +
+        field(base + '.t', '标题', 'text', true) + (withDate ? field(base + '.date', '日期', 'date') : '') + field(base + '.d', '说明', 'textarea', true) + '</div></div>';
+    }).join('');
+    return cfgSection(title, rows + '<button class="btn ghost small" type="button" data-add-public="' + esc(key) + '">添加一条</button>');
+  }
+  function serviceEditor(id, service, index) {
+    var base = P('services', id), optionIds = Object.keys(cfgDraft.options).filter(function (key) { return cfgDraft.options[key] === id; });
+    var steps = service.steps.map(function (_, i) {
+      var path = base + '.steps.' + i;
+      return '<div class="cfg-item"><h4>第 ' + (i + 1) + ' 步</h4><div class="cfg-grid">' +
+        field(path + '.text', '步骤说明（必填）', 'textarea', true) + materialsField(path + '.materials', '本步材料，每行一项') +
+        field(path + '.time', '时间提示') + field(path + '.location', '地点提示') + field(path + '.official_url', '官方 HTTPS 入口', 'url', true) + '</div></div>';
+    }).join('');
+    return '<details class="cfg-item"' + (index === 0 ? ' open' : '') + '><summary><b>' + esc(service.name || id) + '</b> · <span class="mono">' + esc(id) + '</span></summary>' +
+      '<div class="bar"><span class="chip">' + (service.service_type === 'benefit' ? '惠民服务' : '医院项目') + '</span><span class="sp"></span><button class="btn ghost small cfg-danger" type="button" data-remove-service="' + esc(id) + '">删除服务</button></div><div class="cfg-grid">' +
+      field(base + '.name', '1. 服务名称', 'text', true) + field(base + '.department', '2. 科室') + field(base + '.price', '3. 价格说明') +
+      field(base + '.clinic_hours', '4. 开放时间') + materialsField(base + '.materials', '5. 所需材料，每行一项') + field(base + '.booking_channel', '6. 预约渠道', 'textarea', true) +
+      selectField(base + '.service_type', '8. 卡片类型', [['project', '医院项目'], ['benefit', '惠民服务']]) + '</div>' +
+      '<h4>7. 项目示例图片</h4>' + imageEditor(base + '.image_url', '项目示例图片') +
+      '<label class="wide">智能匹配选项 ID（每行一个，在全院必须唯一）<textarea rows="3" data-options-service="' + esc(id) + '" placeholder="例如：blood-routine">' + esc(optionIds.join('\n')) + '</textarea></label>' +
+      '<p class="cfg-note">匹配选项、患者卡片和七步任务都引用同一个 service_id，不另建服务副本。</p><h4>就诊七步（必须恰好七步）</h4>' + steps + '</details>';
+  }
+  function activityEditor(activity, index, benefits) {
+    var base = P('act', index), choices = benefits.map(function (id) { return [id, (cfgDraft.services[id].name || id) + ' · ' + id]; });
+    var items = activity.items.map(function (_, i) {
+      var path = base + '.items.' + i;
+      return '<div class="cfg-item"><div class="bar"><b>奖项 ' + (i + 1) + '</b><span class="sp"></span>' + (activity.items.length > 2 ? '<button class="btn ghost small cfg-danger" type="button" data-remove-path="' + esc(path) + '">删除</button>' : '') + '</div><div class="cfg-grid">' +
+        field(path + '.t', '奖项名称') + field(path + '.g', '奖项等级') + field(path + '.d', '奖项说明', 'textarea', true) + field(path + '.q', '数量说明') + field(path + '.w', '权重（0–100）', 'number') +
+        field(path + '.n', '未中奖 / 谢谢参与', 'checkbox', true) + '</div></div>';
+    }).join('');
+    return '<details class="cfg-item"><summary><b>' + esc(activity.t || activity.id) + '</b> · <span class="mono">' + esc(activity.id) + '</span></summary><div class="bar"><span class="chip">关联惠民卡片</span><span class="sp"></span><button class="btn ghost small cfg-danger" type="button" data-remove-path="' + esc(P('act', index)) + '">删除活动</button></div><div class="cfg-grid">' +
+      selectField(base + '.service_id', '关联惠民服务', choices) + field(base + '.t', '活动名称') + selectField(base + '.kind', '互动形式', [['draw', '抽奖'], ['lottery', ' lottery'], ['wheel', '转盘']]) +
+      selectField(base + '.per', '参与频率', [['day', '每日'], ['once', '仅一次'], ['free', '不限打卡']]) + field(base + '.need', '所需打卡次数（0–10）', 'number') + field(base + '.valid', '凭证有效天数（1–365）', 'number') +
+      field(base + '.start', '开始日期', 'date') + field(base + '.end', '结束日期', 'date') + field(base + '.pin', '4–6 位数字确认码') +
+      field(base + '.rule', '活动规则', 'textarea', true) + field(base + '.note', '补充说明', 'textarea', true) + '</div><h4>奖项（2–12 个）</h4>' + items +
+      (activity.items.length < 12 ? '<button class="btn ghost small" type="button" data-add-prize="' + index + '">添加奖项</button>' : '') + '</details>';
+  }
+  function renderConfig() {
+    if (!cfgDraft || !isR3()) return;
+    clearConfigPreviews();
+    var basic = '<div class="cfg-grid">' + field('n', '医院名称') + field('c', '主题色', 'color') + field('w', '患者端欢迎语', 'textarea', true) + field('splash', '启动页一句话', 'text', true) +
+      listField('dept', '开放科室，每行一个') + field('tel.n', '电话名称') + field('tel.num', '联系电话') + field('book.n', '预约入口名称') + field('book.url', '预约 HTTPS 地址', 'url') + '</div>' + imageEditor('l', '院徽');
+    var campuses = (cfgDraft.campus || []).map(function (_, i) {
+      var base = P('campus', i);
+      return '<div class="cfg-item"><div class="bar"><b>院区 ' + (i + 1) + '</b><span class="sp"></span><button class="btn ghost small cfg-danger" type="button" data-remove-path="' + esc(base) + '">删除</button></div><div class="cfg-grid">' + field(base + '.n', '院区名称') + field(base + '.tel', '院区电话') + field(base + '.addr', '院区地址', 'textarea', true) + '</div></div>';
+    }).join('');
+    var schedules = (cfgDraft.sched || []).map(function (_, i) {
+      var base = P('sched', i);
+      return '<div class="cfg-item"><div class="bar"><b>排班 ' + (i + 1) + '</b><span class="sp"></span><button class="btn ghost small cfg-danger" type="button" data-remove-path="' + esc(base) + '">删除</button></div><div class="cfg-grid">' +
+        field(base + '.wd', '星期，如周一') + selectField(base + '.ap', '时段', [['', '未指定'], ['上午', '上午'], ['下午', '下午'], ['全天', '全天']]) + field(base + '.dp', '科室') + field(base + '.dr', '医生') +
+        field(base + '.st', '开始时间', 'time') + field(base + '.et', '结束时间', 'time') + field(base + '.nt', '备注', 'text', true) + '</div></div>';
+    }).join('');
+    var ranges = Object.keys(cfgDraft.rg).map(function (key) {
+      var base = P('rg', key);
+      return '<div class="cfg-item"><div class="bar"><b class="mono">' + esc(key) + '</b><span class="sp"></span><button class="btn ghost small cfg-danger" type="button" data-remove-range="' + esc(key) + '">删除</button></div><div class="cfg-grid">' +
+        '<label class="wide">参考范围名称<input type="text" data-range-rename="' + esc(key) + '" value="' + esc(key) + '"></label>' + field(base + '.0', '下限（可留空）', 'number') + field(base + '.1', '上限（可留空）', 'number') + '</div></div>';
+    }).join('');
+    var serviceIds = Object.keys(cfgDraft.services), benefits = serviceIds.filter(function (id) { return cfgDraft.services[id].service_type === 'benefit'; });
+    var services = serviceIds.map(function (id, i) { return serviceEditor(id, cfgDraft.services[id], i); }).join('');
+    var activities = cfgDraft.act.map(function (activity, i) { return activityEditor(activity, i, benefits); }).join('');
+    $('cfgForm').innerHTML = cfgSection('基本资料与联系预约', basic, true) + publicItemList('vip', 'VIP 权益', false) + publicItemList('ann', '通知与科普', true) + publicItemList('pre', '检查前准备', false) +
+      cfgSection('院区与排班', campuses + '<button class="btn ghost small" type="button" data-add-public="campus">添加院区</button><div class="cfg-section"></div>' + schedules + '<button class="btn ghost small" type="button" data-add-public="sched">添加排班</button>') +
+      cfgSection('病种与参考范围', listField('dis', '病种档案开放范围，每行一个') + '<div class="cfg-grid">' + field('showRef', '向患者显示参考范围', 'checkbox', true) + field('hideRef', '隐藏超出参考范围的解释', 'checkbox', true) + '</div>' + ranges + '<button class="btn ghost small" type="button" data-add-range="1">添加参考范围</button>') +
+      cfgSection('医院项目与惠民服务（八项字段 + 七步）', '<p class="cfg-note">项目和惠民共用本表单；每项必须有完整八项字段、示例图片和七步，缺项不能发布。最多 100 项。</p>' + services + (serviceIds.length < 100 ? '<button class="btn ghost small" type="button" data-add-service="1">添加服务</button>' : ''), serviceIds.length > 0) +
+      cfgSection('惠民互动活动', '<p class="cfg-note">活动必须关联惠民服务。最多 20 个活动，每个活动 2–12 个奖项。</p>' + (benefits.length ? activities + (cfgDraft.act.length < 20 ? '<button class="btn ghost small" type="button" data-add-activity="1">添加惠民活动</button>' : '') : '<p class="cfg-note">请先将至少一个服务设为“惠民服务”，再添加活动。</p>'));
+    $('cfgSave').disabled = !cfgDirty || cfgSaving;
+    loadConfigPreviews();
+  }
+  function updateConfigValue(target) {
+    if (!cfgDraft || !isR3()) return;
+    var path = target.getAttribute('data-path'), value;
+    if (path) {
+      value = target.type === 'checkbox' ? target.checked : target.value;
+      if (/\.service_type$/.test(path) && value !== 'benefit') {
+        var serviceId = decodeURIComponent(path.split('.')[1]);
+        if (cfgDraft.act.some(function (a) { return a.service_id === serviceId; })) { target.value = 'benefit'; setMsg('cfgMsg', '该服务已关联惠民活动，请先删除活动再改为医院项目。', false); return; }
       }
-    }).catch(function () { if (selected === tenant) $('cfgMeta').textContent = '网络异常，读取失败'; });
+      if (target.type === 'number' && value !== '') value = Number(value);
+      setPath(cfgDraft, path, value); markDirty(); return;
+    }
+    path = target.getAttribute('data-list-path') || target.getAttribute('data-materials-path');
+    if (path) { setPath(cfgDraft, path, target.value.split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean)); markDirty(); return; }
+    var serviceId = target.getAttribute('data-options-service');
+    if (serviceId) {
+      var ids = target.value.split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean), seen = {};
+      for (var i = 0; i < ids.length; i++) {
+        if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(ids[i]) || seen[ids[i]] || (cfgDraft.options[ids[i]] && cfgDraft.options[ids[i]] !== serviceId)) {
+          setMsg('cfgMsg', '匹配选项 ID 格式不正确或已被其他服务使用：' + ids[i], false); return;
+        }
+        seen[ids[i]] = true;
+      }
+      Object.keys(cfgDraft.options).forEach(function (id) { if (cfgDraft.options[id] === serviceId) delete cfgDraft.options[id]; });
+      ids.forEach(function (id) { cfgDraft.options[id] = serviceId; }); markDirty();
+    }
+  }
+  function removeConfigPath(path) {
+    var keys = path.split('.'), index = Number(keys.pop()), list = getPath(cfgDraft, keys.join('.'));
+    if (!Array.isArray(list) || !Number.isInteger(index) || !list[index]) return;
+    list.splice(index, 1); markDirty(false); renderConfig();
   }
 
-  function saveConfig() {
-    if (!isR3() || !tenant) return;
-    var catalog;
-    try { catalog = JSON.parse($('cfgEditor').value); }
-    catch (e) { setMsg('cfgMsg', '不是合法 JSON：' + e.message, false); return; }
-    var selected = tenant;
-    $('cfgSave').disabled = true; setMsg('cfgMsg', '');
-    api('/api/staff/config', { method: 'PUT', body: JSON.stringify({ tenant_id: selected, catalog: catalog }) }).then(function (r) {
-      if (selected !== tenant) return;
-      $('cfgSave').disabled = false;
-      if (r.status === 401) { showLogin('登录已失效，请重新登录'); return; }
-      if (!r.ok || !r.data || !r.data.ok) { setMsg('cfgMsg', (r.data && r.data.msg) || '保存医院配置失败', false); return; }
-      setMsg('cfgMsg', '已保存本院配置，版本：' + (r.data.catalog_version || '已更新'), true);
-      toast('医院配置已保存');
-    }).catch(function () {
-      if (selected !== tenant) return;
-      $('cfgSave').disabled = false; setMsg('cfgMsg', '网络异常，保存失败', false);
-    });
-  }
+  $('cfgForm').addEventListener('input', function (e) { updateConfigValue(e.target); });
+  $('cfgForm').addEventListener('change', function (e) {
+    var target = e.target;
+    if (target.matches('[data-image-target]')) { uploadConfigImage(target); return; }
+    updateConfigValue(target);
+    if (target.matches('[data-range-rename]')) {
+      var oldKey = target.getAttribute('data-range-rename'), newKey = target.value.trim();
+      if (!newKey || (newKey !== oldKey && Object.prototype.hasOwnProperty.call(cfgDraft.rg, newKey))) { target.value = oldKey; setMsg('cfgMsg', '参考范围名称不能为空或重复。', false); return; }
+      if (newKey !== oldKey) { cfgDraft.rg[newKey] = cfgDraft.rg[oldKey]; delete cfgDraft.rg[oldKey]; markDirty(false); renderConfig(); }
+      return;
+    }
+    if (target.getAttribute('data-path') && /\.service_type$/.test(target.getAttribute('data-path'))) renderConfig();
+  });
+  $('cfgForm').addEventListener('click', function (e) {
+    var button = e.target.closest('button');
+    if (!button || !cfgDraft || !isR3()) return;
+    var path = button.getAttribute('data-remove-path');
+    if (path) { removeConfigPath(path); return; }
+    var imagePath = button.getAttribute('data-remove-image');
+    if (imagePath) { setPath(cfgDraft, imagePath, ''); markDirty(false); renderConfig(); return; }
+    var add = button.getAttribute('data-add-public');
+    if (add) {
+      var item = add === 'campus' ? { n: '', addr: '', tel: '' } : add === 'sched' ? { wd: '', ap: '', dp: '', dr: '', nt: '', st: '', et: '' } : add === 'ann' ? { t: '', d: '', date: '' } : { t: '', d: '' };
+      cfgDraft[add].push(item); markDirty(false); renderConfig(); return;
+    }
+    if (button.hasAttribute('data-add-range')) {
+      var i = 1; while (Object.prototype.hasOwnProperty.call(cfgDraft.rg, '新参考' + i)) i++;
+      cfgDraft.rg['新参考' + i] = ['', '']; markDirty(false); renderConfig(); return;
+    }
+    if (button.hasAttribute('data-remove-range')) { delete cfgDraft.rg[button.getAttribute('data-remove-range')]; markDirty(false); renderConfig(); return; }
+    if (button.hasAttribute('data-add-service')) {
+      var id = 'svc-' + Date.now().toString(36); while (cfgDraft.services[id]) id += 'x';
+      cfgDraft.services[id] = newService(id); markDirty(false); renderConfig(); return;
+    }
+    var removeService = button.getAttribute('data-remove-service');
+    if (removeService) {
+      if (cfgDraft.act.some(function (a) { return a.service_id === removeService; })) { setMsg('cfgMsg', '请先删除关联此服务的惠民活动。', false); return; }
+      if (!window.confirm('删除服务 ' + removeService + ' 及其匹配选项？')) return;
+      delete cfgDraft.services[removeService]; Object.keys(cfgDraft.options).forEach(function (id) { if (cfgDraft.options[id] === removeService) delete cfgDraft.options[id]; }); markDirty(false); renderConfig(); return;
+    }
+    if (button.hasAttribute('data-add-activity')) {
+      var benefit = Object.keys(cfgDraft.services).filter(function (id) { return cfgDraft.services[id].service_type === 'benefit'; })[0];
+      if (!benefit) { setMsg('cfgMsg', '请先添加或选择一个惠民服务。', false); return; }
+      cfgDraft.act.push(newActivity(benefit)); markDirty(false); renderConfig(); return;
+    }
+    if (button.hasAttribute('data-add-prize')) {
+      var activity = cfgDraft.act[Number(button.getAttribute('data-add-prize'))];
+      if (activity && activity.items.length < 12) { activity.items.push({ t: '', d: '', g: '', q: '', w: 1, n: false }); markDirty(false); renderConfig(); }
+    }
+  });
+  window.addEventListener('beforeunload', function (e) { if (cfgDirty) { e.preventDefault(); e.returnValue = ''; } });
 
   function loadMembers(successMsg) {
     if (!isR3()) { $('membersCard').hidden = true; return; }
@@ -640,13 +920,20 @@ tr:last-child td{border-bottom:0}
   });
   $('send').addEventListener('click', send);
   $('clear').addEventListener('click', function () { chat[roleId] = []; renderChat(); });
-  $('refresh').addEventListener('click', function () { check().then(function (ok) { if (ok) toast('已刷新'); }); });
-  $('logout').addEventListener('click', function () { showLogin('已退出', true); });
+  $('refresh').addEventListener('click', function () {
+    if (cfgDirty && !window.confirm('当前有尚未发布的修改，刷新会放弃这些修改。继续刷新？')) return;
+    check().then(function (ok) { if (ok) toast('已刷新'); });
+  });
+  $('logout').addEventListener('click', function () {
+    if (cfgDirty && !window.confirm('当前有尚未发布的修改，退出会放弃这些修改。继续退出？')) return;
+    showLogin('已退出', true);
+  });
   $('tenantBar').addEventListener('click', function (e) {
     var b = e.target.closest('[data-tenant]');
     if (!b) return;
     var selected = b.getAttribute('data-tenant') || '';
     if (!me || (me.tenant_ids || []).indexOf(selected) < 0 || selected === tenant) return;
+    if (cfgDirty && !window.confirm('当前医院有尚未发布的修改，切换医院会放弃这些修改。继续切换？')) return;
     tenant = selected; selectedRenewal = ''; renewals = [];
     setMsg('renewLinkMsg', ''); setMsg('renewalMsg', ''); setMsg('memberMsg', '');
     loadTenantData();

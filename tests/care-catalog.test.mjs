@@ -166,6 +166,52 @@ test("loadCareCatalog 对空值、坏值、读取异常和未绑定 KV 均返回
   await assert.rejects(loadCareCatalog({}, "tenant-1"), careError(503, "KV_NOT_BOUND"));
 });
 
+test("全部院方公开资料与惠民活动均完整规范化，活动只能关联惠民服务", () => {
+  const catalog = makeCatalog();
+  catalog.services["svc-b"].service_type = "benefit";
+  Object.assign(catalog, {
+    n: "示例医院",
+    w: "欢迎使用本院就诊服务",
+    c: "#123abc",
+    l: "asset:logo-1",
+    splash: "就诊资料由患者自行整理",
+    dept: ["全科", "儿科"],
+    tel: { n: "总服务台", num: "010-12345678" },
+    book: { n: "官方预约", url: "https://hospital.example/book" },
+    vip: [{ t: "专人引导", d: "服务范围以院内公示为准" }],
+    ann: [{ t: "门诊通知", d: "元旦排班已更新", date: "2026-11-23" }],
+    pre: [{ t: "空腹检查", d: "是否空腹请听从医生安排" }],
+    campus: [{ n: "东院区", addr: "示例路1号", tel: "010-12345678" }],
+    sched: [{ wd: "周一", ap: "上午", dp: "全科", dr: "示例医生", nt: "以当日号源为准", st: "08:00", et: "12:00" }],
+    dis: ["高血压", "糖尿病"],
+    rg: { 收缩压: [90, 140], 空腹血糖: [3.9, 6.1] },
+    showRef: true,
+    hideRef: false
+  });
+  catalog.act = [{
+    id: "health-draw", service_id: "svc-b", t: "惠民健康礼", kind: "wheel", per: "day", need: 2,
+    start: "2026-11-01", end: "2026-12-31", valid: 30, pin: "1234",
+    rule: "按活动规则参与", note: "不承诺中奖",
+    items: [
+      { t: "健康手册", d: "凭凭证领取", g: "参与奖", q: "100份", w: 80, n: false },
+      { t: "谢谢参与", d: "欢迎下次参与", g: "", q: "", w: 20, n: true }
+    ]
+  }];
+
+  const normalized = validateCareCatalog(catalog);
+  for (const key of ["n", "w", "c", "l", "splash", "dept", "tel", "book", "vip", "ann", "pre", "campus", "sched", "dis", "rg", "showRef", "hideRef", "act"]) {
+    assert.deepEqual(normalized[key], catalog[key], `${key} 应完整保留`);
+  }
+  assert.equal(normalized.act[0].service_id, "svc-b");
+  assert.equal(normalized.act[0].items.length, 2);
+
+  for (const serviceId of ["svc-a", "svc-missing"]) {
+    const invalid = structuredClone(catalog);
+    invalid.act[0].service_id = serviceId;
+    assert.throws(() => validateCareCatalog(invalid), catalogError);
+  }
+});
+
 test("option_ids 去重后精确匹配，同服务选项合并且服务按首次出现排序", () => {
   const catalog = validateCareCatalog(makeCatalog());
   const optionIds = careOptionIds([

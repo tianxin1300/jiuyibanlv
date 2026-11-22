@@ -4,7 +4,8 @@
 <title>就医伴侣 · 开发者控制台</title>
 <meta name="robots" content="noindex,nofollow">
 <meta name="theme-color" content="#f6f8fb">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://juyiibanlvzhinengai.tianxinyuan881.workers.dev; img-src data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; img-src data:; base-uri 'none'; form-action 'none'">
+<script src="deploy-config.js"></script>
 <style>
 :root{--bg:#f6f8fb;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#e5eaf2;--accent:#2563eb;--accent-soft:#eef4ff;--ok:#16a34a;--warn:#d97706;--danger:#dc2626;--r:14px}
 *{box-sizing:border-box}
@@ -227,7 +228,7 @@ select:focus{border-color:#9dbcf7;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 <script>
 (function () {
   'use strict';
-  var API = 'https://juyiibanlvzhinengai.tianxinyuan881.workers.dev';
+  var API = String(window.CARE_API_BASE_URL || window.location.origin).replace(/\/+$/, '');
   var SES_KEY = 'care.console.sess';
   var sess = sessionStorage.getItem(SES_KEY) || '';
   var revealRef = '', revealTimer = 0, lockTimer = 0;

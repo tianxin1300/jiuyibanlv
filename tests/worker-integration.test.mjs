@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { runInNewContext } from "node:vm";
 import worker from "../worker.js";
 import { CareTask } from "../care.js";
 import { MemoryStorage, careEnv, makeCatalog, taskBody, advanceInput } from "./care-test-helpers.mjs";
@@ -34,6 +36,8 @@ test("CORS 允许 Idempotency-Key，显式非法角色为 400，模型全失败�
   const env = careEnv();
   const options = await callWorker(env, "/api/chat", { method: "OPTIONS", token: "" });
   assert.match(options.headers.get("Access-Control-Allow-Headers"), /Idempotency-Key/);
+  const configOptions = await callWorker(env, "/api/staff/config", { method: "OPTIONS", token: "" });
+  assert.match(configOptions.headers.get("Access-Control-Allow-Methods"), /PUT/);
   const invalid = await callWorker(env, "/api/chat", { body: { text: "你好", role: "BAD" } });
   assert.equal(invalid.status, 400);
   const unavailable = await responseBody(await callWorker(env, "/api/chat", { body: { text: "你好", role: "R1" } }));
@@ -190,4 +194,155 @@ test("目录版本更新不会修改已创建任务快照", async () => {
   const read = await responseBody(await callWorker(env, "/api/care/tasks/" + taskId, { method: "GET" }));
   assert.equal(read.body.task.catalog_version, "v1");
   assert.deepEqual(read.body.task.steps, created.body.task.steps);
+});
+
+const PATIENT_TOKEN = "patient-token-001";
+function patientAiEnv(overrides = {}) {
+  const env = { ...careEnv(), DASHSCOPE_KEY: "test-only-dashscope", ...overrides };
+  env.KV.seed("access:" + PATIENT_TOKEN, { tenant_id: "tenant1", status: "active", expires_at: Date.now() + 3600000 });
+  env.KV.seed("sub:tenant1", { status: "active", expires_at: Date.now() + 3600000 });
+  return env;
+}
+function patientAiBody(overrides = {}) {
+  return { access: PATIENT_TOKEN, tenant_id: "tenant1", role: "R1", text: "整理复诊资料", ...overrides };
+}
+async function withWorkerFetch(mock, run) {
+  const original = globalThis.fetch;
+  globalThis.fetch = mock;
+  try { return await run(); }
+  finally { globalThis.fetch = original; }
+}
+function qwenResponse(content = "本地模拟回复", status = 200) {
+  if (status !== 200) return new Response(JSON.stringify({ error: { message: "mock upstream failure" } }), { status });
+  return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status, headers: { "Content-Type": "application/json" } });
+}
+
+test("患者 AI 路由复用患者码与医院订阅双锁并拒绝跨租户和非 R1 角色", async () => {
+  let modelCalls = 0;
+  await withWorkerFetch(async () => { modelCalls += 1; return qwenResponse(); }, async () => {
+    const env = patientAiEnv();
+    const cases = [
+      [{ access: "" }, 400, "INVALID_ACCESS"],
+      [{ access: "unknown-token" }, 404, "ACCESS_NOT_FOUND"],
+      [{ tenant_id: "other" }, 404, "ACCESS_NOT_FOUND"],
+      [{ role: "R2" }, 403, "CARE_ROLE_FORBIDDEN"]
+    ];
+    for (const [override, status, code] of cases) {
+      const { response, body } = await responseBody(await callWorker(env, "/api/ai/chat", { body: patientAiBody(override), token: "" }));
+      assert.equal(response.status, status);
+      assert.equal(body.code, code);
+    }
+    const expiredAccess = patientAiEnv();
+    expiredAccess.KV.seed("access:" + PATIENT_TOKEN, { tenant_id: "tenant1", status: "active", expires_at: Date.now() - 1 });
+    const accessResult = await responseBody(await callWorker(expiredAccess, "/api/ai/chat", { body: patientAiBody(), token: "" }));
+    assert.equal(accessResult.response.status, 403);
+    assert.equal(accessResult.body.code, "ACCESS_EXPIRED");
+
+    const expiredHospital = patientAiEnv();
+    expiredHospital.KV.seed("sub:tenant1", { status: "active", expires_at: Date.now() - 1 });
+    const hospitalResult = await responseBody(await callWorker(expiredHospital, "/api/ai/chat", { body: patientAiBody(), token: "" }));
+    assert.equal(hospitalResult.response.status, 403);
+    assert.equal(hospitalResult.body.code, "HOSPITAL_EXPIRED");
+  });
+  assert.equal(modelCalls, 0);
+});
+
+test("患者 AI SSE 在上游成功后输出，历史和当前病历均在 Worker 脱敏", async () => {
+  const env = patientAiEnv();
+  let upstreamBody;
+  await withWorkerFetch(async (url, options) => {
+    assert.equal(String(url), "https://dashscope.cn-beijing.aliyuncs.com/compatible-mode/v1/chat/completions");
+    upstreamBody = JSON.parse(options.body);
+    return qwenResponse("第一段\n第二段");
+  }, async () => {
+    const response = await callWorker(env, "/api/ai/chat", {
+      body: patientAiBody({
+        text: "姓名：赵六，手机号：13800138000，住12床",
+        history: [{ role: "user", content: "地址：北京市海淀区中关村大街27号" }],
+        stream: true
+      }),
+      token: ""
+    });
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("Content-Type"), /^text\/event-stream/);
+    assert.equal(response.headers.get("Access-Control-Allow-Origin"), "*");
+    const text = await response.text();
+    assert.ok(text.endsWith("data: [DONE]\n\n"));
+    const reply = text.split(/\r?\n\r?\n/).filter((event) => event.startsWith("data: {")).map((event) => {
+      const chunk = JSON.parse(event.slice(6));
+      return chunk.choices[0].delta.content;
+    }).join("");
+    assert.equal(reply, "第一段\n第二段");
+  });
+  const serialized = JSON.stringify(upstreamBody);
+  for (const sensitive of ["赵六", "13800138000", "12床", "北京市海淀区中关村大街27号"]) assert.equal(serialized.includes(sensitive), false);
+  assert.ok(serialized.includes("[姓名已脱敏]"));
+  assert.ok(serialized.includes("[手机号已脱敏]"));
+  assert.ok(serialized.includes("[床位已脱敏]"));
+  assert.ok(serialized.includes("[地址已脱敏]"));
+});
+
+test("通义非 200 在患者 AI 路由返回 JSON 错误而不是成功 SSE", async () => {
+  const env = patientAiEnv();
+  await withWorkerFetch(async () => qwenResponse("", 503), async () => {
+    const response = await callWorker(env, "/api/ai/chat", { body: patientAiBody({ stream: true }), token: "" });
+    assert.equal(response.status, 502);
+    assert.match(response.headers.get("Content-Type"), /^application\/json/);
+    const body = await response.json();
+    assert.equal(body.ok, false);
+    assert.equal(body.code, "DASHSCOPE_UPSTREAM_ERROR");
+    assert.match(body.msg, /HTTP 503/);
+    assert.equal(JSON.stringify(body).includes("[DONE]"), false);
+  });
+});
+
+test("患者 AI 使用 KV 限流每分钟 20 次，第 21 次不再调用模型", async () => {
+  const env = patientAiEnv();
+  let modelCalls = 0;
+  await withWorkerFetch(async () => { modelCalls += 1; return qwenResponse("第" + modelCalls + "次"); }, async () => {
+    for (let i = 0; i < 20; i++) {
+      const { response, body } = await responseBody(await callWorker(env, "/api/ai/chat", { body: patientAiBody(), token: "" }));
+      assert.equal(response.status, 200, JSON.stringify(body));
+      assert.equal(body.ok, true);
+      assert.equal(body.role, "P-ASSIST");
+      assert.equal(body.reply, "第" + (i + 1) + "次");
+    }
+    const limited = await responseBody(await callWorker(env, "/api/ai/chat", { body: patientAiBody({ stream: true }), token: "" }));
+    assert.equal(limited.response.status, 429);
+    assert.equal(limited.body.code, "AI_RATE_LIMITED");
+  });
+  assert.equal(modelCalls, 20);
+  const rateKeys = (await env.KV.list({ prefix: "rl:care-ai:" + PATIENT_TOKEN + ":" })).keys;
+  assert.equal(rateKeys.length, 1);
+  assert.equal(await env.KV.get(rateKeys[0].name), "20");
+});
+
+test("前后端分离只维护一个公开后端地址，可切换阿里云或腾讯云函数入口", async () => {
+  const read = (name) => readFile(new URL("../" + name, import.meta.url), "utf8");
+  const config = await read("frontend/deploy-config.js");
+  const pages = await Promise.all(["frontend/index.html", "frontend/staff.html", "frontend/console.html"].map(read));
+  const templates = await Promise.all(["templates/配置模板_基础版.json", "templates/配置模板_升级版.json"].map(read));
+
+  assert.equal((config.match(/https:\/\//g) || []).length, 1);
+  for (const page of pages) {
+    assert.ok(page.includes('<script src="deploy-config.js"></script>'));
+    assert.doesNotMatch(page, /(?:pages|workers)\.dev/);
+  }
+  for (const template of templates) assert.equal(JSON.parse(template).ai, "");
+  assert.ok(pages[0].includes("const AI_BASE = AI_DEFAULT;"));
+  assert.ok(!pages[0].includes("|| AI_DEFAULT"));
+
+  for (const target of [
+    "https://demo.cn-beijing.fcapp.run",
+    "https://demo.ap-beijing.tencentscf.com"
+  ]) {
+    const migrated = config.replace(/(window\.CARE_API_BASE_URL = ')[^']+(';)/, "$1" + target + "$2");
+    const sandbox = { window: {} };
+    runInNewContext(migrated, sandbox);
+    assert.equal(sandbox.window.CARE_API_BASE_URL, target);
+  }
+
+  const sw = await read("frontend/sw.js");
+  assert.ok(sw.includes("companion-sw-2026.11.41"));
+  assert.ok(!sw.includes("deploy-config.js"));
 });

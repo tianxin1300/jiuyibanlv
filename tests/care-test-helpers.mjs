@@ -1,5 +1,5 @@
 export class MemoryKV {
-  constructor() { this.data = new Map(); }
+  constructor() { this.data = new Map(); this.failKey = ""; }
   seed(key, value) { this.data.set(key, typeof value === "string" ? value : JSON.stringify(value)); }
   async get(key, type) {
     const value = this.data.has(key) ? this.data.get(key) : null;
@@ -7,12 +7,39 @@ export class MemoryKV {
     if (type === "json") return JSON.parse(value);
     return value;
   }
-  async put(key, value) { this.data.set(key, String(value)); }
+  async put(key, value) {
+    if (this.failKey === key) throw new Error("injected KV write failure");
+    this.data.set(key, String(value));
+  }
   async delete(key) { this.data.delete(key); }
   async list({ prefix = "" } = {}) {
     return { keys: [...this.data.keys()].filter((key) => key.startsWith(prefix)).map((name) => ({ name })), list_complete: true };
   }
   async getWithMetadata(key, type) { return { value: await this.get(key, type), metadata: null }; }
+}
+
+export class MemoryR2 {
+  constructor() { this.data = new Map(); }
+  async put(key, value, options = {}) {
+    const bytes = value instanceof ArrayBuffer
+      ? new Uint8Array(value)
+      : ArrayBuffer.isView(value)
+        ? new Uint8Array(value.buffer, value.byteOffset, value.byteLength)
+        : new TextEncoder().encode(String(value));
+    this.data.set(key, {
+      bytes: new Uint8Array(bytes), size: bytes.byteLength,
+      httpMetadata: { ...(options.httpMetadata || {}) },
+      customMetadata: { ...(options.customMetadata || {}) }
+    });
+  }
+  async get(key) {
+    const object = this.data.get(key);
+    if (!object) return null;
+    return {
+      body: new Uint8Array(object.bytes), size: object.size,
+      httpMetadata: { ...object.httpMetadata }, customMetadata: { ...object.customMetadata }
+    };
+  }
 }
 
 export class MemoryStorage {

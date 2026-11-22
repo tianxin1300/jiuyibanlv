@@ -11,6 +11,8 @@ node_modules/
 # 本地环境与密钥
 .env
 .env.*
+.dev.vars
+.dev.vars.*
 
 # 日志
 *.log

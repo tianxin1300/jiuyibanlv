@@ -10,7 +10,7 @@ import {
   buildCareMessages,
   validCareJsonReply
 } from "../care-prompts.js";
-import { runCareChat } from "../care.js";
+import { redactCareMessages, redactCareText, runCareChat, runCareLlm } from "../care.js";
 import { CareHttpError } from "../care-catalog.js";
 
 const build = (overrides = {}) => buildCareMessages({
@@ -291,4 +291,129 @@ test("LLM 抛错、null、空字符串和纯空白回复均转换为 502", async
       httpError(502, "CARE_MODEL_UNAVAILABLE")
     );
   }
+});
+
+async function withMockFetch(mock, run) {
+  const original = globalThis.fetch;
+  globalThis.fetch = mock;
+  try { return await run(); }
+  finally { globalThis.fetch = original; }
+}
+
+const domesticEnv = () => ({
+  ERNIE_API_KEY: "test-only-api-key",
+  ERNIE_SECRET_KEY: "test-only-secret",
+  DASHSCOPE_KEY: "test-only-dashscope"
+});
+
+test("病历脱敏覆盖字段姓名、身份证、手机号、床位和地址且不破坏普通正文", () => {
+  const input = [
+    "姓名：张三",
+    "身份证：11010519491231002X；旧证件 110105491231002",
+    "手机号：13800138000",
+    "床位：12床",
+    "住在A-3床，地址：上海市浦东新区示例路27号",
+    "现住北京市海淀区中关村大街27号。",
+    "张三今天去复诊，请带一床被子；我问姓名该怎么填。"
+  ].join("\n");
+  const output = redactCareText(input);
+  for (const sensitive of ["11010519491231002X", "110105491231002", "13800138000", "A-3床", "12床", "上海市浦东新区示例路27号", "北京市海淀区中关村大街27号"]) {
+    assert.equal(output.includes(sensitive), false, sensitive);
+  }
+  assert.match(output, /姓名：\[姓名已脱敏\]/);
+  assert.match(output, /地址：\[地址已脱敏\]/);
+  assert.ok(output.includes("张三今天去复诊，请带一床被子；我问姓名该怎么填。"));
+});
+
+test("多段文本消息会脱敏且不改写原消息或非文本片段", () => {
+  const image = { type: "image_url", image_url: { url: "data:image/png;base64,test" } };
+  const messages = [{ role: "user", content: [{ type: "text", text: "手机号：13800138000" }, image] }];
+  const safe = redactCareMessages(messages);
+  assert.equal(safe[0].content[0].text, "手机号：[手机号已脱敏]");
+  assert.deepEqual(safe[0].content[1], image);
+  assert.equal(messages[0].content[0].text, "手机号：13800138000");
+});
+
+test("百度千帆优先，OAuth 与聊天请求只收到脱敏消息", async () => {
+  const calls = [];
+  let overseasCalls = 0;
+  await withMockFetch(async (url, options) => {
+    calls.push({ url: String(url), options });
+    if (String(url).includes("/oauth/2.0/token")) return new Response(JSON.stringify({ access_token: "mock-token", expires_in: 3600 }));
+    if (String(url).includes("ernie-speed-128k")) return new Response(JSON.stringify({ result: "百度回复" }));
+    throw new Error("不应调用其他上游");
+  }, async () => {
+    const info = {};
+    const reply = await runCareLlm(domesticEnv(), [
+      { role: "system", content: "只整理资料" },
+      { role: "user", content: "姓名：李四\n手机号：13900139000\n住8床" }
+    ], info, 10000, undefined, async () => { overseasCalls += 1; return "海外"; });
+    assert.equal(reply, "百度回复");
+    assert.equal(info.from, "ERNIE");
+  });
+  assert.equal(overseasCalls, 0);
+  assert.equal(calls.length, 2);
+  const body = JSON.parse(calls[1].options.body);
+  assert.equal(body.stream, false);
+  assert.equal(body.system, "只整理资料");
+  assert.equal(body.messages[0].content.includes("李四"), false);
+  assert.equal(body.messages[0].content.includes("13900139000"), false);
+  assert.equal(body.messages[0].content.includes("8床"), false);
+  assert.match(calls[0].url, /client_id=test-only-api-key/);
+  assert.match(calls[1].url, /access_token=mock-token/);
+});
+
+test("百度网络失败时通义千问作为备用且仍使用北京地域", async () => {
+  let qwenCalls = 0, overseasCalls = 0;
+  await withMockFetch(async (url, options) => {
+    if (String(url).includes("baidubce.com")) throw new TypeError("mock network failure");
+    qwenCalls += 1;
+    assert.equal(String(url), "https://dashscope.cn-beijing.aliyuncs.com/compatible-mode/v1/chat/completions");
+    assert.equal(options.headers.Authorization, "Bearer test-only-dashscope");
+    return new Response(JSON.stringify({ choices: [{ message: { content: "通义回复" } }] }));
+  }, async () => {
+    const info = {};
+    const reply = await runCareLlm(domesticEnv(), [{ role: "user", content: "整理复诊问题" }], info, 10000, undefined, async () => { overseasCalls += 1; return "海外"; });
+    assert.equal(reply, "通义回复");
+    assert.equal(info.from, "Qwen");
+  });
+  assert.equal(qwenCalls, 1);
+  assert.equal(overseasCalls, 0);
+});
+
+test("未配置国内密钥时原有海外兜底收到同一份脱敏消息", async () => {
+  const original = [{ role: "user", content: "姓名：王五，手机号：13800138000" }];
+  const reply = await runCareLlm({}, original, {}, 10000, undefined, async (_env, messages, _info, budget) => {
+    assert.ok(budget > 0 && budget <= 10000);
+    assert.equal(messages[0].content, "姓名：[姓名已脱敏]，手机号：[手机号已脱敏]");
+    return "海外兜底回复";
+  });
+  assert.equal(reply, "海外兜底回复");
+  assert.equal(original[0].content, "姓名：王五，手机号：13800138000");
+});
+
+test("百度明确非 200 立即报错，不切换通义也不进入海外成功流", async () => {
+  let qwenCalls = 0, overseasCalls = 0;
+  await withMockFetch(async (url) => {
+    if (String(url).includes("/oauth/2.0/token")) return new Response(JSON.stringify({ access_token: "mock-token" }));
+    if (String(url).includes("baidubce.com")) return new Response(JSON.stringify({ error_code: 110, error_msg: "mock upstream denied" }), { status: 429 });
+    qwenCalls += 1;
+    return new Response(JSON.stringify({ choices: [{ message: { content: "不应成功" } }] }));
+  }, async () => {
+    await assert.rejects(
+      runCareLlm(domesticEnv(), [{ role: "user", content: "测试" }], {}, 10000, undefined, async () => { overseasCalls += 1; return "不应成功"; }),
+      httpError(502, "ERNIE_UPSTREAM_ERROR")
+    );
+  });
+  assert.equal(qwenCalls, 0);
+  assert.equal(overseasCalls, 0);
+});
+
+test("通义 HTTP 200 中的业务错误仍按上游失败返回", async () => {
+  await withMockFetch(async () => new Response(JSON.stringify({ error: { message: "mock quota stopped" } })), async () => {
+    await assert.rejects(
+      runCareLlm({ DASHSCOPE_KEY: "test-only" }, [{ role: "user", content: "测试" }], {}, 10000, undefined, async () => "不应成功", "qwen"),
+      httpError(502, "DASHSCOPE_UPSTREAM_ERROR")
+    );
+  });
 });

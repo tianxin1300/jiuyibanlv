@@ -1,5 +1,5 @@
-import { runCareChat, careActorFromReq, prepareCareTask, careTaskDo, CareHttpError } from "./care.js";
-import { careTenantId, careOptionIds, loadCareCatalog, matchCareCatalog, proxyFastGptMatch, validateCareCatalog } from "./care-catalog.js";
+import { runCareChat, runCareLlm, careActorFromReq, prepareCareTask, careTaskDo, CareHttpError } from "./care.js";
+import { CARE_CONTROL_FIELDS, careTenantId, careAssetId, careOptionIds, loadCareCatalog, matchCareCatalog, proxyFastGptMatch, validateCareCatalog } from "./care-catalog.js";
 import { CARE_MODULES, normalizeCareRole } from "./care-prompts.js";
 
 // openmanus-gateway v99y：一个脑子。飞书消息不再自己猜意图，直接调前端同一个 runWorkChat（同一份 WORK_SYSTEM_PROMPT / 同一个模型轮换 / 同一张 FS_TOOLS）。选哪个工具完全由模型自己定：代码里没有关键词分流、没有白名单、没有预调工具，只给任务结构（工具表 + 会话态 + 多轮循环 + 最终自由文本）。删掉飞书先猜意图那层 / 关键词 if-else / 写文档先搜一遍 / 待办提醒与待办表混用。
@@ -280,7 +280,7 @@ const WORK_MODELS = {
 // v93 备用模型（Key 只放环境变量，代码里没有）：Poe = POE_API_KEY + 可选 POE_MODELS(逗号分隔，默认 GPT-4o-mini,Gemini-2.5-Flash)；Coze = COZE_API_TOKEN + COZE_BOT_ID + COZE_API_BASE(默认 https://api.coze.cn)；火山豆包 = VOLCANO_API_KEY + 可选 VOLCANO_MODEL(默认 doubao-seed-1.6-flash)。
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
+  "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type,Authorization,Idempotency-Key",
   "Access-Control-Max-Age": "86400"
 };
@@ -318,11 +318,23 @@ const careUpstream = (response) => {
   for (const [key, value] of Object.entries(CORS)) headers.set(key, value);
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 };
+function careAiSse(result) {
+  const encoder = new TextEncoder();
+  const parts = String(result.reply || "").match(/[\s\S]{1,80}/g) || [];
+  const stream = new ReadableStream({
+    start(controller) {
+      for (const content of parts) controller.enqueue(encoder.encode("data: " + JSON.stringify({ choices: [{ delta: { role: "assistant", content } }] }) + "\n\n"));
+      controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+      controller.close();
+    }
+  });
+  return new Response(stream, { headers: { ...CORS, "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "X-Content-Type-Options": "nosniff" } });
+}
 
 const xmlEsc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]));
 // KV 的 metadata 总共不能超过 1024 字节：prompt/name 太长会让 put 直接抛错(生成图片/语音、上传都会 500)。统一在这里截断。
 const KV_BLOCK = { until: 0 };      // KV 写入额度爆了（“put() limit exceeded”）以后，这个时间点之前非关键写入直接跳过，不再每次都撞错
-const KV_HARD = /^(todos|tasks|user|history|projects|file|share|kb|fb|token|loc|rl|memory):|^mem:(todo|note):|^agg$/;      // 用户数据 / 登录：写失败必须报错，不能假装保存了；其余（日志、缓存、去重、token 缓存、热榜缓存、聊天记忆…）都算非关键
+const KV_HARD = /^(todos|tasks|user|history|projects|file|share|kb|fb|token|loc|rl|memory|care):|^mem:(todo|note):|^agg$/;      // 用户数据 / 登录：写失败必须报错，不能假装保存了；其余（日志、缓存、去重、token 缓存、热榜缓存、聊天记忆…）都算非关键
 function safeKV(kv) {
   if (!kv) return kv;
   const quota = (e) => /limit exceeded/i.test(String(e && e.message || e));
@@ -403,7 +415,23 @@ async function adminAudit(env, op, detail, ip) {
   } catch (e) { /* 审计失败不阻断操作 */ }
 }
 // ---- 医院订阅与两类二维码：患者有效期、医院续期分开存储，不接真实支付 ----
-const PATIENT_ORIGIN = "https://jiuyibanlv.pages.dev";
+function billingPatientOrigin(env, request) {
+  const validBase = (value, keepPath) => {
+    try {
+      const u = new URL(String(value || "").trim());
+      const local = u.protocol === "http:" && (u.hostname === "localhost" || u.hostname === "127.0.0.1");
+      if (u.protocol !== "https:" && !local) return "";
+      return (keepPath ? u.href.replace(/\/+$/, "") : u.origin);
+    } catch { return ""; }
+  };
+  const configured = validBase(env.PATIENT_BASE_URL, true);
+  if (configured) return configured;
+  const fromOrigin = validBase(request.headers.get("Origin"), false);
+  if (fromOrigin) return fromOrigin;
+  const fromReferer = validBase(request.headers.get("Referer"), false);
+  if (fromReferer) return fromReferer;
+  return validBase(request.url, false);
+}
 const BILLING_PLANS = {
   trial7: { days: 7, label: "试用 7 天" },
   trial30: { days: 30, label: "试用 30 天" },
@@ -442,31 +470,76 @@ function staffTenant(ctx, requested) {
   if (ids.length !== 1) return { error: json({ ok: false, code: "TENANT_REQUIRED", msg: "请指定 tenant_id" }, 400) };
   return { tenantId: ids[0] };
 }
+function publicCatalogImage(value) {
+  const ref = String(value == null ? "" : value).trim();
+  if (careAssetId(ref)) return "asset:" + careAssetId(ref);
+  return /^img\/[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9_.-]{1,100}\.(jpg|jpeg|png|webp)$/i.test(ref) ? ref : "";
+}
 function billingPublicConfig(catalog, tenantId) {
-  const rawServices = catalog && catalog.services && typeof catalog.services === "object" ? Object.values(catalog.services) : [];
-  const text = (v, n) => String(v == null ? "" : v).slice(0, n);
+  catalog = validateCareCatalog(catalog);
+  const rawServices = Object.values(catalog.services);
+  const optionIds = {};
+  for (const [optionId, serviceId] of Object.entries(catalog.options)) {
+    (optionIds[serviceId] || (optionIds[serviceId] = [])).push(optionId);
+  }
   const serviceCard = (s, tag) => ({
-    t: text(s.name, 30), d: text([s.department, s.clinic_hours].filter(Boolean).join(" · "), 120),
-    img: "", price: text(s.price, 30), tag
+    service_id: s.service_id, option_ids: optionIds[s.service_id] || [],
+    t: s.name, d: [s.department, s.clinic_hours].filter(Boolean).join(" · "),
+    department: s.department, clinic_hours: s.clinic_hours,
+    materials: Array.isArray(s.materials) ? [...s.materials] : s.materials,
+    booking_channel: s.booking_channel, service_type: s.service_type,
+    img: publicCatalogImage(s.image_url), price: s.price, tag
   });
-  const projects = rawServices.filter((s) => s && s.service_type === "project");
-  const benefits = rawServices.filter((s) => s && s.service_type === "benefit");
-  return {
-    n: text(catalog.hospital_name || tenantId, 40),
-    w: text(catalog.welcome || "医院服务、惠民服务和就诊流程以本院当前配置为准。", 200),
-    c: /^#[0-9a-fA-F]{6}$/.test(String(catalog.theme || "")) ? catalog.theme : "#2563eb",
-    ver: text(catalog.catalog_version || "1", 20), tid: tenantId,
-    show: projects.slice(0, 8).map((s) => serviceCard(s, "医院服务")),
-    benefits: benefits.slice(0, 10).map((s) => serviceCard(s, "惠民服务")),
-    jny: rawServices.slice(0, 6).map((s) => ({
-      id: text(s.service_id, 30), t: text(s.name, 30), note: text(s.booking_channel, 120),
-      steps: (Array.isArray(s.steps) ? s.steps : []).slice(0, 15).map((step) => ({
-        t: text(step.text, 40),
-        d: text([step.time, step.location, Array.isArray(step.materials) ? step.materials.join("、") : step.materials].filter(Boolean).join(" · "), 160)
+  const projects = rawServices.filter((s) => s.service_type === "project");
+  const benefits = rawServices.filter((s) => s.service_type === "benefit");
+  const out = {
+    n: catalog.n || tenantId,
+    w: catalog.w || "医院服务、惠民服务和就诊流程以本院当前配置为准。",
+    c: catalog.c, l: publicCatalogImage(catalog.l), splash: catalog.splash,
+    ver: catalog.catalog_version, tid: tenantId,
+    dept: catalog.dept, tel: catalog.tel, book: catalog.book,
+    vip: catalog.vip, ann: catalog.ann, pre: catalog.pre, campus: catalog.campus, sched: catalog.sched,
+    dis: catalog.dis, rg: catalog.rg, showRef: catalog.showRef, hideRef: catalog.hideRef,
+    show: projects.map((s) => serviceCard(s, "医院服务")),
+    benefits: benefits.map((s) => serviceCard(s, "惠民服务")),
+    jny: rawServices.map((s) => ({
+      id: s.service_id, service_id: s.service_id, option_ids: optionIds[s.service_id] || [],
+      t: s.name, note: s.booking_channel, img: publicCatalogImage(s.image_url),
+      steps: s.steps.map((step) => ({
+        step: step.step, t: step.text,
+        d: [step.time, step.location, Array.isArray(step.materials) ? step.materials.join("、") : step.materials].filter(Boolean).join(" · "),
+        materials: Array.isArray(step.materials) ? [...step.materials] : step.materials,
+        time: step.time, location: step.location, official_url: step.official_url
       }))
     })),
-    act: [], pre: [], vip: [], ann: [], campus: [], sched: []
+    act: catalog.act.map((activity) => ({ ...activity, items: activity.items.map((item) => ({ ...item })) }))
   };
+  for (const key of CARE_CONTROL_FIELDS) {
+    if (key !== "tenant_id" && Object.prototype.hasOwnProperty.call(catalog, key)) out[key] = catalog[key];
+  }
+  return out;
+}
+const CATALOG_IMAGE_MAX = 2 * 1024 * 1024;
+const CATALOG_ASSET_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const catalogAssetKey = (tenantId, assetId) => "catalog/" + tenantId + "/" + assetId;
+function detectCatalogImage(bytes) {
+  if (bytes.length >= 24 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a) return "image/png";
+  if (bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff && bytes[bytes.length - 2] === 0xff && bytes[bytes.length - 1] === 0xd9) return "image/jpeg";
+  if (bytes.length >= 16 && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) return "image/webp";
+  return "";
+}
+function catalogImageResponse(object) {
+  const mime = object && object.httpMetadata && object.httpMetadata.contentType;
+  if (!["image/png", "image/jpeg", "image/webp"].includes(mime)) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在或尚未发布" }, 404);
+  return new Response(object.body, { headers: {
+    ...CORS, "Content-Type": mime, "Content-Length": String(object.size || 0),
+    "Content-Disposition": "inline", "X-Content-Type-Options": "nosniff", "Cache-Control": "private, max-age=60"
+  } });
+}
+function catalogReferencesAsset(catalog, assetId) {
+  const ref = "asset:" + assetId;
+  if (catalog.l === ref) return true;
+  return Object.values(catalog.services).some((service) => service.image_url === ref);
 }
 const BILLING_PRICE_LABEL = "价格口径待确认";
 function billingToken(value) {
@@ -488,23 +561,45 @@ function billingSubscriptionOut(tenantId, sub) {
 function billingAccessState(rec, now = Date.now()) {
   return rec && rec.status === "active" && Number(rec.expires_at) > now ? "active" : "expired";
 }
-function billingAccessOut(rec) {
+async function carePatientAccess(env, rawToken, requestedTenant) {
+  if (!env.KV) return { error: json({ ok: false, code: "KV_NOT_BOUND", msg: "KV 没有绑定" }, 503) };
+  const token = billingToken(rawToken);
+  if (!token) return { error: json({ ok: false, code: "INVALID_ACCESS", msg: "缺少有效患者码，请使用医院发放的二维码" }, 400) };
+  const rec = await env.KV.get("access:" + token, "json").catch(() => null);
+  const tenant = String(requestedTenant || "").trim();
+  if (!rec || (tenant && tenant !== rec.tenant_id)) return { error: json({ ok: false, code: "ACCESS_NOT_FOUND", msg: "患者链接无效，请联系医院重新获取" }, 404) };
+  if (billingAccessState(rec) !== "active") return { error: json({ ok: false, code: "ACCESS_EXPIRED", msg: "医院服务已到期，请联系医院续期" }, 403) };
+  const sub = await env.KV.get("sub:" + rec.tenant_id, "json").catch(() => null);
+  if (billingSubscriptionState(sub) !== "active") return { error: json({ ok: false, code: "HOSPITAL_EXPIRED", msg: "医院服务已到期，请联系医院续期" }, 403) };
+  return { token, rec };
+}
+async function careAiRateLimit(env, token) {
+  const key = "care-ai:" + token + ":" + Math.floor(Date.now() / 60000);
+  try {
+    if (!(await rlOk(env, key, 20))) return false;
+    await rlHit(env, key, 120);
+    return true;
+  } catch {
+    throw new CareHttpError(503, "患者调用限流记录不可用，请稍后再试", "AI_RATE_LIMIT_UNAVAILABLE");
+  }
+}
+function billingAccessOut(rec, origin) {
   return {
     id: rec.token, tenant_id: rec.tenant_id, plan: rec.plan, plan_label: rec.plan_label,
     created_at: rec.created_at, expires_at: rec.expires_at, first_scan_at: rec.first_scan_at || null,
     last_scan_at: rec.last_scan_at || null, scan_count: Number(rec.scan_count) || 0,
     status: rec.status, state: billingAccessState(rec), price_label: BILLING_PRICE_LABEL,
-    url: PATIENT_ORIGIN + "/?hospital=" + encodeURIComponent(rec.tenant_id) + "&access=" + encodeURIComponent(rec.token)
+    url: origin + "/?hospital=" + encodeURIComponent(rec.tenant_id) + "&access=" + encodeURIComponent(rec.token)
   };
 }
-function billingRenewalOut(rec) {
+function billingRenewalOut(rec, origin) {
   return {
     id: rec.token, tenant_id: rec.tenant_id, plan: rec.plan, plan_label: rec.plan_label,
     created_at: rec.created_at, status: rec.status, scanned_at: rec.scanned_at || null,
     scanned_by: rec.scanned_by || "", confirmed_at: rec.confirmed_at || null,
     confirmed_by: rec.confirmed_by || "admin", new_expires_at: rec.new_expires_at || null,
     price_label: BILLING_PRICE_LABEL,
-    url: PATIENT_ORIGIN + "/staff.html?renew=" + encodeURIComponent(rec.token)
+    url: origin + "/staff.html?renew=" + encodeURIComponent(rec.token)
   };
 }
 async function billingRecords(env, kind, max = 500) {
@@ -4912,6 +5007,7 @@ async function lmSyncTodo(env, user, all) {       // todo_add / todo_done 成功
 async function handle(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
+    const patientOrigin = billingPatientOrigin(env, request);
     if (request.method === "OPTIONS") return new Response("", { headers: CORS });
 
     const stored = env.KV ? await env.KV.get("agg") : null;
@@ -5850,7 +5946,7 @@ async function handle(request, env, ctx) {
       if (path === "/api/admin/access" && request.method === "GET") {
         const tenantId = String(url.searchParams.get("tenant_id") || "").trim();
         const rows = (await billingRecords(env, "access")).filter((r) => !tenantId || r.tenant_id === tenantId);
-        return json({ ok: true, rows: rows.map(billingAccessOut), price_label: BILLING_PRICE_LABEL });
+        return json({ ok: true, rows: rows.map((r) => billingAccessOut(r, patientOrigin)), price_label: BILLING_PRICE_LABEL });
       }
       if (path === "/api/admin/access" && request.method === "POST") {
         const b = await request.json().catch(() => ({}));
@@ -5872,12 +5968,12 @@ async function handle(request, env, ctx) {
           await env.KV.put("sub:" + tenantId, JSON.stringify(sub));
         }
         await adminAudit(env, "access-create", tenantId + " " + plan.label, ip);
-        return json({ ok: true, record: billingAccessOut({ ...rec, token }), subscription: billingSubscriptionOut(tenantId, sub) });
+        return json({ ok: true, record: billingAccessOut({ ...rec, token }, patientOrigin), subscription: billingSubscriptionOut(tenantId, sub) });
       }
       if (path === "/api/admin/renewals" && request.method === "GET") {
         const tenantId = String(url.searchParams.get("tenant_id") || "").trim();
         const rows = (await billingRecords(env, "renew")).filter((r) => !tenantId || r.tenant_id === tenantId);
-        return json({ ok: true, rows: rows.map(billingRenewalOut), price_label: BILLING_PRICE_LABEL });
+        return json({ ok: true, rows: rows.map((r) => billingRenewalOut(r, patientOrigin)), price_label: BILLING_PRICE_LABEL });
       }
       if (path === "/api/admin/renewals" && request.method === "POST") {
         const b = await request.json().catch(() => ({}));
@@ -5893,7 +5989,7 @@ async function handle(request, env, ctx) {
         };
         await env.KV.put("renew:" + token, JSON.stringify(rec));
         await adminAudit(env, "renewal-create", tenantId + " " + plan.label, ip);
-        return json({ ok: true, record: billingRenewalOut({ ...rec, token }) });
+        return json({ ok: true, record: billingRenewalOut({ ...rec, token }, patientOrigin) });
       }
       if (path === "/api/admin/renewals/confirm" && request.method === "POST") {
         const b = await request.json().catch(() => ({})), token = billingToken(b.id || b.token);
@@ -5914,7 +6010,7 @@ async function handle(request, env, ctx) {
         const confirmed = { ...rec, status: "confirmed", confirmed_at: now, confirmed_by: "admin", new_expires_at: sub.expires_at };
         await env.KV.put("renew:" + token, JSON.stringify(confirmed));
         await adminAudit(env, "renewal-confirm", rec.tenant_id + " " + plan.label + " 扫码人:" + (rec.scanned_by || "未知"), ip);
-        return json({ ok: true, subscription: billingSubscriptionOut(rec.tenant_id, sub), record: billingRenewalOut({ ...confirmed, token }), msg: "已确认续期；未发生真实扣款" });
+        return json({ ok: true, subscription: billingSubscriptionOut(rec.tenant_id, sub), record: billingRenewalOut({ ...confirmed, token }, patientOrigin), msg: "已确认续期；未发生真实扣款" });
       }
       if (path === "/api/admin/tokens" && request.method === "GET") {
         const keys = await adminListAll(env, "qr:", 300);
@@ -6026,7 +6122,7 @@ async function handle(request, env, ctx) {
         let normalized;
         try { normalized = validateCareCatalog(catalog); }
         catch (e) { return json({ ok: false, code: "INVALID_CATALOG", msg: String(e && e.message || e) }, 422); }
-        await env.KV.put("care:catalog:" + tenantId, JSON.stringify(catalog));
+        await env.KV.put("care:catalog:" + tenantId, JSON.stringify(normalized));
         await adminAudit(env, "config-save", tenantId + " " + normalized.catalog_version, ip);
         return json({ ok: true, tenant_id: tenantId, catalog_version: normalized.catalog_version });
       }
@@ -6055,6 +6151,29 @@ async function handle(request, env, ctx) {
       return json({ ok: false, code: "NOT_FOUND", msg: "接口不存在" }, 404);
     }
 
+    // ---- 患者公开图片：只读当前已发布目录引用的本院素材，不增加患者扫码次数 ----
+    if (path === "/api/public/catalog-image" && request.method === "GET") {
+      const token = billingToken(url.searchParams.get("access"));
+      if (!token) return json({ ok: false, code: "INVALID_ACCESS", msg: "患者链接不完整" }, 400);
+      const rec = await env.KV.get("access:" + token, "json").catch(() => null);
+      const requestedTenant = String(url.searchParams.get("tenant_id") || "").trim();
+      if (!rec || (requestedTenant && requestedTenant !== rec.tenant_id)) return json({ ok: false, code: "ACCESS_NOT_FOUND", msg: "患者链接无效" }, 404);
+      if (billingAccessState(rec) !== "active") return json({ ok: false, code: "ACCESS_EXPIRED", msg: "医院服务已到期，请联系医院续期" }, 403);
+      const sub = await env.KV.get("sub:" + rec.tenant_id, "json").catch(() => null);
+      if (billingSubscriptionState(sub) !== "active") return json({ ok: false, code: "HOSPITAL_EXPIRED", msg: "医院服务已到期，请联系医院续期" }, 403);
+      const assetId = String(url.searchParams.get("asset_id") || "").trim();
+      if (!CATALOG_ASSET_ID.test(assetId)) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在或尚未发布" }, 404);
+      const catalog = await env.KV.get("care:catalog:" + rec.tenant_id, "json").catch(() => null);
+      let normalized;
+      try { normalized = validateCareCatalog(catalog); }
+      catch (e) { return json({ ok: false, code: "CATALOG_UNAVAILABLE", msg: "医院服务配置尚未发布完整" }, 503); }
+      if (!catalogReferencesAsset(normalized, assetId)) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在或尚未发布" }, 404);
+      if (!env.CARE_ASSETS) return json({ ok: false, code: "R2_NOT_BOUND", msg: "医院图片存储尚未配置" }, 503);
+      const object = await env.CARE_ASSETS.get(catalogAssetKey(rec.tenant_id, assetId));
+      if (!object) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在或尚未发布" }, 404);
+      return catalogImageResponse(object);
+    }
+
     // ---- 患者二维码公开访问：患者码有效期与医院订阅有效期是两把独立的锁 ----
     if (path === "/api/public/access" && request.method === "GET") {
       const token = billingToken(url.searchParams.get("token"));
@@ -6067,7 +6186,8 @@ async function handle(request, env, ctx) {
       if (billingSubscriptionState(sub) !== "active") return json({ ok: false, code: "HOSPITAL_EXPIRED", subscription_state: "expired", msg: "医院服务已到期，请联系医院续期" }, 403);
       const catalog = await env.KV.get("care:catalog:" + rec.tenant_id, "json").catch(() => null);
       if (!catalog) return json({ ok: false, code: "CATALOG_NOT_FOUND", msg: "医院还没有发布服务配置，请联系医院" }, 503);
-      try { validateCareCatalog(catalog); }
+      let normalized;
+      try { normalized = validateCareCatalog(catalog); }
       catch (e) { return json({ ok: false, code: "CATALOG_UNAVAILABLE", msg: "医院服务配置尚未发布完整，请联系医院" }, 503); }
       const now = Date.now();
       if (!rec.first_scan_at || now - Number(rec.last_scan_at || 0) > 60000) {
@@ -6077,7 +6197,7 @@ async function handle(request, env, ctx) {
       return json({
         ok: true, tenant_id: rec.tenant_id, plan: rec.plan, plan_label: rec.plan_label,
         expires_at: rec.expires_at, subscription: billingSubscriptionOut(rec.tenant_id, sub),
-        config: billingPublicConfig(catalog, rec.tenant_id), price_label: BILLING_PRICE_LABEL
+        config: billingPublicConfig(normalized, rec.tenant_id), price_label: BILLING_PRICE_LABEL
       });
     }
 
@@ -6092,6 +6212,45 @@ async function handle(request, env, ctx) {
       if (!isStaff) return json({ ok: false, code: "STAFF_FORBIDDEN", msg: "该账号没有院方权限，请联系管理员开通" }, 403);
       const allowed = roles.length ? [...new Set(roles)].sort() : ["R1", "R2", "R3", "R4", "R5", "R6"];
       return json({ ok: true, user: username, roles: allowed, tenant_ids: [...new Set(scopes.map((s) => s.tenant_id))], scopes });
+    }
+    if (path === "/api/staff/config/image" && (request.method === "GET" || request.method === "POST")) {
+      const ctxStaff = await staffContext(env, request, url);
+      if (ctxStaff.error) return ctxStaff.error;
+      if (request.method === "POST" && !ctxStaff.roles.includes("R3")) return json({ ok: false, code: "STAFF_ROLE_FORBIDDEN", msg: "只有 R3 配置交付岗位可以上传医院图片" }, 403);
+      const selected = staffTenant(ctxStaff, url.searchParams.get("tenant_id"));
+      if (selected.error) return selected.error;
+      let tenantId;
+      try { tenantId = careTenantId(selected.tenantId); }
+      catch (e) { return json({ ok: false, code: "INVALID_TENANT", msg: "医院租户 ID 格式不正确" }, 422); }
+      if (!env.CARE_ASSETS) return json({ ok: false, code: "R2_NOT_BOUND", msg: "医院图片存储尚未配置，请联系管理员" }, 503);
+      if (request.method === "GET") {
+        const assetId = String(url.searchParams.get("asset_id") || "").trim();
+        if (!CATALOG_ASSET_ID.test(assetId)) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在" }, 404);
+        const object = await env.CARE_ASSETS.get(catalogAssetKey(tenantId, assetId));
+        if (!object) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在" }, 404);
+        return catalogImageResponse(object);
+      }
+      const declared = String(request.headers.get("Content-Type") || "").split(";", 1)[0].trim().toLowerCase();
+      const contentLength = Number(request.headers.get("Content-Length") || 0);
+      if (contentLength > CATALOG_IMAGE_MAX) return json({ ok: false, code: "IMAGE_TOO_LARGE", msg: "单张图片不能超过 2 MiB" }, 413);
+      let body;
+      try { body = await request.arrayBuffer(); }
+      catch (e) { return json({ ok: false, code: "IMAGE_READ_FAILED", msg: "图片读取失败，请重新选择" }, 400); }
+      const bytes = new Uint8Array(body);
+      if (!bytes.length) return json({ ok: false, code: "IMAGE_EMPTY", msg: "图片内容为空" }, 422);
+      if (bytes.length > CATALOG_IMAGE_MAX) return json({ ok: false, code: "IMAGE_TOO_LARGE", msg: "单张图片不能超过 2 MiB" }, 413);
+      const mime = detectCatalogImage(bytes);
+      if (!mime || declared !== mime) return json({ ok: false, code: "IMAGE_TYPE_INVALID", msg: "只支持真实的 PNG、JPEG、WebP 图片，文件类型必须与内容一致" }, 415);
+      const serviceId = String(url.searchParams.get("service_id") || "").trim();
+      if (serviceId && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(serviceId)) return json({ ok: false, code: "INVALID_SERVICE", msg: "service_id 格式不正确" }, 422);
+      const assetId = Date.now().toString(36) + "-" + rand(8);
+      const hash = hex(await crypto.subtle.digest("SHA-256", body));
+      await env.CARE_ASSETS.put(catalogAssetKey(tenantId, assetId), body, {
+        httpMetadata: { contentType: mime, contentDisposition: "inline", cacheControl: "private, max-age=60" },
+        customMetadata: { tenant_id: tenantId, service_id: serviceId || "logo", mime, size: String(bytes.length), sha256: hash, uploaded_at: String(Date.now()) }
+      });
+      await adminAudit(env, "staff-config-image", tenantId + " 操作人:" + ctxStaff.username + " 素材:" + assetId + " 大小:" + bytes.length, request.headers.get("CF-Connecting-IP") || "0");
+      return json({ ok: true, tenant_id: tenantId, asset_id: assetId, image_url: "asset:" + assetId, size: bytes.length, mime });
     }
     if (path === "/api/staff/config" && request.method === "GET") {
       const username = await userFromReq(request, env, url, "");
@@ -6114,10 +6273,10 @@ async function handle(request, env, ctx) {
       }
       const catalog = await env.KV.get("care:catalog:" + tenantId, "json").catch(() => null);
       if (!catalog) return json({ ok: false, code: "CATALOG_NOT_FOUND", msg: "该医院还没有配置服务目录" }, 404);
-      let valid = true, problem = "";
-      try { validateCareCatalog(catalog); }
+      let valid = true, problem = "", normalized = catalog;
+      try { normalized = validateCareCatalog(catalog); }
       catch (e) { valid = false; problem = String(e && e.message || e); }
-      return json({ ok: true, tenant_id: tenantId, valid, problem, catalog });
+      return json({ ok: true, tenant_id: tenantId, valid, problem, catalog: normalized });
     }
     if (path === "/api/staff/config" && request.method === "PUT") {
       const ctxStaff = await staffContext(env, request, url);
@@ -6130,10 +6289,17 @@ async function handle(request, env, ctx) {
       catch (e) { return json({ ok: false, code: "INVALID_TENANT", msg: "医院租户 ID 格式不正确" }, 422); }
       let catalog = b.catalog;
       if (typeof catalog === "string") { try { catalog = JSON.parse(catalog); } catch (e) { return json({ ok: false, code: "INVALID_JSON", msg: "医院配置不是合法 JSON" }, 400); } }
+      if (!catalog || typeof catalog !== "object" || Array.isArray(catalog)) return json({ ok: false, code: "INVALID_CATALOG", msg: "医院配置必须是 JSON 对象" }, 422);
+      const current = await env.KV.get("care:catalog:" + tenantId, "json").catch(() => null);
+      const merged = { ...catalog, catalog_version: "staff-" + Date.now().toString(36) + "-" + rand(4) };
+      for (const key of CARE_CONTROL_FIELDS) {
+        if (current && Object.prototype.hasOwnProperty.call(current, key)) merged[key] = current[key];
+        else delete merged[key];
+      }
       let normalized;
-      try { normalized = validateCareCatalog(catalog); }
+      try { normalized = validateCareCatalog(merged); }
       catch (e) { return json({ ok: false, code: "INVALID_CATALOG", msg: String(e && e.message || e) }, 422); }
-      await env.KV.put("care:catalog:" + tenantId, JSON.stringify(catalog));
+      await env.KV.put("care:catalog:" + tenantId, JSON.stringify(normalized));
       await adminAudit(env, "staff-config-save", tenantId + " 操作人:" + ctxStaff.username + " 版本:" + normalized.catalog_version, request.headers.get("CF-Connecting-IP") || "0");
       return json({ ok: true, tenant_id: tenantId, catalog_version: normalized.catalog_version });
     }
@@ -6187,7 +6353,7 @@ async function handle(request, env, ctx) {
       if (selected.error) return selected.error;
       const tenantId = selected.tenantId, sub = await env.KV.get("sub:" + tenantId, "json").catch(() => null);
       const rows = (await billingRecords(env, "renew")).filter((r) => r.tenant_id === tenantId);
-      return json({ ok: true, tenant_id: tenantId, subscription: billingSubscriptionOut(tenantId, sub), renewals: rows.map(billingRenewalOut), price_label: BILLING_PRICE_LABEL });
+      return json({ ok: true, tenant_id: tenantId, subscription: billingSubscriptionOut(tenantId, sub), renewals: rows.map((r) => billingRenewalOut(r, patientOrigin)), price_label: BILLING_PRICE_LABEL });
     }
     if (path === "/api/staff/renewals/scan" && request.method === "POST") {
       const ctxStaff = await staffContext(env, request, url);
@@ -6205,7 +6371,27 @@ async function handle(request, env, ctx) {
         await adminAudit(env, "renewal-scan", rec.tenant_id + " 扫码人:" + ctxStaff.username, request.headers.get("CF-Connecting-IP") || "0");
       }
       if (rec.status !== "pending_confirm") return json({ ok: false, code: "RENEWAL_STATE_INVALID", msg: "续费二维码状态无效" }, 409);
-      return json({ ok: true, status: "pending_confirm", record: billingRenewalOut({ ...rec, token }), msg: "已登记扫码（模拟），等待管理员确认；未发生真实扣款" });
+      return json({ ok: true, status: "pending_confirm", record: billingRenewalOut({ ...rec, token }, patientOrigin), msg: "已登记扫码（模拟），等待管理员确认；未发生真实扣款" });
+    }
+
+    if (path === "/api/ai/chat" && request.method === "POST") {
+      const b = await request.json().catch(() => ({}));
+      const text = String(b.text == null ? (b.message || b.q || "") : b.text).trim();
+      if (!text) return json({ ok: false, code: "INVALID_TEXT", msg: "缺少 text" }, 400);
+      const canonical = normalizeCareRole(b.role || "R1");
+      if (!canonical) return json({ ok: false, code: "CARE_ROLE_INVALID", msg: "角色不存在" }, 400);
+      if (canonical !== "P-ASSIST") return json({ ok: false, code: "CARE_ROLE_FORBIDDEN", msg: "患者码只能使用患者陪伴助手" }, 403);
+      const access = await carePatientAccess(env, b.access || b.access_token || url.searchParams.get("access"), b.tenant_id || url.searchParams.get("tenant_id"));
+      if (access.error) return access.error;
+      try {
+        if (!(await careAiRateLimit(env, access.token))) return json({ ok: false, code: "AI_RATE_LIMITED", msg: "调用过于频繁，请一分钟后再试" }, 429);
+        const r = await runCareChat(
+          { env, role: canonical, text, history: b.history, l2: b.l2, budget_ms: b.budget_ms },
+          (llmEnv, messages, info, budget, accept) => runCareLlm(llmEnv, messages, info, budget, accept, fsLLMMsgs, b.provider)
+        );
+        if (b.stream === true) return careAiSse(r);
+        return json({ ok: true, build: FS_BUILD, role: r.role, reply: r.reply, awaiting: false, confirm: "", tools: [], steps: [] });
+      } catch (e) { return careFail(e); }
     }
 
     if (path === "/api/chat" && request.method === "POST") {
@@ -6225,7 +6411,10 @@ async function handle(request, env, ctx) {
         const roleAllowed = staffRoles.length ? (staffRoles.indexOf(roleId) >= 0 || staffRoles.indexOf(canonical) >= 0) : !!(rec && rec.staff === true);
         if (roleId !== "R1" && !roleAllowed) return json({ ok: false, code: "CARE_ROLE_FORBIDDEN", msg: "该角色只对院方账号开放" }, 403);
         try {
-          const r = await runCareChat({ env, role: canonical, text, history: b.history, l2: b.l2, budget_ms: b.budget_ms }, fsLLMMsgs);
+          const r = await runCareChat(
+            { env, role: canonical, text, history: b.history, l2: b.l2, budget_ms: b.budget_ms },
+            (llmEnv, messages, info, budget, accept) => runCareLlm(llmEnv, messages, info, budget, accept, fsLLMMsgs, b.provider)
+          );
           return json({ ok: true, build: FS_BUILD, role: r.role, reply: r.reply, awaiting: false, confirm: "", tools: [], steps: [] });
         } catch (e) { return careFail(e); }
       }
@@ -6235,7 +6424,12 @@ async function handle(request, env, ctx) {
       if (/^web:/.test(chat)) {
         const info = {}, budget = Math.max(6000, Math.min(22000, (Number(b.budget_ms) || 45000) - 1500));
         let raw = "";
-        try { raw = String(await fsLLMMsgs(env, [{ role: "system", content: FS_CHAT_SYS + "\n\n" + CARE_MODULES.M2 }, { role: "user", content: text }], info, budget) || "").trim(); } catch (e) { raw = ""; }
+        try {
+          raw = String(await runCareLlm(env, [{ role: "system", content: FS_CHAT_SYS + "\n\n" + CARE_MODULES.M2 }, { role: "user", content: text }], info, budget, undefined, fsLLMMsgs, b.provider) || "").trim();
+        } catch (e) {
+          if (e instanceof CareHttpError) return careFail(e);
+          raw = "";
+        }
         let reply = raw || "这次没接上助手服务，请稍后再试。如有胸痛、呼吸困难、意识不清等紧急情况，请立即就医或拨打 120。";
         // M2-R3 服务端兜底：识别到急症信号时，强制把“立即就医或拨打120”放在首句，不依赖模型是否遵守提示词
         if (/(胸痛|胸闷|呼吸困难|喘不上气|意识不清|意识改变|昏迷|抽搐|大出血|呕血|便血|剧烈腹痛|自杀|轻生|不想活)/.test(text) && !/^请立即就医或拨打\s*120/.test(reply)) reply = "请立即就医或拨打120。\n" + reply;
