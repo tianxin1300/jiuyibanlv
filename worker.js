@@ -402,6 +402,149 @@ async function adminAudit(env, op, detail, ip) {
     await env.KV.put(key, JSON.stringify({ op, detail: String(detail || ""), at: Date.now(), ip: String(ip || "") }), { expirationTtl: 180 * 24 * 3600 });
   } catch (e) { /* 审计失败不阻断操作 */ }
 }
+// ---- 医院订阅与两类二维码：患者有效期、医院续期分开存储，不接真实支付 ----
+const PATIENT_ORIGIN = "https://jiuyibanlv.pages.dev";
+const BILLING_PLANS = {
+  trial7: { days: 7, label: "试用 7 天" },
+  trial30: { days: 30, label: "试用 30 天" },
+  year: { days: 365, label: "年约 1 年" }
+};
+function billingPlan(value, renewal) {
+  const id = String(value || "").trim();
+  if (renewal && id === "trial") return { id: "trial30", ...BILLING_PLANS.trial30 };
+  if (!BILLING_PLANS[id] || (renewal && id === "trial7")) return null;
+  return { id, ...BILLING_PLANS[id] };
+}
+function billingSubscriptionState(sub, now = Date.now()) {
+  if (!sub || !Number(sub.expires_at) || Number(sub.expires_at) <= now) return "expired";
+  return sub.status === "active" ? "active" : "expired";
+}
+async function billingSubscription(env, tenantId) {
+  const sub = await env.KV.get("sub:" + tenantId, "json").catch(() => null);
+  return { sub, state: billingSubscriptionState(sub) };
+}
+async function staffContext(env, request, url) {
+  const username = await userFromReq(request, env, url, "");
+  if (!username) return { error: json({ ok: false, code: "UNAUTHORIZED", msg: "请先登录" }, 401) };
+  const rec = await env.KV.get("user:" + username, "json").catch(() => null);
+  const roles = rec && Array.isArray(rec.staff_roles) ? rec.staff_roles.map((x) => String(x).toUpperCase()).filter((x) => /^R[1-6]$/.test(x)) : [];
+  const scopes = rec && Array.isArray(rec.care_scopes) ? rec.care_scopes.filter((s) => s && typeof s.tenant_id === "string" && s.tenant_id) : [];
+  if (!(rec && (rec.staff === true || roles.length > 0))) return { error: json({ ok: false, code: "STAFF_FORBIDDEN", msg: "该账号没有院方权限，请联系管理员开通" }, 403) };
+  return { username, rec, roles: roles.length ? [...new Set(roles)].sort() : ["R1", "R2", "R3", "R4", "R5", "R6"], scopes };
+}
+function staffTenant(ctx, requested) {
+  const tenantId = String(requested || "").trim();
+  if (tenantId) {
+    if (!ctx.scopes.some((s) => s.tenant_id === tenantId)) return { error: json({ ok: false, code: "TENANT_FORBIDDEN", msg: "该账号没有这家医院的权限" }, 403) };
+    return { tenantId };
+  }
+  const ids = [...new Set(ctx.scopes.map((s) => s.tenant_id))];
+  if (ids.length !== 1) return { error: json({ ok: false, code: "TENANT_REQUIRED", msg: "请指定 tenant_id" }, 400) };
+  return { tenantId: ids[0] };
+}
+function billingPublicConfig(catalog, tenantId) {
+  const rawServices = catalog && catalog.services && typeof catalog.services === "object" ? Object.values(catalog.services) : [];
+  const text = (v, n) => String(v == null ? "" : v).slice(0, n);
+  const serviceCard = (s, tag) => ({
+    t: text(s.name, 30), d: text([s.department, s.clinic_hours].filter(Boolean).join(" · "), 120),
+    img: "", price: text(s.price, 30), tag
+  });
+  const projects = rawServices.filter((s) => s && s.service_type === "project");
+  const benefits = rawServices.filter((s) => s && s.service_type === "benefit");
+  return {
+    n: text(catalog.hospital_name || tenantId, 40),
+    w: text(catalog.welcome || "医院服务、惠民服务和就诊流程以本院当前配置为准。", 200),
+    c: /^#[0-9a-fA-F]{6}$/.test(String(catalog.theme || "")) ? catalog.theme : "#2563eb",
+    ver: text(catalog.catalog_version || "1", 20), tid: tenantId,
+    show: projects.slice(0, 8).map((s) => serviceCard(s, "医院服务")),
+    benefits: benefits.slice(0, 10).map((s) => serviceCard(s, "惠民服务")),
+    jny: rawServices.slice(0, 6).map((s) => ({
+      id: text(s.service_id, 30), t: text(s.name, 30), note: text(s.booking_channel, 120),
+      steps: (Array.isArray(s.steps) ? s.steps : []).slice(0, 15).map((step) => ({
+        t: text(step.text, 40),
+        d: text([step.time, step.location, Array.isArray(step.materials) ? step.materials.join("、") : step.materials].filter(Boolean).join(" · "), 160)
+      }))
+    })),
+    act: [], pre: [], vip: [], ann: [], campus: [], sched: []
+  };
+}
+const BILLING_PRICE_LABEL = "价格口径待确认";
+function billingToken(value) {
+  const token = String(value || "").trim();
+  return /^[A-Za-z0-9_-]{8,128}$/.test(token) ? token : "";
+}
+function billingSubscriptionOut(tenantId, sub) {
+  const value = sub || {};
+  return {
+    tenant_id: tenantId,
+    plan: value.plan || "",
+    plan_label: value.plan_label || "",
+    status: value.status || "expired",
+    state: billingSubscriptionState(value),
+    expires_at: Number(value.expires_at) || null,
+    renewed_at: Number(value.renewed_at) || null
+  };
+}
+function billingAccessState(rec, now = Date.now()) {
+  return rec && rec.status === "active" && Number(rec.expires_at) > now ? "active" : "expired";
+}
+function billingAccessOut(rec) {
+  return {
+    id: rec.token, tenant_id: rec.tenant_id, plan: rec.plan, plan_label: rec.plan_label,
+    created_at: rec.created_at, expires_at: rec.expires_at, first_scan_at: rec.first_scan_at || null,
+    last_scan_at: rec.last_scan_at || null, scan_count: Number(rec.scan_count) || 0,
+    status: rec.status, state: billingAccessState(rec), price_label: BILLING_PRICE_LABEL,
+    url: PATIENT_ORIGIN + "/?hospital=" + encodeURIComponent(rec.tenant_id) + "&access=" + encodeURIComponent(rec.token)
+  };
+}
+function billingRenewalOut(rec) {
+  return {
+    id: rec.token, tenant_id: rec.tenant_id, plan: rec.plan, plan_label: rec.plan_label,
+    created_at: rec.created_at, status: rec.status, scanned_at: rec.scanned_at || null,
+    scanned_by: rec.scanned_by || "", confirmed_at: rec.confirmed_at || null,
+    confirmed_by: rec.confirmed_by || "admin", new_expires_at: rec.new_expires_at || null,
+    price_label: BILLING_PRICE_LABEL,
+    url: PATIENT_ORIGIN + "/staff.html?renew=" + encodeURIComponent(rec.token)
+  };
+}
+async function billingRecords(env, kind, max = 500) {
+  const prefix = kind === "access" ? "access:" : "renew:";
+  const keys = await adminListAll(env, prefix, max);
+  const rows = [];
+  for (const key of keys) {
+    const token = key.name.slice(prefix.length);
+    const rec = await env.KV.get(key.name, "json").catch(() => null);
+    if (!rec || !rec.tenant_id) continue;
+    rows.push({ ...rec, token });
+  }
+  rows.sort((a, b) => Number(b.created_at || 0) - Number(a.created_at || 0));
+  return rows;
+}
+async function billingTenantSnapshot(env) {
+  const [qr, catalogs, access, renewals, subKeys] = await Promise.all([
+    adminListAll(env, "qr:", 2000), adminListAll(env, "care:catalog:", 500),
+    billingRecords(env, "access"), billingRecords(env, "renew"), adminListAll(env, "sub:", 500)
+  ]);
+  const map = new Map();
+  const ensure = (tenantId) => {
+    if (!map.has(tenantId)) map.set(tenantId, { tenant_id: tenantId, tokens: 0, patient_qr: 0, renewal_qr: 0, catalog: false, subscription: null });
+    return map.get(tenantId);
+  };
+  catalogs.forEach((k) => { const id = k.name.split(":")[2]; if (id) ensure(id).catalog = true; });
+  qr.forEach((k) => { const id = k.name.split(":")[1]; if (id) ensure(id).tokens++; });
+  access.forEach((r) => { if (r.tenant_id) ensure(r.tenant_id).patient_qr++; });
+  renewals.forEach((r) => { if (r.tenant_id) ensure(r.tenant_id).renewal_qr++; });
+  for (const k of subKeys) {
+    const tenantId = k.name.slice(4), sub = await env.KV.get(k.name, "json").catch(() => null);
+    if (tenantId) ensure(tenantId).subscription = sub;
+  }
+  const rows = [...map.values()].map((row) => ({
+    ...row,
+    subscription: billingSubscriptionOut(row.tenant_id, row.subscription),
+    subscription_state: billingSubscriptionState(row.subscription)
+  })).sort((a, b) => a.tenant_id.localeCompare(b.tenant_id));
+  return { rows, access, renewals };
+}
 async function userFromReq(request, env, url, bodyToken) {
   if (!env.KV) return null;
   const m = /^Bearer (.+)$/.exec(request.headers.get("Authorization") || "");
@@ -4805,7 +4948,9 @@ async function handle(request, env, ctx) {
           await env.KV.put("user:" + user, JSON.stringify({ ...rec, salt, hash: await pbkdf2(pw, salt), created: rec.created || Date.now() }));
         }
       }
-      return json({ ok: true, token: await newToken(env, user), user, staff: !!(rec && (rec.staff === true || (Array.isArray(rec.staff_roles) && rec.staff_roles.length))) });
+      const staffLogin = !!(rec && (rec.staff === true || (Array.isArray(rec.staff_roles) && rec.staff_roles.length)));
+      if (!isReg && staffLogin) await adminAudit(env, "staff-login", user, ip);
+      return json({ ok: true, token: await newToken(env, user), user, staff: staffLogin });
     }
 
     // ---- 云端历史 ----
@@ -5678,21 +5823,98 @@ async function handle(request, env, ctx) {
       if (!sess) return json({ ok: false, code: "ADMIN_UNAUTHORIZED", msg: "请先登录" }, 401);
       const ip = request.headers.get("CF-Connecting-IP") || "0";
       if (path === "/api/admin/overview" && request.method === "GET") {
-        const [qr, audits, backups, catalogs] = await Promise.all([
-          adminListAll(env, "qr:", 2000), adminListAll(env, "audit:", 1000),
-          adminListAll(env, "backup:", 500), adminListAll(env, "care:catalog:", 500)
+        const [snapshot, qr, auditKeys, backups] = await Promise.all([
+          billingTenantSnapshot(env), adminListAll(env, "qr:", 2000),
+          adminListAll(env, "audit:", 1000), adminListAll(env, "backup:", 500)
         ]);
-        const tenants = new Set();
-        qr.forEach((k) => { const p = k.name.split(":"); if (p[1]) tenants.add(p[1]); });
-        catalogs.forEach((k) => { const p = k.name.split(":"); if (p[2]) tenants.add(p[2]); });
-        return json({ ok: true, counts: { tenants: tenants.size, tokens: qr.length, audits: audits.length, backups: backups.length } });
+        let staffLogins = 0;
+        for (const k of auditKeys) {
+          const row = await env.KV.get(k.name, "json").catch(() => null);
+          if (row && row.op === "staff-login") staffLogins++;
+        }
+        const counts = {
+          tenants: snapshot.rows.length, tokens: qr.length, audits: auditKeys.length, backups: backups.length,
+          patient_qr: snapshot.access.length, renewal_qr: snapshot.renewals.length,
+          active_tenants: snapshot.rows.filter((r) => r.subscription_state === "active").length,
+          expired_tenants: snapshot.rows.filter((r) => r.subscription_state !== "active").length,
+          pending_renewals: snapshot.renewals.filter((r) => r.status === "pending_confirm").length,
+          staff_logins: staffLogins,
+          renewals_confirmed: snapshot.renewals.filter((r) => r.status === "confirmed").length
+        };
+        return json({ ok: true, counts });
       }
       if (path === "/api/admin/tenants" && request.method === "GET") {
-        const [qr, catalogs] = await Promise.all([adminListAll(env, "qr:", 2000), adminListAll(env, "care:catalog:", 500)]);
-        const map = new Map();
-        catalogs.forEach((k) => { const t = k.name.split(":")[2]; if (t) map.set(t, { tenant_id: t, tokens: 0, catalog: true }); });
-        qr.forEach((k) => { const t = k.name.split(":")[1]; if (!t) return; const r = map.get(t) || { tenant_id: t, tokens: 0, catalog: false }; r.tokens++; map.set(t, r); });
-        return json({ ok: true, tenants: [...map.values()].sort((a, b) => a.tenant_id.localeCompare(b.tenant_id)) });
+        const snapshot = await billingTenantSnapshot(env);
+        return json({ ok: true, tenants: snapshot.rows });
+      }
+      if (path === "/api/admin/access" && request.method === "GET") {
+        const tenantId = String(url.searchParams.get("tenant_id") || "").trim();
+        const rows = (await billingRecords(env, "access")).filter((r) => !tenantId || r.tenant_id === tenantId);
+        return json({ ok: true, rows: rows.map(billingAccessOut), price_label: BILLING_PRICE_LABEL });
+      }
+      if (path === "/api/admin/access" && request.method === "POST") {
+        const b = await request.json().catch(() => ({}));
+        let tenantId;
+        try { tenantId = careTenantId(b.tenant_id); }
+        catch (e) { return json({ ok: false, code: "INVALID_TENANT", msg: "医院租户 ID 格式不正确" }, 422); }
+        const plan = billingPlan(b.plan, false);
+        if (!plan) return json({ ok: false, code: "INVALID_PLAN", msg: "请选择试用 7 天、试用 30 天或年约 1 年" }, 422);
+        const now = Date.now(), token = rand(32);
+        const rec = {
+          tenant_id: tenantId, plan: plan.id, plan_label: plan.label, status: "active",
+          created_at: now, expires_at: now + plan.days * 86400000, first_scan_at: null,
+          last_scan_at: null, scan_count: 0, price_label: BILLING_PRICE_LABEL
+        };
+        await env.KV.put("access:" + token, JSON.stringify(rec));
+        let sub = await env.KV.get("sub:" + tenantId, "json").catch(() => null);
+        if (!sub) {
+          sub = { tenant_id: tenantId, plan: plan.id, plan_label: plan.label, status: "active", created_at: now, renewed_at: now, expires_at: rec.expires_at };
+          await env.KV.put("sub:" + tenantId, JSON.stringify(sub));
+        }
+        await adminAudit(env, "access-create", tenantId + " " + plan.label, ip);
+        return json({ ok: true, record: billingAccessOut({ ...rec, token }), subscription: billingSubscriptionOut(tenantId, sub) });
+      }
+      if (path === "/api/admin/renewals" && request.method === "GET") {
+        const tenantId = String(url.searchParams.get("tenant_id") || "").trim();
+        const rows = (await billingRecords(env, "renew")).filter((r) => !tenantId || r.tenant_id === tenantId);
+        return json({ ok: true, rows: rows.map(billingRenewalOut), price_label: BILLING_PRICE_LABEL });
+      }
+      if (path === "/api/admin/renewals" && request.method === "POST") {
+        const b = await request.json().catch(() => ({}));
+        let tenantId;
+        try { tenantId = careTenantId(b.tenant_id); }
+        catch (e) { return json({ ok: false, code: "INVALID_TENANT", msg: "医院租户 ID 格式不正确" }, 422); }
+        const plan = billingPlan(b.plan, true);
+        if (!plan) return json({ ok: false, code: "INVALID_PLAN", msg: "续费方案只能是试用或年约" }, 422);
+        const token = rand(32), rec = {
+          tenant_id: tenantId, plan: plan.id, plan_label: plan.label, status: "pending_payment",
+          created_at: Date.now(), scanned_at: null, scanned_by: "", confirmed_at: null,
+          price_label: BILLING_PRICE_LABEL
+        };
+        await env.KV.put("renew:" + token, JSON.stringify(rec));
+        await adminAudit(env, "renewal-create", tenantId + " " + plan.label, ip);
+        return json({ ok: true, record: billingRenewalOut({ ...rec, token }) });
+      }
+      if (path === "/api/admin/renewals/confirm" && request.method === "POST") {
+        const b = await request.json().catch(() => ({})), token = billingToken(b.id || b.token);
+        if (!token) return json({ ok: false, code: "INVALID_RENEWAL", msg: "续费二维码标识不正确" }, 422);
+        const rec = await env.KV.get("renew:" + token, "json").catch(() => null);
+        if (!rec) return json({ ok: false, code: "RENEWAL_NOT_FOUND", msg: "续费二维码不存在" }, 404);
+        if (rec.status !== "pending_confirm") return json({ ok: false, code: "RENEWAL_NOT_READY", msg: "院方尚未扫码确认，或该续费已经确认" }, 409);
+        const plan = billingPlan(rec.plan, true);
+        if (!plan) return json({ ok: false, code: "INVALID_PLAN", msg: "续费方案无效" }, 422);
+        const now = Date.now(), previous = await env.KV.get("sub:" + rec.tenant_id, "json").catch(() => null);
+        const base = billingSubscriptionState(previous, now) === "active" ? Number(previous.expires_at) : now;
+        const sub = {
+          ...(previous || {}), tenant_id: rec.tenant_id, plan: plan.id, plan_label: plan.label,
+          status: "active", created_at: previous && previous.created_at || now,
+          renewed_at: now, expires_at: base + plan.days * 86400000, last_renewal_id: token
+        };
+        await env.KV.put("sub:" + rec.tenant_id, JSON.stringify(sub));
+        const confirmed = { ...rec, status: "confirmed", confirmed_at: now, confirmed_by: "admin", new_expires_at: sub.expires_at };
+        await env.KV.put("renew:" + token, JSON.stringify(confirmed));
+        await adminAudit(env, "renewal-confirm", rec.tenant_id + " " + plan.label + " 扫码人:" + (rec.scanned_by || "未知"), ip);
+        return json({ ok: true, subscription: billingSubscriptionOut(rec.tenant_id, sub), record: billingRenewalOut({ ...confirmed, token }), msg: "已确认续期；未发生真实扣款" });
       }
       if (path === "/api/admin/tokens" && request.method === "GET") {
         const keys = await adminListAll(env, "qr:", 300);
@@ -5833,6 +6055,32 @@ async function handle(request, env, ctx) {
       return json({ ok: false, code: "NOT_FOUND", msg: "接口不存在" }, 404);
     }
 
+    // ---- 患者二维码公开访问：患者码有效期与医院订阅有效期是两把独立的锁 ----
+    if (path === "/api/public/access" && request.method === "GET") {
+      const token = billingToken(url.searchParams.get("token"));
+      if (!token) return json({ ok: false, code: "INVALID_ACCESS", msg: "患者链接不完整，请使用医院发放的二维码" }, 400);
+      const rec = await env.KV.get("access:" + token, "json").catch(() => null);
+      const requestedTenant = String(url.searchParams.get("tenant_id") || "").trim();
+      if (!rec || (requestedTenant && requestedTenant !== rec.tenant_id)) return json({ ok: false, code: "ACCESS_NOT_FOUND", msg: "患者链接无效，请联系医院重新获取" }, 404);
+      if (billingAccessState(rec) !== "active") return json({ ok: false, code: "ACCESS_EXPIRED", access_state: "expired", msg: "医院服务已到期，请联系医院续期" }, 403);
+      const sub = await env.KV.get("sub:" + rec.tenant_id, "json").catch(() => null);
+      if (billingSubscriptionState(sub) !== "active") return json({ ok: false, code: "HOSPITAL_EXPIRED", subscription_state: "expired", msg: "医院服务已到期，请联系医院续期" }, 403);
+      const catalog = await env.KV.get("care:catalog:" + rec.tenant_id, "json").catch(() => null);
+      if (!catalog) return json({ ok: false, code: "CATALOG_NOT_FOUND", msg: "医院还没有发布服务配置，请联系医院" }, 503);
+      try { validateCareCatalog(catalog); }
+      catch (e) { return json({ ok: false, code: "CATALOG_UNAVAILABLE", msg: "医院服务配置尚未发布完整，请联系医院" }, 503); }
+      const now = Date.now();
+      if (!rec.first_scan_at || now - Number(rec.last_scan_at || 0) > 60000) {
+        const scanned = { ...rec, first_scan_at: rec.first_scan_at || now, last_scan_at: now, scan_count: Number(rec.scan_count || 0) + 1 };
+        await env.KV.put("access:" + token, JSON.stringify(scanned));
+      }
+      return json({
+        ok: true, tenant_id: rec.tenant_id, plan: rec.plan, plan_label: rec.plan_label,
+        expires_at: rec.expires_at, subscription: billingSubscriptionOut(rec.tenant_id, sub),
+        config: billingPublicConfig(catalog, rec.tenant_id), price_label: BILLING_PRICE_LABEL
+      });
+    }
+
     // ---- 院方工作台：只能用医院自己的账号，权限由控制台分配 ----
     if (path === "/api/staff/me" && request.method === "GET") {
       const username = await userFromReq(request, env, url, "");
@@ -5870,6 +6118,94 @@ async function handle(request, env, ctx) {
       try { validateCareCatalog(catalog); }
       catch (e) { valid = false; problem = String(e && e.message || e); }
       return json({ ok: true, tenant_id: tenantId, valid, problem, catalog });
+    }
+    if (path === "/api/staff/config" && request.method === "PUT") {
+      const ctxStaff = await staffContext(env, request, url);
+      if (ctxStaff.error) return ctxStaff.error;
+      if (!ctxStaff.roles.includes("R3")) return json({ ok: false, code: "STAFF_ROLE_FORBIDDEN", msg: "只有 R3 配置交付岗位可以修改医院配置" }, 403);
+      const b = await request.json().catch(() => ({})), selected = staffTenant(ctxStaff, b.tenant_id);
+      if (selected.error) return selected.error;
+      let tenantId;
+      try { tenantId = careTenantId(selected.tenantId); }
+      catch (e) { return json({ ok: false, code: "INVALID_TENANT", msg: "医院租户 ID 格式不正确" }, 422); }
+      let catalog = b.catalog;
+      if (typeof catalog === "string") { try { catalog = JSON.parse(catalog); } catch (e) { return json({ ok: false, code: "INVALID_JSON", msg: "医院配置不是合法 JSON" }, 400); } }
+      let normalized;
+      try { normalized = validateCareCatalog(catalog); }
+      catch (e) { return json({ ok: false, code: "INVALID_CATALOG", msg: String(e && e.message || e) }, 422); }
+      await env.KV.put("care:catalog:" + tenantId, JSON.stringify(catalog));
+      await adminAudit(env, "staff-config-save", tenantId + " 操作人:" + ctxStaff.username + " 版本:" + normalized.catalog_version, request.headers.get("CF-Connecting-IP") || "0");
+      return json({ ok: true, tenant_id: tenantId, catalog_version: normalized.catalog_version });
+    }
+    if (path === "/api/staff/members" && (request.method === "GET" || request.method === "POST")) {
+      const ctxStaff = await staffContext(env, request, url);
+      if (ctxStaff.error) return ctxStaff.error;
+      if (!ctxStaff.roles.includes("R3")) return json({ ok: false, code: "STAFF_ROLE_FORBIDDEN", msg: "只有 R3 配置交付岗位可以管理本院人员" }, 403);
+      const b = request.method === "POST" ? await request.json().catch(() => ({})) : {};
+      const selected = staffTenant(ctxStaff, request.method === "GET" ? url.searchParams.get("tenant_id") : b.tenant_id);
+      if (selected.error) return selected.error;
+      const tenantId = selected.tenantId, ip = request.headers.get("CF-Connecting-IP") || "0";
+      if (request.method === "GET") {
+        const keys = await adminListAll(env, "user:", 1000), rows = [];
+        for (const k of keys) {
+          const rec = await env.KV.get(k.name, "json").catch(() => null);
+          if (!rec || !(rec.staff === true || (Array.isArray(rec.staff_roles) && rec.staff_roles.length))) continue;
+          const scopes = Array.isArray(rec.care_scopes) ? rec.care_scopes : [];
+          if (!scopes.some((s) => s && s.tenant_id === tenantId)) continue;
+          rows.push({
+            username: k.name.slice(5), staff: true, created: rec.created || null,
+            roles: [...new Set((Array.isArray(rec.staff_roles) ? rec.staff_roles : []).map((x) => String(x).toUpperCase()).filter((x) => /^R[1-6]$/.test(x)))].sort()
+          });
+        }
+        rows.sort((a, b2) => a.username.localeCompare(b2.username));
+        return json({ ok: true, tenant_id: tenantId, staff: rows });
+      }
+      const username = String(b.user || "").trim();
+      if (!username) return json({ ok: false, code: "INVALID_USER", msg: "请填写已注册的账号" }, 400);
+      const key = "user:" + username, rec = await env.KV.get(key, "json").catch(() => null);
+      if (!rec) return json({ ok: false, code: "USER_NOT_FOUND", msg: "账号不存在，请先让对方在患者页注册" }, 404);
+      const scopes = Array.isArray(rec.care_scopes) ? rec.care_scopes.slice() : [];
+      const isStaff = rec.staff === true || (Array.isArray(rec.staff_roles) && rec.staff_roles.length > 0);
+      if (isStaff && scopes.some((s) => s && s.tenant_id !== tenantId)) return json({ ok: false, code: "CROSS_TENANT_ACCOUNT", msg: "该院方账号还属于其他医院，请由管理员处理" }, 409);
+      if (b.enabled === false) {
+        const remaining = scopes.filter((s) => s && s.tenant_id !== tenantId);
+        await env.KV.put(key, JSON.stringify({ ...rec, care_scopes: remaining, staff: remaining.length ? rec.staff : false, staff_roles: remaining.length ? rec.staff_roles : [] }));
+        await adminAudit(env, "staff-member-disable", tenantId + " 账号:" + username + " 操作人:" + ctxStaff.username, ip);
+        return json({ ok: true, user: username, staff: false, roles: [] });
+      }
+      const roles = [...new Set((Array.isArray(b.roles) ? b.roles : []).map((x) => String(x).toUpperCase()).filter((x) => /^R[1-6]$/.test(x)))].sort();
+      if (!roles.length) return json({ ok: false, code: "INVALID_ROLES", msg: "至少选择一个岗位（R1–R6）" }, 400);
+      if (!scopes.some((s) => s && s.tenant_id === tenantId)) scopes.push({ tenant_id: tenantId, profile_id: "staff" });
+      await env.KV.put(key, JSON.stringify({ ...rec, care_scopes: scopes, staff: true, staff_roles: roles }));
+      await adminAudit(env, "staff-member-assign", tenantId + " 账号:" + username + " 岗位:" + roles.join(",") + " 操作人:" + ctxStaff.username, ip);
+      return json({ ok: true, user: username, staff: true, roles });
+    }
+    if (path === "/api/staff/billing" && request.method === "GET") {
+      const ctxStaff = await staffContext(env, request, url);
+      if (ctxStaff.error) return ctxStaff.error;
+      const selected = staffTenant(ctxStaff, url.searchParams.get("tenant_id"));
+      if (selected.error) return selected.error;
+      const tenantId = selected.tenantId, sub = await env.KV.get("sub:" + tenantId, "json").catch(() => null);
+      const rows = (await billingRecords(env, "renew")).filter((r) => r.tenant_id === tenantId);
+      return json({ ok: true, tenant_id: tenantId, subscription: billingSubscriptionOut(tenantId, sub), renewals: rows.map(billingRenewalOut), price_label: BILLING_PRICE_LABEL });
+    }
+    if (path === "/api/staff/renewals/scan" && request.method === "POST") {
+      const ctxStaff = await staffContext(env, request, url);
+      if (ctxStaff.error) return ctxStaff.error;
+      const b = await request.json().catch(() => ({})), selected = staffTenant(ctxStaff, b.tenant_id);
+      if (selected.error) return selected.error;
+      const token = billingToken(b.token || b.id);
+      if (!token) return json({ ok: false, code: "INVALID_RENEWAL", msg: "续费二维码标识不正确" }, 422);
+      const rec = await env.KV.get("renew:" + token, "json").catch(() => null);
+      if (!rec || rec.tenant_id !== selected.tenantId) return json({ ok: false, code: "RENEWAL_NOT_FOUND", msg: "续费二维码不存在或不属于本院" }, 404);
+      if (rec.status === "confirmed") return json({ ok: false, code: "RENEWAL_CONFIRMED", msg: "该续费已经由管理员确认" }, 409);
+      if (rec.status === "pending_payment") {
+        rec.status = "pending_confirm"; rec.scanned_at = Date.now(); rec.scanned_by = ctxStaff.username;
+        await env.KV.put("renew:" + token, JSON.stringify(rec));
+        await adminAudit(env, "renewal-scan", rec.tenant_id + " 扫码人:" + ctxStaff.username, request.headers.get("CF-Connecting-IP") || "0");
+      }
+      if (rec.status !== "pending_confirm") return json({ ok: false, code: "RENEWAL_STATE_INVALID", msg: "续费二维码状态无效" }, 409);
+      return json({ ok: true, status: "pending_confirm", record: billingRenewalOut({ ...rec, token }), msg: "已登记扫码（模拟），等待管理员确认；未发生真实扣款" });
     }
 
     if (path === "/api/chat" && request.method === "POST") {

@@ -2306,6 +2306,9 @@ let RD = '';
 function view() {
     RD = today();
     const a = document.getElementById('app');
+    if (ACCESS_TOKEN && ACCESS_LOCK) { a.innerHTML = '<div class="card" role="alert" style="border-color:#dc2626;padding:32px 20px;text-align:center"><h2>医院服务已到期，请联系医院续期</h2><p class="sub">当前患者链接已锁定。请向医院确认续期或重新获取患者链接，本页会定期检查状态。</p><p class="sub">如有紧急情况，请拨打 120。</p></div>'; return; }
+    if (ACCESS_TOKEN && CFG_LOAD) { a.innerHTML = '<div class="card"><h2>正在核验医院服务有效期…</h2><p class="sub">正在读取医院当前配置，请稍候。</p></div>'; return; }
+    if (ACCESS_TOKEN && (CFG_ERR || ACCESS_ERROR)) { a.innerHTML = '<div class="card" role="alert"><h2>这个患者链接暂时无法打开</h2><p class="sub">' + esc(ACCESS_ERROR || '患者链接无效或网络不稳定，请联系医院重新获取。') + '</p><p class="sub">如有紧急情况，请拨打 120。</p></div>'; return; }
     if (CFG_LOAD) { a.innerHTML = '<div class="card"><h2>正在加载医院服务…</h2><p class="sub">网络较慢时可能需要几秒钟。您的个人资料保存在本机，不受影响。</p><button class="ghost" onclick="CFG_LOAD=false;S.skipCfg=1;view()">先使用我的个人档案</button></div>'; return; }
     if (CFG_ERR && !S.skipCfg) { a.innerHTML = '<div class="card"><h2>这个入口暂时无法打开</h2><p class="sub">' + (CFG_EXP ? '这个演示链接已到期（演示有效期已过）。' : '没有读取到这个入口的配置（入口代号：' + esc(HP_KEY) + '）。可能是演示链接已到期、链接不完整，或网络不稳定。') + '请联系提供这个链接的人获取新的链接。您的个人资料没有受影响。</p><button class="btn" onclick="S.skipCfg=1;view()">先使用我的个人档案</button></div>'; return; }
     const showHead = S.view === 'home' && !S.profiles.length;
@@ -3094,8 +3097,13 @@ function icsFor(p, o) {
 }
 
 const homeDemo = () => `<details class="home-more"><summary>试用数据（可随时删除）</summary><div class="row" style="justify-content:center;margin-top:8px"><button class="ghost" data-act="demo">载入试用数据</button>${HP ? '' : '<button class="ghost" data-act="prevhosp">体验医院服务</button>'}</div></details>`;
+function benefitCard() {
+    const rows = HP && Array.isArray(HP.benefits) ? HP.benefits.filter(x => x && x.t).slice(0, 10) : [];
+    if (!rows.length) return '';
+    return '<details class="card hosp-benefits" open><summary style="cursor:pointer"><div><b>惠民服务</b><div class="sub" style="margin:2px 0 0">' + rows.length + ' 项 · 由医院当前配置提供</div></div></summary><p class="sub">只做服务资料整理，不涉及付款、诊断或用药推荐，具体以医院现场说明为准。</p>' + rows.map(x => '<div class="item"><b>' + esc(x.t) + '</b>' + (x.tag ? ' <small class="sub">' + esc(x.tag) + '</small>' : '') + (x.d ? '<div class="sub">' + esc(x.d) + '</div>' : '') + '<div class="sub">价格：' + esc(x.price || '价格口径待确认') + '</div></div>').join('') + '</details>';
+}
 function hospitalZone() {
-    const z = hospCard() + jnyCard() + actCard();
+    const z = hospCard() + benefitCard() + jnyCard() + actCard();
     return z ? (HP ? '<h2 class="gt">医院服务与惠民活动</h2>' : '') + z : '';
 }
 function archiveSection() {
@@ -4194,6 +4202,7 @@ function cfgClean(o) {
     if (c.tier === 'basic') c.dept = (Array.isArray(c.dept) && c.dept.length ? c.dept : ['内科', '外科', '妇产科']).slice(0, 3);
     /* 医院项目展示：基础版最多 3 个、升级版最多 8 个；图片只允许本站 img/ 目录下的文件；价格不写时显示“以门诊公示为准” */
     c.show = lst(o.show, 8, x => ({ t: str(x.t, 30), d: str(x.d, 120), img: typeof x.img === 'string' && /^img\/[A-Za-z0-9_-]{1,30}\/[A-Za-z0-9_.-]{1,60}\.(jpg|jpeg|png|webp)$/i.test(x.img) ? x.img : '', price: str(x.price, 30), tag: str(x.tag, 10) })).filter(x => x.t);
+    c.benefits = lst(o.benefits, 10, x => ({ t: str(x.t, 30), d: str(x.d, 120), price: str(x.price, 30), tag: str(x.tag, 10) })).filter(x => x.t);
     if (c.tier === 'basic') c.show = c.show.slice(0, 3);
     if (c.tier === 'basic' && Array.isArray(c.sched)) c.sched = c.sched.slice(0, 10);
     if (Array.isArray(o.dis)) c.dis = o.dis.filter(x => typeof x === 'string').slice(0, 20).map(x => x.slice(0, 20));
@@ -4202,8 +4211,9 @@ function cfgClean(o) {
     c.act = lst(o.act, 10, a => ({ id: str(a.id, 30), t: str(a.t, 30), kind: a.kind, per: a.per, need: a.per === 'free' ? 0 : Math.min(10, Math.max(0, parseInt(a.need, 10) || (a.ci === true || a.ci === 1 ? 1 : 0))), start: /^\d{4}-\d{2}-\d{2}$/.test(String(a.start || '')) ? String(a.start) : '', end: /^\d{4}-\d{2}-\d{2}$/.test(String(a.end || '')) ? String(a.end) : '', valid: +a.valid || 30, pin: str(String(a.pin || ''), 6), rule: str(a.rule, 120), note: str(a.note, 120), items: Array.isArray(a.items) ? a.items.slice(0, 12).map(x => typeof x === 'string' ? x.slice(0, 24) : (x && typeof x === 'object' ? { t: str(x.t, 24), d: str(x.d, 60), g: str(x.g, 6), q: str(x.q, 14), w: +x.w || 0, n: !!x.n } : '')) : [] }));
     return c;
 }
-const HP_KEY = (() => { try { return (new URLSearchParams(location.search).get('hospital') || '').trim().toLowerCase(); } catch (e) { return ''; } })();
-let CFG_EXP = false, CFG_LOAD = false;
+const ACCESS_TOKEN = (() => { try { return (new URLSearchParams(location.search).get('access') || '').trim(); } catch (e) { return ''; } })();
+const HP_KEY = (() => { try { const k = (new URLSearchParams(location.search).get('hospital') || '').trim(); return ACCESS_TOKEN ? k : k.toLowerCase(); } catch (e) { return ''; } })();
+let CFG_EXP = false, CFG_LOAD = false, ACCESS_LOCK = '', ACCESS_ERROR = '';
 function cfgParse(txt, k) {
     const raw = JSON.parse(txt);
     /* 演示自动到期：end=最后可用日期（YYYY-MM-DD）；days=本设备首次打开后可用天数（1–30）。到期后与链接失效相同，个人档案不受影响。 */
@@ -4222,6 +4232,18 @@ function cfgParse(txt, k) {
 /* 医院配置：本会话已取过且不足 10 分钟 → 直接用；否则先显示“正在加载”，异步取到后刷新一次（弱网不再整页卡住）；浏览器不支持时退回同步读取 */
 const HP = (() => { try {
     const k = HP_KEY;
+    if (ACCESS_TOKEN) {
+        if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(k) || !/^[A-Za-z0-9_-]{8,128}$/.test(ACCESS_TOKEN)) { ACCESS_ERROR = '患者链接不完整，请使用医院发放的完整二维码。'; return null; }
+        try {
+            const c = JSON.parse(sessionStorage.getItem('companion.accesscfg.' + ACCESS_TOKEN) || 'null');
+            if (c && typeof c.x === 'string' && Date.now() - c.t < 60000) {
+                if (Number(c.access_exp) > Date.now() && Number(c.sub_exp) > Date.now()) return cfgClean(JSON.parse(c.x));
+                ACCESS_LOCK = '医院服务已到期，请联系医院续期';
+            }
+        } catch (e) { }
+        CFG_LOAD = true;
+        return null;
+    }
     if (!k) return null;
     if (Object.prototype.hasOwnProperty.call(HOSP, k)) return tidyDemo(HOSP[k]);
     if (k === 'preview') { const pv = cfgClean(JSON.parse(localStorage.getItem('companion.preview') || 'null')); if (pv) pv.n = (pv.n + '（未上线）').slice(0, 40); return pv; }
@@ -4247,7 +4269,7 @@ const SITE_ICP = '', SITE_GABA = '';
     if (HP && HP.trial) h = '<div>试点临时试用地址，仅供试用；正式上线后地址会更换，届时请先导出备份</div>' + h;
     if (el && h) { el.hidden = false; el.innerHTML = h; } })();
 /* 带了医院参数却读不到配置（文件不存在、名称不匹配、json 写错）：不显示演示内容，改为提示。 */
-let CFG_ERR = !!HP_KEY && !HP && !CFG_LOAD;
+let CFG_ERR = (!!HP_KEY || !!ACCESS_TOKEN) && !HP && !CFG_LOAD;
 if (HP && HP.rg)
     SRC.hosp = '本院提供的参考范围';
 const LG = HP && typeof HP.l === 'string' && /^data:image\/(png|jpeg|webp|svg\+xml);base64,[A-Za-z0-9+\/=]+$/.test(HP.l) ? HP.l : '';
@@ -4847,7 +4869,37 @@ try { if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     d.onclick = off; document.body.appendChild(d); setTimeout(off, 2500);
 } catch (e) { } })();
 
-if (CFG_LOAD) {
+let ACCESS_BUSY = false;
+async function loadHospitalAccess() {
+    if (!ACCESS_TOKEN || ACCESS_BUSY) return;
+    ACCESS_BUSY = true;
+    try {
+        const ac = new AbortController(), tm = setTimeout(() => ac.abort(), 12000);
+        const rs = await fetch(AI_DEFAULT + '/api/public/access?tenant_id=' + encodeURIComponent(HP_KEY) + '&token=' + encodeURIComponent(ACCESS_TOKEN) + '&t=' + Date.now(), { signal: ac.signal, cache: 'no-store' });
+        clearTimeout(tm);
+        const d = await rs.json().catch(() => null);
+        if (!rs.ok || !d || !d.ok) {
+            const locked = d && (d.code === 'ACCESS_EXPIRED' || d.code === 'HOSPITAL_EXPIRED');
+            if (locked || !HP) {
+                ACCESS_LOCK = locked ? '医院服务已到期，请联系医院续期' : '';
+                ACCESS_ERROR = locked ? '' : String(d && d.msg || '暂时无法打开医院服务，请稍后重试或联系医院。');
+                CFG_LOAD = false; CFG_ERR = true; view();
+            }
+            return;
+        }
+        const clean = cfgClean(d.config), x = JSON.stringify(d.config || null);
+        if (!clean || !d.subscription || !Number(d.expires_at) || !Number(d.subscription.expires_at)) throw new Error('bad_access_config');
+        sessionStorage.setItem('companion.accesscfg.' + ACCESS_TOKEN, JSON.stringify({ t: Date.now(), x, access_exp: Number(d.expires_at), sub_exp: Number(d.subscription.expires_at) }));
+        const changed = !HP || !!ACCESS_LOCK || !!ACCESS_ERROR || CFG_ERR || String(HP.ver || '') !== String(clean.ver || '');
+        ACCESS_LOCK = ''; ACCESS_ERROR = ''; CFG_LOAD = false; CFG_ERR = false;
+        if (changed) location.reload();
+    } catch (e) {
+        if (!HP) { ACCESS_LOCK = ''; ACCESS_ERROR = '暂时无法连接医院服务，请稍后重试。'; CFG_LOAD = false; CFG_ERR = true; try { view(); } catch (e2) { } }
+    } finally { ACCESS_BUSY = false; }
+}
+if (CFG_LOAD && ACCESS_TOKEN) {
+    loadHospitalAccess();
+} else if (CFG_LOAD) {
     (async () => {
         const k = HP_KEY;
         try {
@@ -4861,6 +4913,10 @@ if (CFG_LOAD) {
             location.reload();
         } catch (e) { if (!CFG_LOAD) return; CFG_LOAD = false; CFG_ERR = true; try { view(); } catch (e2) { } }
     })();
+}
+if (ACCESS_TOKEN) {
+    setInterval(loadHospitalAccess, 60000);
+    window.addEventListener('focus', loadHospitalAccess);
 }
 if (CFG_ERR || CFG_LOAD) { }
 else if (INAPP)

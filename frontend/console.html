@@ -4,7 +4,7 @@
 <title>就医伴侣 · 开发者控制台</title>
 <meta name="robots" content="noindex,nofollow">
 <meta name="theme-color" content="#f6f8fb">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://juyiibanlvzhinengai.tianxinyuan881.workers.dev; img-src data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://juyiibanlvzhinengai.tianxinyuan881.workers.dev; img-src data:; base-uri 'none'; form-action 'none'">
 <style>
 :root{--bg:#f6f8fb;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#e5eaf2;--accent:#2563eb;--accent-soft:#eef4ff;--ok:#16a34a;--warn:#d97706;--danger:#dc2626;--r:14px}
 *{box-sizing:border-box}
@@ -72,7 +72,16 @@ tr:last-child td{border-bottom:0}
 .secret b{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:600}
 .secret code{font-size:12px}
 .count{font-size:11px;color:var(--muted);margin-top:8px}
-@media(max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}.wrap{padding:16px 14px 64px}.sess{display:none}}
+select{width:100%;border:1px solid var(--line);background:#fbfcfe;color:var(--ink);border-radius:10px;padding:11px 12px;outline:none;font:inherit}
+select:focus{border-color:#9dbcf7;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.ledger{padding:16px 18px;border-bottom:1px solid var(--line)}
+.ledger-form{display:grid;grid-template-columns:minmax(220px,2fr) minmax(150px,1fr) auto;gap:12px;align-items:end}
+.ledger-form .btn{height:45px}
+.qr-result{display:flex;gap:18px;align-items:center;margin-top:16px;padding:16px;background:#f8fafc;border:1px solid var(--line);border-radius:12px}
+.qr-code{flex:0 0 auto;line-height:0}
+.qr-link{flex:1;min-width:0}
+.qr-link input{margin:8px 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+@media(max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}.wrap{padding:16px 14px 64px}.sess{display:none}.ledger-form{grid-template-columns:1fr}.qr-result{align-items:flex-start;flex-wrap:wrap}}
 </style></head>
 <body>
 
@@ -102,22 +111,58 @@ tr:last-child td{border-bottom:0}
 
   <div class="stats">
     <div class="stat"><b id="cTenants">—</b><span>医院租户</span></div>
-    <div class="stat"><b id="cTokens">—</b><span>二维码 Token</span></div>
-    <div class="stat"><b id="cAudits">—</b><span>审计记录</span></div>
+    <div class="stat"><b id="cActiveTenants">—</b><span>生效医院</span></div>
+    <div class="stat"><b id="cExpiredTenants">—</b><span>到期医院</span></div>
+    <div class="stat"><b id="cPatientQr">—</b><span>患者有效期二维码</span></div>
+    <div class="stat"><b id="cRenewalQr">—</b><span>医院续费二维码</span></div>
+    <div class="stat"><b id="cPendingRenewals">—</b><span>待确认续期</span></div>
+    <div class="stat"><b id="cRenewalsConfirmed">—</b><span>已确认续期</span></div>
+    <div class="stat"><b id="cStaffLogins">—</b><span>院方登录</span></div>
     <div class="stat"><b id="cBackups">—</b><span>备份快照</span></div>
+    <div class="stat"><b id="cAudits">—</b><span>审计记录</span></div>
+    <div class="stat"><b id="cTokens">—</b><span>旧 Token（兼容）</span></div>
   </div>
 
   <nav class="tabs" role="tablist">
     <button class="tab" role="tab" data-tab="tenants" aria-selected="true">医院列表</button>
-    <button class="tab" role="tab" data-tab="tokens" aria-selected="false">Token</button>
+    <button class="tab" role="tab" data-tab="access" aria-selected="false">患者有效期二维码</button>
+    <button class="tab" role="tab" data-tab="renewals" aria-selected="false">医院续费二维码</button>
+    <button class="tab" role="tab" data-tab="tokens" aria-selected="false">旧 Token（兼容）</button>
     <button class="tab" role="tab" data-tab="staff" aria-selected="false">院方人员</button>
     <button class="tab" role="tab" data-tab="config" aria-selected="false">医院配置</button>
     <button class="tab" role="tab" data-tab="audit" aria-selected="false">审计日志</button>
     <button class="tab" role="tab" data-tab="backups" aria-selected="false">备份</button>
   </nav>
+  <datalist id="tenantOptions"></datalist>
 
-  <section class="panel" id="panel-tenants"><h2>医院列表</h2><div class="tw"><table><thead><tr><th>tenant_id</th><th>Token 数</th><th>医院目录</th></tr></thead><tbody id="tbTenants"></tbody></table></div><div id="emptyTenants" class="empty" hidden>还没有医院数据</div></section>
-  <section class="panel" id="panel-tokens" hidden><h2>二维码 Token</h2><div class="tw"><table><thead><tr><th>医院</th><th>Token</th><th>状态</th><th>到期</th><th>最近扫码</th><th></th></tr></thead><tbody id="tbTokens"></tbody></table></div><div id="emptyTokens" class="empty" hidden>还没有 Token 数据</div></section>
+  <section class="panel" id="panel-tenants"><h2>医院列表</h2><div class="tw"><table><thead><tr><th>tenant_id</th><th>订阅状态</th><th>方案</th><th>到期时间</th><th>患者二维码</th><th>续费二维码</th><th>旧 Token（兼容）</th><th>医院目录</th></tr></thead><tbody id="tbTenants"></tbody></table></div><div id="emptyTenants" class="empty" hidden>还没有医院数据</div></section>
+  <section class="panel" id="panel-access" hidden><h2>患者有效期二维码</h2>
+    <div class="ledger">
+      <p class="hint" style="margin:0 0 14px">仅用于患者有效期访问，与医院续费二维码严格分开。价格口径待确认。</p>
+      <div class="ledger-form">
+        <div><label for="accessTenant">医院（可选择或输入 tenant_id）</label><input id="accessTenant" list="tenantOptions" placeholder="如 hosp-demo-001"></div>
+        <div><label for="accessPlan">有效期方案</label><select id="accessPlan"><option value="trial7">试用7天</option><option value="trial30">试用30天</option><option value="year">年约1年</option></select></div>
+        <button id="accessGenerate" class="btn" type="button">生成患者二维码</button>
+      </div>
+      <p id="accessMsg" class="msg" role="status"></p>
+      <div id="accessResult" class="qr-result" hidden></div>
+    </div>
+    <div class="tw"><table><thead><tr><th>ID</th><th>医院</th><th>方案</th><th>创建时间</th><th>到期时间</th><th>首次扫码</th><th>最近扫码</th><th>次数</th><th>状态</th><th>价格</th><th>链接</th></tr></thead><tbody id="tbAccess"></tbody></table></div><div id="emptyAccess" class="empty" hidden>还没有患者有效期二维码</div>
+  </section>
+  <section class="panel" id="panel-renewals" hidden><h2>医院续费二维码</h2>
+    <div class="ledger">
+      <p class="hint" style="margin:0 0 14px">仅用于医院续期台账，与患者有效期二维码严格分开；不发生真实扣款。价格口径待确认。</p>
+      <div class="ledger-form">
+        <div><label for="renewalTenant">医院（可选择或输入 tenant_id）</label><input id="renewalTenant" list="tenantOptions" placeholder="如 hosp-demo-001"></div>
+        <div><label for="renewalPlan">续期方案</label><select id="renewalPlan"><option value="trial">试用</option><option value="year">年约</option></select></div>
+        <button id="renewalGenerate" class="btn" type="button">生成续费二维码</button>
+      </div>
+      <p id="renewalMsg" class="msg" role="status"></p>
+      <div id="renewalResult" class="qr-result" hidden></div>
+    </div>
+    <div class="tw"><table><thead><tr><th>ID</th><th>医院</th><th>方案</th><th>创建时间</th><th>状态</th><th>扫码时间</th><th>扫码人</th><th>确认时间</th><th>价格</th><th>链接</th><th>操作</th></tr></thead><tbody id="tbRenewals"></tbody></table></div><div id="emptyRenewals" class="empty" hidden>还没有医院续费二维码</div>
+  </section>
+  <section class="panel" id="panel-tokens" hidden><h2>旧 Token（兼容）</h2><div class="tw"><table><thead><tr><th>医院</th><th>Token</th><th>状态</th><th>到期</th><th>最近扫码</th><th></th></tr></thead><tbody id="tbTokens"></tbody></table></div><div id="emptyTokens" class="empty" hidden>还没有旧 Token 数据</div></section>
   <section class="panel" id="panel-staff" hidden><h2>院方人员</h2>
     <div style="padding:16px 18px">
       <div class="row" style="display:flex;gap:8px;margin-bottom:14px">
@@ -178,6 +223,7 @@ tr:last-child td{border-bottom:0}
 
 <div id="toast" class="toast" role="status"></div>
 
+<script src="qr.js"></script>
 <script>
 (function () {
   'use strict';
@@ -262,30 +308,156 @@ tr:last-child td{border-bottom:0}
 
   function loadAll() {
     Promise.all([
-      api('/api/admin/overview'), api('/api/admin/tenants'), api('/api/admin/tokens'),
-      api('/api/admin/audit'), api('/api/admin/backups'), api('/api/admin/staff')
+      api('/api/admin/overview'), api('/api/admin/tenants'),
+      api('/api/admin/access'), api('/api/admin/renewals'),
+      api('/api/admin/audit'), api('/api/admin/backups'), api('/api/admin/staff'),
+      api('/api/admin/tokens')
     ]).then(function (r) {
       var o = (r[0].data && r[0].data.counts) || {};
       $('cTenants').textContent = o.tenants == null ? '—' : o.tenants;
-      $('cTokens').textContent = o.tokens == null ? '—' : o.tokens;
-      $('cAudits').textContent = o.audits == null ? '—' : o.audits;
+      $('cActiveTenants').textContent = o.active_tenants == null ? '—' : o.active_tenants;
+      $('cExpiredTenants').textContent = o.expired_tenants == null ? '—' : o.expired_tenants;
+      $('cPatientQr').textContent = o.patient_qr == null ? '—' : o.patient_qr;
+      $('cRenewalQr').textContent = o.renewal_qr == null ? '—' : o.renewal_qr;
+      $('cPendingRenewals').textContent = o.pending_renewals == null ? '—' : o.pending_renewals;
+      $('cRenewalsConfirmed').textContent = o.renewals_confirmed == null ? '—' : o.renewals_confirmed;
+      $('cStaffLogins').textContent = o.staff_logins == null ? '—' : o.staff_logins;
       $('cBackups').textContent = o.backups == null ? '—' : o.backups;
+      $('cAudits').textContent = o.audits == null ? '—' : o.audits;
+      $('cTokens').textContent = o.tokens == null ? '—' : o.tokens;
       renderTenants((r[1].data && r[1].data.tenants) || []);
-      renderTokens((r[2].data && r[2].data.tokens) || []);
-      renderAudit((r[3].data && r[3].data.rows) || []);
-      renderBackups((r[4].data && r[4].data.rows) || []);
-      renderStaff((r[5].data && r[5].data.staff) || []);
+      renderAccess((r[2].data && r[2].data.rows) || []);
+      renderRenewals((r[3].data && r[3].data.rows) || []);
+      renderAudit((r[4].data && r[4].data.rows) || []);
+      renderBackups((r[5].data && r[5].data.rows) || []);
+      renderStaff((r[6].data && r[6].data.staff) || []);
+      renderTokens((r[7].data && r[7].data.tokens) || []);
     }).catch(function (e) {
       if (!sess) showLogin(e.message || '请先登录');
       else toast(e.message || '加载失败');
     });
   }
 
+  function subscriptionChip(s) {
+    var state = String(s || '').toLowerCase();
+    if (state === 'active') return '<span class="chip ok">已续期</span>';
+    if (state === 'expired') return '<span class="chip bad">已到期</span>';
+    return '<span class="chip">' + esc(s || 'unknown') + '</span>';
+  }
+  function renewalChip(s) {
+    if (s === 'confirmed') return '<span class="chip ok">已续期</span>';
+    if (s === 'pending_confirm') return '<span class="chip warn">待确认续期</span>';
+    if (s === 'pending_payment') return '<span class="chip warn">待支付（未扣款）</span>';
+    return '<span class="chip">' + esc(s || 'unknown') + '</span>';
+  }
+  function copyButton(url) {
+    return url ? '<button class="btn ghost small" type="button" data-copy="' + esc(url) + '">复制链接</button>' : '—';
+  }
   function renderTenants(rows) {
+    $('tenantOptions').innerHTML = rows.map(function (t) {
+      return '<option value="' + esc(t.tenant_id) + '"></option>';
+    }).join('');
     $('tbTenants').innerHTML = rows.map(function (t) {
-      return '<tr><td class="mono">' + esc(t.tenant_id) + '</td><td>' + esc(t.tokens) + '</td><td>' + (t.catalog ? '<span class="chip ok">已配置</span>' : '<span class="chip">未配置</span>') + '</td></tr>';
+      var subscription = t.subscription || {};
+      var state = t.subscription_state || subscription.state || subscription.status;
+      return '<tr><td class="mono">' + esc(t.tenant_id) + '</td><td>' + subscriptionChip(state) + '</td><td>' + esc(subscription.plan_label || subscription.plan || '—') + '</td><td>' + fmt(subscription.expires_at) + '</td><td>' + esc(t.patient_qr == null ? '—' : t.patient_qr) + '</td><td>' + esc(t.renewal_qr == null ? '—' : t.renewal_qr) + '</td><td>' + esc(t.tokens) + '</td><td>' + (t.catalog ? '<span class="chip ok">已配置</span>' : '<span class="chip">未配置</span>') + '</td></tr>';
     }).join('');
     $('emptyTenants').hidden = rows.length > 0;
+  }
+  function renderAccess(rows) {
+    $('tbAccess').innerHTML = rows.map(function (a) {
+      return '<tr><td class="mono">' + esc(a.id) + '</td><td class="mono">' + esc(a.tenant_id) + '</td><td>' + esc(a.plan_label || a.plan) + '</td><td>' + fmt(a.created_at) + '</td><td>' + fmt(a.expires_at) + '</td><td>' + fmt(a.first_scan_at) + '</td><td>' + fmt(a.last_scan_at) + '</td><td>' + esc(a.scan_count == null ? 0 : a.scan_count) + '</td><td>' + stateChip(a.state || a.status) + '</td><td>价格口径待确认</td><td>' + copyButton(a.url) + '</td></tr>';
+    }).join('');
+    $('emptyAccess').hidden = rows.length > 0;
+  }
+  function renderRenewals(rows) {
+    $('tbRenewals').innerHTML = rows.map(function (r) {
+      var action = r.status === 'pending_confirm' ? '<button class="btn small" type="button" data-confirm="' + esc(r.id) + '">确认续期</button>' : '—';
+      return '<tr><td class="mono">' + esc(r.id) + '</td><td class="mono">' + esc(r.tenant_id) + '</td><td>' + esc(r.plan_label || r.plan) + '</td><td>' + fmt(r.created_at) + '</td><td>' + renewalChip(r.status) + '</td><td>' + fmt(r.scanned_at) + '</td><td class="mono">' + esc(r.scanned_by || '—') + '</td><td>' + fmt(r.confirmed_at) + '</td><td>价格口径待确认</td><td>' + copyButton(r.url) + '</td><td>' + action + '</td></tr>';
+    }).join('');
+    $('emptyRenewals').hidden = rows.length > 0;
+  }
+  function setLedgerMsg(id, text, ok) {
+    var el = $(id);
+    el.textContent = text || '';
+    el.className = 'msg' + (text ? (ok ? ' ok' : ' err') : '');
+  }
+  function showQrRecord(kind, record) {
+    var isAccess = kind === 'access';
+    var target = $(isAccess ? 'accessResult' : 'renewalResult');
+    var url = record && record.url ? String(record.url) : '';
+    var svg = url && window.CareQR && typeof window.CareQR.svg === 'function' ? window.CareQR.svg(url, 180) : '';
+    if (!svg) {
+      target.hidden = true; target.innerHTML = '';
+      setLedgerMsg(isAccess ? 'accessMsg' : 'renewalMsg', '记录已生成，但未获得可显示的二维码链接', false);
+      return false;
+    }
+    target.innerHTML = '<div class="qr-code">' + svg + '</div><div class="qr-link"><b>' + (isAccess ? '患者有效期二维码' : '医院续费二维码') + '</b><div class="mono">' + esc(record.tenant_id) + ' · ' + esc(record.plan_label || record.plan || '') + '</div><input type="text" value="' + esc(url) + '" readonly aria-label="二维码链接"><button class="btn ghost small" type="button" data-copy="' + esc(url) + '">复制链接</button><div class="hint" style="margin-top:8px">价格口径待确认</div></div>';
+    target.hidden = false;
+    return true;
+  }
+  function fallbackCopy(text) {
+    var area = document.createElement('textarea');
+    area.value = text; area.setAttribute('readonly', '');
+    area.style.position = 'fixed'; area.style.opacity = '0';
+    document.body.appendChild(area); area.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { }
+    document.body.removeChild(area);
+    toast(ok ? '链接已复制' : '复制失败，请手动复制');
+  }
+  function copyLink(text) {
+    if (!text) { toast('没有可复制的链接'); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { toast('链接已复制'); }).catch(function () { fallbackCopy(text); });
+    } else fallbackCopy(text);
+  }
+  function generateAccess() {
+    var body = { tenant_id: $('accessTenant').value.trim(), plan: $('accessPlan').value };
+    if (!body.tenant_id) { setLedgerMsg('accessMsg', '请选择或输入 tenant_id', false); return; }
+    $('accessGenerate').disabled = true; setLedgerMsg('accessMsg', '');
+    api('/api/admin/access', { method: 'POST', body: JSON.stringify(body) }).then(function (r) {
+      $('accessGenerate').disabled = false;
+      if (!r.ok || !r.data || !r.data.ok || !r.data.record) {
+        setLedgerMsg('accessMsg', (r.data && r.data.msg) || '生成失败', false); return;
+      }
+      if (showQrRecord('access', r.data.record)) setLedgerMsg('accessMsg', '已生成患者有效期二维码，价格口径待确认。', true);
+      loadAll();
+    }).catch(function () {
+      $('accessGenerate').disabled = false; setLedgerMsg('accessMsg', '网络异常', false);
+    });
+  }
+  function generateRenewal() {
+    var body = { tenant_id: $('renewalTenant').value.trim(), plan: $('renewalPlan').value };
+    if (!body.tenant_id) { setLedgerMsg('renewalMsg', '请选择或输入 tenant_id', false); return; }
+    $('renewalGenerate').disabled = true; setLedgerMsg('renewalMsg', '');
+    api('/api/admin/renewals', { method: 'POST', body: JSON.stringify(body) }).then(function (r) {
+      $('renewalGenerate').disabled = false;
+      if (!r.ok || !r.data || !r.data.ok || !r.data.record) {
+        setLedgerMsg('renewalMsg', (r.data && r.data.msg) || '生成失败', false); return;
+      }
+      if (showQrRecord('renewal', r.data.record)) setLedgerMsg('renewalMsg', '已生成医院续费二维码；未发生真实扣款，价格口径待确认。', true);
+      loadAll();
+    }).catch(function () {
+      $('renewalGenerate').disabled = false; setLedgerMsg('renewalMsg', '网络异常', false);
+    });
+  }
+  function confirmRenewal(id, button) {
+    if (!id) return;
+    button.disabled = true;
+    api('/api/admin/renewals/confirm', { method: 'POST', body: JSON.stringify({ id: id }) }).then(function (r) {
+      if (!r.ok || !r.data || !r.data.ok) {
+        button.disabled = false;
+        setLedgerMsg('renewalMsg', (r.data && r.data.msg) || '确认续期失败', false); return;
+      }
+      var subscription = r.data.subscription || {};
+      var record = r.data.record || {};
+      var tenant = record.tenant_id || $('renewalTenant').value.trim();
+      setLedgerMsg('renewalMsg', '已续期：' + tenant + '，新到期时间：' + fmt(subscription.expires_at) + '。仅确认续期台账，未发生真实扣款。', true);
+      loadAll();
+    }).catch(function () {
+      button.disabled = false; setLedgerMsg('renewalMsg', '网络异常', false);
+    });
   }
   function renderTokens(rows) {
     $('tbTokens').innerHTML = rows.map(function (t) {
@@ -467,8 +639,22 @@ tr:last-child td{border-bottom:0}
     b.addEventListener('click', function () {
       var name = b.getAttribute('data-tab');
       document.querySelectorAll('.tab').forEach(function (x) { x.setAttribute('aria-selected', String(x === b)); });
-      ['tenants', 'tokens', 'staff', 'config', 'audit', 'backups'].forEach(function (k) { $('panel-' + k).hidden = k !== name; });
+      ['tenants', 'access', 'renewals', 'tokens', 'staff', 'config', 'audit', 'backups'].forEach(function (k) { $('panel-' + k).hidden = k !== name; });
     });
+  });
+
+  // 患者有效期二维码与医院续费二维码
+  $('accessGenerate').addEventListener('click', generateAccess);
+  $('renewalGenerate').addEventListener('click', generateRenewal);
+  $('panel-access').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-copy]');
+    if (b) copyLink(b.getAttribute('data-copy'));
+  });
+  $('panel-renewals').addEventListener('click', function (e) {
+    var copy = e.target.closest('[data-copy]');
+    if (copy) { copyLink(copy.getAttribute('data-copy')); return; }
+    var b = e.target.closest('[data-confirm]');
+    if (b) confirmRenewal(b.getAttribute('data-confirm'), b);
   });
 
   // 院方人员

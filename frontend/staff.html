@@ -4,7 +4,7 @@
 <title>就医伴侣 · 院方工作台</title>
 <meta name="robots" content="noindex,nofollow">
 <meta name="theme-color" content="#f6f8fb">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://juyiibanlvzhinengai.tianxinyuan881.workers.dev; img-src data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://juyiibanlvzhinengai.tianxinyuan881.workers.dev; img-src data:; base-uri 'none'; form-action 'none'">
 <style>
 :root{--bg:#f6f8fb;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#e5eaf2;--accent:#0d9488;--accent-soft:#e6fffa;--ok:#16a34a;--warn:#d97706;--danger:#dc2626;--r:14px}
 *{box-sizing:border-box}
@@ -63,9 +63,28 @@ input:focus,textarea:focus{border-color:#5eead4;box-shadow:0 0 0 3px rgba(13,148
 .chip{display:inline-block;border-radius:999px;padding:2px 8px;font-size:11px;background:#f1f5f9;color:#475569}
 .chip.ok{background:#e9f9ef;color:#15803d}.chip.bad{background:#fdecec;color:#b91c1c}
 pre.json{margin:10px 0 0;max-height:380px;overflow:auto;background:#0f172a;color:#e2e8f0;border-radius:10px;padding:14px;font-size:12px;line-height:1.55}
+.config-editor{min-height:380px;resize:vertical;background:#0f172a;color:#e2e8f0;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;tab-size:2}
+.chip.warn{background:#fff6e6;color:#b45309}
+.tw{overflow-x:auto;margin:0 -18px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid #eef2f7;white-space:nowrap;vertical-align:middle}
+th{font-size:11px;letter-spacing:.04em;color:var(--muted);font-weight:600;background:#fafcff}
+tr:last-child td{border-bottom:0}
+.empty{padding:22px 8px;text-align:center;color:var(--muted);font-size:13px}
+.member-form{border-top:1px solid var(--line);margin-top:18px;padding-top:8px}
+.role-options{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px}
+.role-option{display:flex;align-items:flex-start;gap:8px;margin:0;padding:9px;border:1px solid var(--line);border-radius:10px;color:var(--ink);background:#fbfcfe;cursor:pointer}
+.role-option input{width:auto;flex:0 0 auto;margin:4px 0 0;padding:0}
+.role-option b{display:block;font-size:12px}.role-option small{display:block;color:var(--muted);font-size:11px}
+.subscription{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fbfcfe}
+.subscription b{font-size:15px}.subscription span{font-size:13px;color:var(--muted)}
+.renew-detail{display:flex;gap:20px;align-items:center;margin-top:16px;padding:16px;background:#f8fafc;border:1px solid var(--line);border-radius:12px;scroll-margin-top:80px}
+.qr-code{flex:0 0 auto;line-height:0;max-width:100%;overflow:auto}
+.qr-info{flex:1;min-width:0}.qr-info h3{font-size:15px;margin:0 0 4px}.qr-info p{margin:4px 0}
+.renew-url{width:100%;margin:8px 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;word-break:break-all}
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(8px);background:#0f172a;color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:.2s;z-index:30}
 .toast.on{opacity:1;transform:translateX(-50%)}
-@media(max-width:640px){.grid{grid-template-columns:1fr 1fr}.wrap{padding:16px 14px 64px}.sess{display:none}.brand small{display:none}}
+@media(max-width:640px){.grid{grid-template-columns:1fr 1fr}.wrap{padding:16px 14px 64px}.sess{display:none}.brand small{display:none}.role-options{grid-template-columns:1fr 1fr}.renew-detail{align-items:flex-start;flex-wrap:wrap}.qr-info{flex-basis:100%}.tw{margin:0 -14px}}
 </style></head>
 <body>
 
@@ -112,17 +131,51 @@ pre.json{margin:10px 0 0;max-height:380px;overflow:auto;background:#0f172a;color
     </div>
   </section>
 
-  <section class="card">
+  <section class="card" id="configCard">
     <h2>医院配置</h2>
-    <p class="sub">只读查看本院服务目录。需要修改请联系管理员。</p>
+    <p class="sub" id="cfgSub">只读查看本院服务目录。需要修改请联系管理员。</p>
     <div id="cfgMeta" class="sub"></div>
     <div class="bar" id="tenantBar" hidden></div>
     <pre id="cfgJson" class="json" hidden></pre>
+    <div id="cfgEdit" hidden>
+      <label for="cfgEditor">本院配置 JSON</label>
+      <textarea id="cfgEditor" class="config-editor" spellcheck="false"></textarea>
+      <div class="bar"><button id="cfgSave" class="btn" type="button">保存本院配置</button></div>
+      <p id="cfgMsg" class="msg" role="status"></p>
+    </div>
+  </section>
+
+  <section class="card" id="membersCard" hidden>
+    <h2>本院人员</h2>
+    <p class="sub">R3 可查看、分配和停用本院人员；只能分配已在患者页注册的账号，不能接管其他医院账号。</p>
+    <div class="tw"><table><thead><tr><th>账号</th><th>岗位</th><th>开通时间</th><th>操作</th></tr></thead><tbody id="memberRows"></tbody></table></div>
+    <div id="memberEmpty" class="empty" hidden>本院还没有已开通的院方人员</div>
+    <form id="memberForm" class="member-form" autocomplete="off">
+      <label for="memberUser">已注册账号</label>
+      <input id="memberUser" type="text" placeholder="输入对方已注册的用户名" required>
+      <label>分配岗位（至少一个）</label>
+      <div id="memberRoles" class="role-options"></div>
+      <div class="bar"><button id="memberSave" class="btn" type="submit">分配 / 保存岗位</button></div>
+      <p id="memberMsg" class="msg" role="status"></p>
+    </form>
+  </section>
+
+  <section class="card" id="billingCard">
+    <h2>本院订阅与续费</h2>
+    <p class="sub">所有院方均可查看本院订阅和续费记录。这里只模拟扫码登记，不发生真实扣款，必须等待管理员确认后才会续期；价格口径待确认。</p>
+    <div id="subscription" class="subscription"><span>正在读取本院订阅…</span></div>
+    <p id="billingMsg" class="msg" role="status"></p>
+    <p id="renewLinkMsg" class="msg" role="status"></p>
+    <div id="renewalDetail" class="renew-detail" hidden></div>
+    <p id="renewalMsg" class="msg" role="status"></p>
+    <div class="tw"><table><thead><tr><th>续费标识</th><th>方案</th><th>创建时间</th><th>状态</th><th>扫码 / 确认时间</th><th>价格</th><th>操作</th></tr></thead><tbody id="renewalRows"></tbody></table></div>
+    <div id="renewalEmpty" class="empty" hidden>本院还没有续费记录，请联系管理员生成续费二维码</div>
   </section>
 </main>
 
 <div id="toast" class="toast" role="status"></div>
 
+<script src="qr.js"></script>
 <script>
 (function () {
   'use strict';
@@ -130,6 +183,9 @@ pre.json{margin:10px 0 0;max-height:380px;overflow:auto;background:#0f172a;color
   var TK = 'care.staff.token', UK = 'care.staff.user';
   var token = sessionStorage.getItem(TK) || '';
   var me = null, roleId = '', chat = {}, busy = false, tenant = '';
+  var renewals = [], selectedRenewal = '', renewLocated = false;
+  var renewToken = '';
+  try { renewToken = String(new URLSearchParams(window.location.search).get('renew') || '').trim(); } catch (e) { }
 
   var ROLES = [
     { id: 'R1', code: 'P-ASSIST', name: '患者陪伴' },
@@ -145,6 +201,20 @@ pre.json{margin:10px 0 0;max-height:380px;overflow:auto;background:#0f172a;color
     return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
+  }
+  function setMsg(id, text, ok) {
+    var el = $(id);
+    el.textContent = text || '';
+    el.className = 'msg' + (text ? (ok ? ' ok' : ' err') : '');
+  }
+  function fmt(value) {
+    var n = Number(value);
+    if (!n) return '—';
+    var d = new Date(n);
+    return isNaN(d.getTime()) ? '—' : d.toLocaleString('zh-CN', { hour12: false });
+  }
+  function isR3() {
+    return !!(me && Array.isArray(me.roles) && me.roles.indexOf('R3') >= 0);
   }
   function toast(t) {
     var el = $('toast'); el.textContent = t; el.classList.add('on');
@@ -163,8 +233,12 @@ pre.json{margin:10px 0 0;max-height:380px;overflow:auto;background:#0f172a;color
   }
   function drop() {
     token = ''; me = null; roleId = ''; chat = {}; tenant = '';
+    renewals = []; selectedRenewal = ''; renewLocated = false;
     sessionStorage.removeItem(TK); sessionStorage.removeItem(UK);
     $('app').hidden = true; $('login').hidden = false;
+    $('memberRows').innerHTML = ''; $('renewalRows').innerHTML = '';
+    $('renewalDetail').innerHTML = ''; $('renewalDetail').hidden = true;
+    $('cfgEditor').value = ''; $('cfgJson').textContent = '';
     $('pw').value = '';
     $('loginBtn').disabled = false; $('loginBtn').textContent = '登录';
   }
@@ -195,9 +269,15 @@ pre.json{margin:10px 0 0;max-height:380px;overflow:auto;background:#0f172a;color
   function enter() {
     $('login').hidden = true; $('app').hidden = false;
     var shown = me.tenant_ids && me.tenant_ids.length ? me.tenant_ids.join('、') : '未分配医院';
+    var canEdit = isR3();
     $('sessInfo').textContent = '账号 ' + me.user + '\n医院 ' + shown;
     $('hospLine').textContent = '医院：' + shown + ' · 已开通岗位：' + (me.roles || []).join(' / ');
-    renderRoles(); renderChat(); loadConfig();
+    $('cfgSub').textContent = canEdit ? 'R3 可编辑并保存本院服务目录 JSON，保存时仍会由服务端校验。' : '只读查看本院服务目录。需要修改请联系本院 R3 或管理员。';
+    $('cfgEdit').hidden = true; $('cfgJson').hidden = true; $('cfgSave').disabled = true;
+    $('membersCard').hidden = !canEdit;
+    renderRoles(); renderChat();
+    if (renewToken && !renewLocated) locateRenewal();
+    else loadTenantData();
   }
 
   function check() {
@@ -206,23 +286,36 @@ pre.json{margin:10px 0 0;max-height:380px;overflow:auto;background:#0f172a;color
       if (r.status === 403) { showLogin((r.data && r.data.msg) || '该账号没有院方权限'); return false; }
       if (!r.ok || !r.data || !r.data.ok) { toast((r.data && r.data.msg) || '读取权限失败'); return false; }
       me = r.data;
-      if (me.tenant_ids && me.tenant_ids.length) tenant = me.tenant_ids[0];
+      var ids = Array.isArray(me.tenant_ids) ? me.tenant_ids : [];
+      if (ids.indexOf(tenant) < 0) tenant = ids[0] || '';
       if (!roleId || me.roles.indexOf(roleId) < 0) roleId = me.roles[0] || '';
       enter();
       return true;
     }).catch(function () { showLogin('网络异常，请稍后重试'); return false; });
   }
 
-  function loadConfig() {
+  function renderTenantBar() {
     var ids = (me && me.tenant_ids) || [];
     $('tenantBar').hidden = ids.length < 2;
     $('tenantBar').innerHTML = ids.map(function (t) {
       return '<button class="btn ghost small" type="button" data-tenant="' + esc(t) + '"' + (t === tenant ? ' style="border-color:var(--accent);color:var(--accent)"' : '') + '>' + esc(t) + '</button>';
     }).join('');
-    $('cfgJson').hidden = true;
+  }
+
+  function loadTenantData(billingData) {
+    renderTenantBar(); loadConfig(); loadMembers();
+    if (billingData) renderBilling(billingData);
+    else loadBilling();
+  }
+
+  function loadConfig() {
+    var selected = tenant;
+    $('cfgJson').hidden = true; $('cfgEdit').hidden = true; $('cfgSave').disabled = true;
+    setMsg('cfgMsg', '');
     $('cfgMeta').textContent = '正在读取…';
-    if (!tenant) { $('cfgMeta').textContent = '该账号还没有分配医院。'; return; }
-    api('/api/staff/config?tenant_id=' + encodeURIComponent(tenant)).then(function (r) {
+    if (!selected) { $('cfgMeta').textContent = '该账号还没有分配医院。'; return; }
+    return api('/api/staff/config?tenant_id=' + encodeURIComponent(selected)).then(function (r) {
+      if (selected !== tenant) return;
       if (r.status === 401) { showLogin('登录已失效，请重新登录'); return; }
       if (!r.ok || !r.data || !r.data.ok) {
         $('cfgMeta').textContent = (r.data && r.data.msg) || '读取医院配置失败';
@@ -232,9 +325,227 @@ pre.json{margin:10px 0 0;max-height:380px;overflow:auto;background:#0f172a;color
       $('cfgMeta').innerHTML = '医院：<b class="mono">' + esc(d.tenant_id) + '</b> ' +
         (d.valid ? '<span class="chip ok">配置有效</span>' : '<span class="chip bad">配置不完整</span>') +
         (d.problem ? '<br><span class="mono">' + esc(d.problem) + '</span>' : '');
-      $('cfgJson').textContent = JSON.stringify(d.catalog, null, 2);
-      $('cfgJson').hidden = false;
-    }).catch(function () { $('cfgMeta').textContent = '网络异常，读取失败'; });
+      if (isR3()) {
+        $('cfgEditor').value = JSON.stringify(d.catalog, null, 2);
+        $('cfgEdit').hidden = false; $('cfgSave').disabled = false;
+      } else {
+        $('cfgJson').textContent = JSON.stringify(d.catalog, null, 2);
+        $('cfgJson').hidden = false;
+      }
+    }).catch(function () { if (selected === tenant) $('cfgMeta').textContent = '网络异常，读取失败'; });
+  }
+
+  function saveConfig() {
+    if (!isR3() || !tenant) return;
+    var catalog;
+    try { catalog = JSON.parse($('cfgEditor').value); }
+    catch (e) { setMsg('cfgMsg', '不是合法 JSON：' + e.message, false); return; }
+    var selected = tenant;
+    $('cfgSave').disabled = true; setMsg('cfgMsg', '');
+    api('/api/staff/config', { method: 'PUT', body: JSON.stringify({ tenant_id: selected, catalog: catalog }) }).then(function (r) {
+      if (selected !== tenant) return;
+      $('cfgSave').disabled = false;
+      if (r.status === 401) { showLogin('登录已失效，请重新登录'); return; }
+      if (!r.ok || !r.data || !r.data.ok) { setMsg('cfgMsg', (r.data && r.data.msg) || '保存医院配置失败', false); return; }
+      setMsg('cfgMsg', '已保存本院配置，版本：' + (r.data.catalog_version || '已更新'), true);
+      toast('医院配置已保存');
+    }).catch(function () {
+      if (selected !== tenant) return;
+      $('cfgSave').disabled = false; setMsg('cfgMsg', '网络异常，保存失败', false);
+    });
+  }
+
+  function loadMembers(successMsg) {
+    if (!isR3()) { $('membersCard').hidden = true; return; }
+    var selected = tenant;
+    $('membersCard').hidden = false;
+    $('memberRows').innerHTML = ''; $('memberEmpty').hidden = true;
+    setMsg('memberMsg', selected ? '正在读取本院人员…' : '该账号还没有分配医院。');
+    if (!selected) return;
+    return api('/api/staff/members?tenant_id=' + encodeURIComponent(selected)).then(function (r) {
+      if (selected !== tenant) return;
+      if (r.status === 401) { showLogin('登录已失效，请重新登录'); return; }
+      if (!r.ok || !r.data || !r.data.ok) { setMsg('memberMsg', (r.data && r.data.msg) || '读取本院人员失败', false); return; }
+      setMsg('memberMsg', successMsg || '', !!successMsg);
+      var rows = Array.isArray(r.data.staff) ? r.data.staff : [];
+      $('memberRows').innerHTML = rows.map(function (s) {
+        var username = String(s.username || ''), roles = Array.isArray(s.roles) ? s.roles : [];
+        return '<tr><td class="mono">' + esc(username) + '</td><td class="mono">' + esc(roles.join(' / ') || '—') + '</td><td>' + fmt(s.created) + '</td><td>' +
+          '<button class="btn ghost small" type="button" data-member-edit="' + esc(username) + '" data-roles="' + esc(roles.join(',')) + '">编辑岗位</button> ' +
+          '<button class="btn ghost small" type="button" data-member-disable="' + esc(username) + '">停用</button></td></tr>';
+      }).join('');
+      $('memberEmpty').hidden = rows.length > 0;
+    }).catch(function () { if (selected === tenant) setMsg('memberMsg', '网络异常，读取本院人员失败', false); });
+  }
+
+  function saveMember() {
+    if (!isR3() || !tenant) return;
+    var user = String($('memberUser').value || '').trim(), roles = [];
+    document.querySelectorAll('#memberRoles input:checked').forEach(function (c) { roles.push(c.value); });
+    if (!user) { setMsg('memberMsg', '请填写已注册的账号', false); return; }
+    if (!roles.length) { setMsg('memberMsg', '至少选择一个岗位', false); return; }
+    var selected = tenant;
+    $('memberSave').disabled = true; setMsg('memberMsg', '');
+    api('/api/staff/members', { method: 'POST', body: JSON.stringify({ tenant_id: selected, user: user, roles: roles }) }).then(function (r) {
+      if (selected !== tenant) return;
+      $('memberSave').disabled = false;
+      if (r.status === 401) { showLogin('登录已失效，请重新登录'); return; }
+      if (!r.ok || !r.data || !r.data.ok) { setMsg('memberMsg', (r.data && r.data.msg) || '分配人员失败', false); return; }
+      loadMembers('已保存：' + user + ' → ' + (r.data.roles || roles).join(' / '));
+    }).catch(function () {
+      if (selected !== tenant) return;
+      $('memberSave').disabled = false; setMsg('memberMsg', '网络异常，分配人员失败', false);
+    });
+  }
+
+  function disableMember(user, button) {
+    if (!isR3() || !tenant || !user) return;
+    if (!window.confirm('停用 ' + user + ' 在本院的院方权限？')) return;
+    var selected = tenant;
+    button.disabled = true; setMsg('memberMsg', '');
+    api('/api/staff/members', { method: 'POST', body: JSON.stringify({ tenant_id: selected, user: user, enabled: false }) }).then(function (r) {
+      if (selected !== tenant) return;
+      button.disabled = false;
+      if (r.status === 401) { showLogin('登录已失效，请重新登录'); return; }
+      if (!r.ok || !r.data || !r.data.ok) { setMsg('memberMsg', (r.data && r.data.msg) || '停用人员失败', false); return; }
+      loadMembers('已停用本院人员：' + user);
+    }).catch(function () {
+      if (selected !== tenant) return;
+      button.disabled = false; setMsg('memberMsg', '网络异常，停用人员失败', false);
+    });
+  }
+
+  function renewalChip(status) {
+    if (status === 'confirmed') return '<span class="chip ok">已确认续期</span>';
+    if (status === 'pending_confirm') return '<span class="chip warn">待管理员确认</span>';
+    if (status === 'pending_payment') return '<span class="chip warn">待模拟扫码（未扣款）</span>';
+    return '<span class="chip">' + esc(status || '未知状态') + '</span>';
+  }
+
+  function findRenewal(id) {
+    return renewals.filter(function (r) { return String(r.id || '') === String(id || '') && r.tenant_id === tenant; })[0] || null;
+  }
+
+  function renderRenewalDetail() {
+    var record = findRenewal(selectedRenewal), target = $('renewalDetail');
+    if (!record) { target.hidden = true; target.innerHTML = ''; return; }
+    var url = String(record.url || '');
+    var svg = url && window.CareQR && typeof window.CareQR.svg === 'function' ? window.CareQR.svg(url, 180) : '';
+    var action = '';
+    if (record.status === 'pending_payment') action = '<button class="btn" type="button" data-scan="' + esc(record.id) + '">模拟扫码支付</button>';
+    else if (record.status === 'pending_confirm') action = '<span class="chip warn">已模拟扫码，等待管理员确认</span>';
+    else if (record.status === 'confirmed') action = '<span class="chip ok">管理员已确认续期</span>';
+    target.innerHTML = '<div class="qr-code">' + (svg || '<span class="sub">二维码生成失败，请使用续费链接</span>') + '</div>' +
+      '<div class="qr-info"><h3>本院续费二维码</h3><p class="mono">' + esc(record.tenant_id) + ' · ' + esc(record.plan_label || record.plan || '') + '</p>' +
+      '<p>' + renewalChip(record.status) + ' <span class="chip">价格口径待确认</span></p>' +
+      '<input class="renew-url" type="text" value="' + esc(url) + '" readonly aria-label="续费二维码链接">' +
+      '<div class="bar">' + action + '</div><p class="hint">仅模拟扫码登记，未真实扣款；等待管理员确认后才会续期。</p></div>';
+    target.hidden = false;
+  }
+
+  function renderBilling(data) {
+    if (!data || data.tenant_id !== tenant) return;
+    var sub = data.subscription || {};
+    var active = sub.state === 'active';
+    $('subscription').innerHTML = '<b>' + (active ? '订阅有效' : '订阅已到期') + '</b>' +
+      '<span class="chip ' + (active ? 'ok' : 'bad') + '">' + (active ? '有效' : '已到期') + '</span>' +
+      '<span>方案：' + esc(sub.plan_label || sub.plan || '—') + '</span><span>到期时间：' + fmt(sub.expires_at) + '</span>' +
+      '<span>价格口径待确认</span>';
+    renewals = (Array.isArray(data.renewals) ? data.renewals : []).filter(function (r) { return r && r.tenant_id === tenant; });
+    var chosen = findRenewal(selectedRenewal);
+    if (!chosen) chosen = renewals.filter(function (r) { return r.status === 'pending_payment'; })[0] ||
+      renewals.filter(function (r) { return r.status === 'pending_confirm'; })[0] || renewals[0] || null;
+    selectedRenewal = chosen ? String(chosen.id || '') : '';
+    $('renewalRows').innerHTML = renewals.map(function (r) {
+      var scanned = r.scanned_at ? '扫码：' + fmt(r.scanned_at) + (r.scanned_by ? '（' + esc(r.scanned_by) + '）' : '') : '扫码：—';
+      var confirmed = r.confirmed_at ? '<br>确认：' + fmt(r.confirmed_at) : '';
+      return '<tr><td class="mono">' + esc(r.id) + '</td><td>' + esc(r.plan_label || r.plan || '—') + '</td><td>' + fmt(r.created_at) + '</td><td>' + renewalChip(r.status) + '</td>' +
+        '<td>' + scanned + confirmed + '</td><td>价格口径待确认</td><td><button class="btn ghost small" type="button" data-show-renewal="' + esc(r.id) + '" aria-pressed="' + (String(r.id) === selectedRenewal) + '">显示二维码</button></td></tr>';
+    }).join('');
+    $('renewalEmpty').hidden = renewals.length > 0;
+    renderRenewalDetail();
+  }
+
+  function loadBilling() {
+    var selected = tenant;
+    renewals = [];
+    $('renewalRows').innerHTML = ''; $('renewalEmpty').hidden = true;
+    $('renewalDetail').hidden = true; $('renewalDetail').innerHTML = '';
+    $('subscription').innerHTML = '<span>正在读取本院订阅…</span>';
+    setMsg('billingMsg', selected ? '正在读取续费记录…' : '该账号还没有分配医院。');
+    if (!selected) return;
+    return api('/api/staff/billing?tenant_id=' + encodeURIComponent(selected)).then(function (r) {
+      if (selected !== tenant) return;
+      if (r.status === 401) { showLogin('登录已失效，请重新登录'); return; }
+      if (!r.ok || !r.data || !r.data.ok) {
+        $('subscription').innerHTML = '<span>订阅状态读取失败</span>';
+        setMsg('billingMsg', (r.data && r.data.msg) || '读取本院订阅失败', false); return;
+      }
+      setMsg('billingMsg', ''); renderBilling(r.data);
+    }).catch(function () {
+      if (selected !== tenant) return;
+      $('subscription').innerHTML = '<span>订阅状态读取失败</span>';
+      setMsg('billingMsg', '网络异常，读取本院订阅失败', false);
+    });
+  }
+
+  function scanRenewal(id, button) {
+    var record = findRenewal(id), selected = tenant;
+    if (!record) { setMsg('renewalMsg', '只能操作当前本院已加载的续费记录', false); return; }
+    if (record.status !== 'pending_payment') { setMsg('renewalMsg', '该记录无需重复扫码；未真实扣款，等待管理员确认。', false); return; }
+    button.disabled = true; setMsg('renewalMsg', '');
+    api('/api/staff/renewals/scan', { method: 'POST', body: JSON.stringify({ tenant_id: selected, token: String(record.id) }) }).then(function (r) {
+      if (selected !== tenant) return;
+      button.disabled = false;
+      if (r.status === 401) { showLogin('登录已失效，请重新登录'); return; }
+      if (!r.ok || !r.data || !r.data.ok) { setMsg('renewalMsg', (r.data && r.data.msg) || '模拟扫码失败，未发生真实扣款', false); return; }
+      setMsg('renewalMsg', (r.data && r.data.msg) || '已模拟扫码，未发生真实扣款，等待管理员确认。', true);
+      loadBilling();
+    }).catch(function () {
+      if (selected !== tenant) return;
+      button.disabled = false; setMsg('renewalMsg', '网络异常，模拟扫码失败，未发生真实扣款', false);
+    });
+  }
+
+  function locateRenewal() {
+    renewLocated = true;
+    var wanted = renewToken, username = me.user;
+    var ids = Array.isArray(me.tenant_ids) ? me.tenant_ids.slice() : [];
+    if (!ids.length) {
+      loadTenantData(); setMsg('renewLinkMsg', '当前账号没有所属医院，不能查看或跨院支付该续费。', false); return;
+    }
+    setMsg('renewLinkMsg', '正在当前账号所属医院中定位续费记录…');
+    Promise.all(ids.map(function (id) {
+      return api('/api/staff/billing?tenant_id=' + encodeURIComponent(id)).catch(function () { return null; });
+    })).then(function (responses) {
+      if (!me || me.user !== username) return;
+      if (responses.some(function (r) { return r && r.status === 401; })) { showLogin('登录已失效，请重新登录'); return; }
+      var found = null, foundData = null, networkFailed = false;
+      for (var i = 0; i < responses.length && !found; i++) {
+        var response = responses[i];
+        if (!response) { networkFailed = true; continue; }
+        if (!response.ok || !response.data || !response.data.ok) continue;
+        var data = response.data;
+        if (ids.indexOf(data.tenant_id) < 0) continue;
+        var rows = Array.isArray(data.renewals) ? data.renewals : [];
+        for (var j = 0; j < rows.length; j++) {
+          if (String(rows[j].id || '') === wanted && rows[j].tenant_id === data.tenant_id) {
+            found = rows[j]; foundData = data; break;
+          }
+        }
+      }
+      if (found) {
+        tenant = found.tenant_id; selectedRenewal = wanted;
+        loadTenantData(foundData);
+        setMsg('renewLinkMsg', '已自动定位本院续费记录并显示二维码；未真实扣款，需等待管理员确认。', true);
+        setTimeout(function () {
+          if (tenant === found.tenant_id) $('billingCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 60);
+      } else {
+        loadTenantData();
+        setMsg('renewLinkMsg', networkFailed ? '续费定位时网络异常，请刷新重试；不会跨院访问。' : '未在当前账号所属医院找到该续费记录，不能跨院查看或支付。', false);
+      }
+    });
   }
 
   function send() {
@@ -260,6 +571,36 @@ pre.json{margin:10px 0 0;max-height:380px;overflow:auto;background:#0f172a;color
       busy = false; $('send').disabled = false;
     });
   }
+
+  $('memberRoles').innerHTML = ROLES.map(function (r) {
+    return '<label class="role-option"><input type="checkbox" value="' + r.id + '"><span><b>' + r.id + ' · ' + esc(r.name) + '</b><small>' + r.code + '</small></span></label>';
+  }).join('');
+  $('cfgSave').addEventListener('click', saveConfig);
+  $('memberForm').addEventListener('submit', function (e) { e.preventDefault(); saveMember(); });
+  $('memberRows').addEventListener('click', function (e) {
+    var edit = e.target.closest('[data-member-edit]');
+    if (edit) {
+      $('memberUser').value = edit.getAttribute('data-member-edit') || '';
+      var roles = (edit.getAttribute('data-roles') || '').split(',');
+      document.querySelectorAll('#memberRoles input').forEach(function (c) { c.checked = roles.indexOf(c.value) >= 0; });
+      $('memberUser').focus(); return;
+    }
+    var off = e.target.closest('[data-member-disable]');
+    if (off) disableMember(off.getAttribute('data-member-disable') || '', off);
+  });
+  $('billingCard').addEventListener('click', function (e) {
+    var show = e.target.closest('[data-show-renewal]');
+    if (show) {
+      var id = show.getAttribute('data-show-renewal') || '';
+      if (!findRenewal(id)) return;
+      selectedRenewal = id; renderRenewalDetail();
+      document.querySelectorAll('[data-show-renewal]').forEach(function (b) { b.setAttribute('aria-pressed', String((b.getAttribute('data-show-renewal') || '') === id)); });
+      $('renewalDetail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return;
+    }
+    var scan = e.target.closest('[data-scan]');
+    if (scan) scanRenewal(scan.getAttribute('data-scan') || '', scan);
+  });
 
   $('loginForm').addEventListener('submit', function (e) {
     e.preventDefault();
@@ -304,8 +645,11 @@ pre.json{margin:10px 0 0;max-height:380px;overflow:auto;background:#0f172a;color
   $('tenantBar').addEventListener('click', function (e) {
     var b = e.target.closest('[data-tenant]');
     if (!b) return;
-    tenant = b.getAttribute('data-tenant');
-    loadConfig();
+    var selected = b.getAttribute('data-tenant') || '';
+    if (!me || (me.tenant_ids || []).indexOf(selected) < 0 || selected === tenant) return;
+    tenant = selected; selectedRenewal = ''; renewals = [];
+    setMsg('renewLinkMsg', ''); setMsg('renewalMsg', ''); setMsg('memberMsg', '');
+    loadTenantData();
   });
 
   if (token) {
