@@ -133,6 +133,31 @@ test("医院任务 Worker 路由完成创建、读取、推进、精确重放与
   assert.equal(unauthenticated.status, 401);
 });
 
+test("新注册账号自动获得默认 care_scopes 并可匹配医院服务", async () => {
+  const env = careEnv();
+  env.KV.seed("care:catalog:hosp-demo-001", makeCatalog("2026.11.22"));
+  const registered = await responseBody(await callWorker(env, "/api/register", {
+    body: { user: "demo2", pw: "secret1" },
+    token: ""
+  }));
+  assert.equal(registered.response.status, 200);
+  assert.equal(registered.body.ok, true);
+  assert.ok(registered.body.token);
+
+  const record = await env.KV.get("user:demo2", "json");
+  assert.deepEqual(record.care_scopes, [{ tenant_id: "hosp-demo-001", profile_id: "profile-demo-001" }]);
+  assert.ok(record.salt);
+  assert.ok(record.hash);
+  assert.equal(Object.hasOwn(record, "pw"), false);
+
+  const matched = await responseBody(await callWorker(env, "/api/intel/match", {
+    body: { tenant_id: "hosp-demo-001", option_ids: ["optA"] },
+    token: registered.body.token
+  }));
+  assert.equal(matched.response.status, 200, JSON.stringify(matched.body));
+  assert.equal(matched.body.matches[0].service_id, "svcA");
+});
+
 test("旧账号密码升级保留 care_scopes 与其他记录字段", async () => {
   const env = careEnv();
   const password = "legacy-password";

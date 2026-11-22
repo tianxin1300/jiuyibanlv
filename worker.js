@@ -4766,7 +4766,7 @@ async function handle(request, env, ctx) {
         await rlHit(env, k3, 3600);
         if (rec) return json({ ok: false, msg: "账号已存在，去登录" });
         const salt = rand(16);
-        await env.KV.put("user:" + user, JSON.stringify({ salt, hash: await pbkdf2(pw, salt), created: Date.now() }));
+        await env.KV.put("user:" + user, JSON.stringify({ salt, hash: await pbkdf2(pw, salt), created: Date.now(), care_scopes: [{ tenant_id: "hosp-demo-001", profile_id: "profile-demo-001" }] }));
       } else {
         if (!rec) { await rlHit(env, k2, 600); return json({ ok: false, msg: "账号不存在，先注册" }); }
         if (!(await checkPw(pw, rec))) { await rlHit(env, k1, 600); await rlHit(env, k2, 600); return json({ ok: false, msg: "密码错" }); }
