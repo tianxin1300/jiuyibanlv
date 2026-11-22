@@ -297,7 +297,60 @@ details.fl{margin-top:10px}details.fl>summary{list-style:none;cursor:pointer;min
 .ckr label,.checkline{cursor:pointer}
 .pk-g{font-size:14px;margin:12px 0 2px;color:var(--mute,#5b6f6a)}details.pk-dp>summary,details.pk-dis>summary{cursor:pointer;margin:12px 0 4px;min-height:44px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 #icp{text-align:center;font-size:13px;color:var(--mute,#5b6f6a);padding:4px 16px 96px}#icp a{color:inherit;text-decoration:none}
-</style></head><body><main id="app"></main><footer id="icp" hidden></footer>
+/* ===== 登录与六角色医院服务 ===== */
+#authBar{background:var(--card);border-bottom:1px solid var(--line)}
+.authbar-in{max-width:640px;margin:0 auto;padding:9px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+#authHi{font-size:14px;color:var(--mute);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#authBar button{min-height:40px;padding:6px 12px;flex:none}
+#authGate{position:fixed;left:0;right:0;top:0;bottom:0;z-index:10000;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto}
+#authGate[hidden]{display:none}
+.auth-card{width:100%;max-width:400px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px 20px;box-shadow:0 18px 50px rgba(15,60,55,.16)}
+.auth-card h1{font-size:24px;margin:0 0 4px}
+.auth-card .sub{margin-bottom:18px}
+.auth-card input{margin-bottom:0}
+.auth-actions{display:grid;gap:10px;margin-top:8px}
+.auth-actions button{width:100%;min-height:50px;font-size:17px}
+#authForm .bar{justify-content:space-between}
+.care-role-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
+@media (max-width:420px){.care-role-grid{grid-template-columns:1fr}}
+.care-role{text-align:left;border:1.5px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:12px;font:inherit;cursor:pointer}
+.care-role[aria-pressed="true"]{border-color:var(--c);background:var(--bg);box-shadow:0 0 0 2px rgba(15,118,110,.12)}
+.care-role em{display:block;font-style:normal;color:var(--c);font-size:12px;font-weight:700;margin-bottom:2px}
+.care-role b{display:block;font-size:15px}
+.care-role small{display:block;color:var(--mute);font-size:12px;margin-top:3px;line-height:1.45}
+.care-chat{max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--bg);margin:10px 0}
+.care-msg{margin:0 0 8px;padding:9px 11px;border-radius:10px;background:var(--card);border:1px solid var(--line);white-space:pre-wrap;word-break:break-word;font-size:15px}
+.care-msg.me{background:#e7f5f1;border-color:#bfe3da;margin-left:32px}
+.care-msg.ai{margin-right:32px}
+.care-msg.err{border-color:#f3c9c9;background:#fff2f2;color:#8a1f1f}
+.care-step{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--card)}
+.care-step.done{border-color:#b8d8d1;background:#f5fbf8}
+.care-step.cur{border-color:var(--c);box-shadow:0 0 0 2px rgba(15,118,110,.12)}
+.care-step .n{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--bg);border:1px solid var(--line);font-size:13px;font-weight:700;margin-right:6px}
+.care-step.done .n{background:#13615c;color:#fff;border-color:#13615c}
+.care-step.cur .n{background:var(--c);color:#fff;border-color:var(--c)}
+.care-step small{display:block;color:var(--mute);font-size:13px;margin-top:3px}
+.care-meta{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.care-note{font-size:13px;color:var(--mute);line-height:1.5}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .care-msg.me{background:#17332f;border-color:#2b5d55}:root:not([data-theme="light"]) .care-msg.err{background:#3a1f1f;border-color:#6b2b2b;color:#ffb4b4}:root:not([data-theme="light"]) .care-step.done{background:#14251f;border-color:#2b5d55}}
+</style></head><body>
+<header id="authBar" hidden><div class="authbar-in"><span id="authHi"></span><button class="ghost" id="authOut" type="button">退出登录</button></div></header>
+<main id="app"></main>
+<footer id="icp" hidden></footer>
+<div id="authGate" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+<div class="auth-card">
+<h1 id="authTitle">就医伴侣</h1>
+<p class="sub">登录后使用医院服务、六角色助手和七步任务。</p>
+<div id="authChoices" class="auth-actions"><button class="btn" id="authGoRegister" type="button">注册</button><button class="ghost" id="authGoLogin" type="button">登录</button></div>
+<form id="authForm" hidden>
+<label for="authUser">用户名</label><input id="authUser" name="user" autocomplete="username" maxlength="64" required>
+<label for="authPw">密码</label><input id="authPw" name="pw" type="password" autocomplete="current-password" minlength="6" maxlength="128" required>
+<p id="authMsg" class="warn" role="alert" hidden></p>
+<div class="bar"><button class="ghost" id="authBack" type="button">返回</button><button class="btn" id="authSubmit" type="submit">登录</button></div>
+</form>
+</div>
+</div>
+<script>try{if(localStorage.getItem('companion.auth.token'))document.getElementById('authGate').hidden=true;}catch(e){}</script>
 <script>
 var __QR=(function(){var M={},C={};function req(n){n=n.replace('./','');if(C[n])return C[n].exports;var m={exports:{}};C[n]=m;M[n](m,m.exports,req);return m.exports}
 M['QR8bitByte']=function(module,exports,require){
@@ -1724,10 +1777,12 @@ function view() {
     if (CFG_LOAD) { a.innerHTML = '<div class="card"><h2>正在加载医院服务…</h2><p class="sub">网络较慢时可能需要几秒钟。您的个人资料保存在本机，不受影响。</p><button class="ghost" onclick="CFG_LOAD=false;S.skipCfg=1;view()">先使用我的个人档案</button></div>'; return; }
     if (CFG_ERR && !S.skipCfg) { a.innerHTML = '<div class="card"><h2>这个入口暂时无法打开</h2><p class="sub">' + (CFG_EXP ? '这个演示链接已到期（演示有效期已过）。' : '没有读取到这个入口的配置（入口代号：' + esc(HP_KEY) + '）。可能是演示链接已到期、链接不完整，或网络不稳定。') + '请联系提供这个链接的人获取新的链接。您的个人资料没有受影响。</p><button class="btn" onclick="S.skipCfg=1;view()">先使用我的个人档案</button></div>'; return; }
     let h = `<h1>${lgImg(30)}就医伴侣${HP ? '<small style="font-size:14px;color:var(--mute);font-weight:400"> · ' + esc(HP.n) + '</small>' : ''}</h1>` + '<p class="note" style="margin:0 0 12px;line-height:1.55"><b>本工具用于患者个人整理就诊资料，不是医院电子病历系统。</b><br>患者自行填写的资料不会自动发送给医院或医生。</p>' + banners() ;
-    if (S.view === 'bk')
+    if (S.view === 'care' && typeof careView === 'function')
+        h += careView();
+    else if (S.view === 'bk')
         h += backBar() + bkView();
     else if (S.view === 'home' && S.profiles.length)
-        h += homeView();
+        h += (typeof careEntryCard === 'function' ? careEntryCard() : '') + homeView();
     else if (S.view === 'new') {
         const d = S.draft;
         h += backBar() + `<div class="card"><h2>新建档案</h2><label>成员称呼（必填）</label><input id="mn" placeholder="如 妈妈、小宇、我自己" value="${esc(d.member || '')}">
@@ -1744,7 +1799,7 @@ ${d.disease === 'tumor' ? `<label>肿瘤类型</label><div style="display:flex;f
     else {
         const p = cur();
         if (!p)
-            h += `<div class="card empty"><h2>还没有档案</h2><p class="sub">选择就诊科室或专科病种，建立第一份档案。先选科室即可，病种可按需要选择。</p><button class="btn" data-act="new">新建档案</button> <button class="ghost" data-act="demo">查看示例</button> <button class="ghost" data-act="bk">从备份恢复</button>${HP ? '' : ' <button class="ghost" data-act="prevhosp">预览医院版（演示）</button>'}</div>` + hospCard() + jnyCard() + actCard() + posCard() + hubData();
+            h += (typeof careEntryCard === 'function' ? careEntryCard() : '') + `<div class="card empty"><h2>还没有档案</h2><p class="sub">选择就诊科室或专科病种，建立第一份档案。先选科室即可，病种可按需要选择。</p><button class="btn" data-act="new">新建档案</button> <button class="ghost" data-act="demo">查看示例</button> <button class="ghost" data-act="bk">从备份恢复</button>${HP ? '' : ' <button class="ghost" data-act="prevhosp">预览医院版（演示）</button>'}</div>` + hospCard() + jnyCard() + actCard() + posCard() + hubData();
         else
             h += `<div class="pnav" style="--c:${COL[p.disease]}"><div class="phd"><button class="back" data-act="home" aria-label="返回全部档案">‹ 返回</button><b class="pname">${esc(label(p))}</b></div>` + tabs() + `</div>` + (S.tab === "tl" ? tlView(p) : S.tab === "mx" ? mxView(p) : S.tab === "sm" ? smView(p) : S.tab === "ai" ? aiView(p) : visitFlowCard(p, flowVisit(p)) + `<div class="card hd" style="--c:${COL[p.disease]}"><h2>档案信息</h2><label>下次复诊日期（可不填）</label><div class="row"><input type="date" data-k="nvd" value="${esc(p.data.nvd || '')}" aria-label="下次复诊日期"><button class="ghost" data-act="tics" data-pid="${p.id}" data-v="1">下载日历提醒文件</button></div><p class="sub">填了日期，复诊前 14 天内首页会出现复诊准备卡，并带你去准备清单和摘要。</p><label>成员称呼</label><input data-mem="1" value="${esc(p.member)}">${secs(p)}${medsView(p)}<div class="bar"><span class="saved" id="sv">修改会自动保存在本机</span>${more('<button class="ghost del" data-act="del">删除档案</button>')}</div></div>`);
     }
@@ -1789,7 +1844,7 @@ function afterRender() { document.querySelectorAll('img[data-img]').forEach(asyn
     if (b)
         i.src = URL.createObjectURL(b);
 }
-catch (e) { } }); const ch = document.getElementById('aich'); if (ch) ch.scrollTop = ch.scrollHeight; }
+catch (e) { } }); const ch = document.getElementById('aich'); if (ch) ch.scrollTop = ch.scrollHeight; const cc = document.getElementById('careChat'); if (cc) cc.scrollTop = cc.scrollHeight; }
 const okId = s => typeof s === 'string' && /^[\w\u4e00-\u9fa5-]{1,60}$/.test(s), okD = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s), okN = v => v === '' || (typeof v === 'number' && isFinite(v));
 function validBk(q) {
     if (!q || !okId(q.id) || !Object.prototype.hasOwnProperty.call(D, q.disease) || typeof q.member !== 'string' || typeof q.data !== 'object' || !q.data || !['tl', 'mx', 'orders', 'tpls'].every(k => Array.isArray(q[k] || []) && (q[k] || []).length <= 20000))
@@ -3492,7 +3547,8 @@ function cfgClean(o) {
     if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
     const str = (v, n) => typeof v === 'string' ? v.slice(0, n) : '', arr = (v, n) => Array.isArray(v) ? v.filter(x => x && typeof x === 'object' && !Array.isArray(x)).slice(0, n) : [];
     const lst = (v, n, f) => arr(v, n).map(f);
-    const c = { n: str(o.n, 40) || '医院', w: str(o.w, 200), l: typeof o.l === 'string' && o.l.length < 200000 ? o.l : '', c: str(o.c, 7), ver: str(o.ver, 20), showRef: o.showRef === true, hideRef: o.hideRef !== false };
+    const tid = str(o.tid, 128).trim();
+    const c = { n: str(o.n, 40) || '医院', w: str(o.w, 200), l: typeof o.l === 'string' && o.l.length < 200000 ? o.l : '', c: str(o.c, 7), ver: str(o.ver, 20), tid: /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(tid) ? tid : '', showRef: o.showRef === true, hideRef: o.hideRef !== false };
     if (typeof o.splash === 'string' && o.splash.trim()) c.splash = o.splash.trim().slice(0, 30);
     if (o.trial === true) c.trial = true;
     if (typeof o.icp === 'string') c.icp = o.icp.slice(0, 40);
@@ -4195,5 +4251,383 @@ else if (!A.priv) {
 function prep(o){if(o.dataset.a11y)return;o.dataset.a11y=1;var m=o.querySelector('.mod')||o;m.setAttribute('role','dialog');m.setAttribute('aria-modal','true');var h=m.querySelector('h2,h3,b');if(h){h.id=h.id||('dlg'+Date.now());m.setAttribute('aria-labelledby',h.id);}var f=m.querySelector('button,textarea,input');if(f)setTimeout(function(){try{f.focus({preventScroll:true})}catch(e){}},30);}
 new MutationObserver(function(){document.querySelectorAll('.ov').forEach(prep)}).observe(document.body,{childList:true,subtree:true});
 document.addEventListener('keydown',function(e){if(e.key!=='Escape')return;var ov=document.querySelectorAll('.ov');if(ov.length){var o=ov[ov.length-1];var b=o.querySelector('.bar .ghost,[id$="_n"],[id$="_x"]');if(b)b.click();else o.remove();e.preventDefault();return;}var t=document.querySelector('.toast');if(t)t.remove();});
+})();
+</script>
+<script>
+/* ===== 账号、六角色助手与七步任务（只调用现有后端接口） ===== */
+const CARE_API_BASE = String(typeof AI_BASE === 'string' && AI_BASE ? AI_BASE : 'https://juyiibanlvzhinengai.tianxinyuan881.workers.dev').replace(/\/+$/, '');
+const CARE_TOKEN_KEY = 'companion.auth.token';
+const CARE_USER_KEY = 'companion.auth.user';
+const CARE_ROLES = [
+    { id: 'R1', code: 'P-ASSIST', name: '患者陪伴', desc: '整理就诊资料、复诊问题和下一步；不做诊断、不给用药建议。', ex: '帮我把这次就诊的资料整理成复诊时给医生看的要点' },
+    { id: 'R2', code: 'S-DEMO', name: '商务演示', desc: '向医院说明服务档位、边界、数据位置和交付方式；价格口径待确认。', ex: '用三分钟向医院院长说明这套服务能解决什么问题，边界是什么' },
+    { id: 'R3', code: 'C-CONFIG', name: '配置交付', desc: '生成和校验医院配置 JSON；资料缺项先提问，不猜。', ex: '根据我提供的医院资料生成配置 JSON，缺的字段先问我' },
+    { id: 'R4', code: 'Q-AUDIT', name: '发布审计', desc: '按代码和行号找阻断、高、中、低问题，并给修复建议。', ex: '审查这段发布前代码，按阻断/高/中/低列出问题和行号' },
+    { id: 'R5', code: 'F-REDEEM', name: '前台核销', desc: '处理四步核销和异常留痕；不承诺补发。', ex: '患者凭证核销时提示已使用，按四步流程告诉我怎么处理' },
+    { id: 'R6', code: 'L-REVIEW', name: '医务法务', desc: '核对产品事实、审查文案、出审批草案；不下法律结论。', ex: '审查这段对外文案，标出未经证实的事实和需要医务科确认的内容' }
+];
+const CARE_AUTH = { token: '', user: '' };
+const CARE_UI = { role: 'R1', chat: {}, drafts: {}, busy: false, match: null, task: null, taskMsg: '', options: 'opt-001,opt-002', idem: {} };
+let careAuthMode = 'login';
+
+function careStoreGet(key) { try { return localStorage.getItem(key) || ''; } catch (e) { return ''; } }
+function careStoreSet(key, value) { try { localStorage.setItem(key, value); return true; } catch (e) { return false; } }
+function careStoreDel(key) { try { localStorage.removeItem(key); } catch (e) { } }
+function careRole(id) { return CARE_ROLES.find(function (r) { return r.id === id; }) || CARE_ROLES[0]; }
+function careTenant() {
+    let t = '';
+    try { t = new URLSearchParams(location.search).get('tenant') || ''; } catch (e) { }
+    if (!t && typeof HP !== 'undefined' && HP && typeof HP.tid === 'string') t = HP.tid;
+    if (!t && (typeof HP_KEY === 'undefined' || HP_KEY === 'demo' || !HP_KEY)) t = 'hosp-demo-001';
+    t = String(t || '').trim();
+    return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(t) ? t : '';
+}
+function careSetAuthMsg(msg) {
+    const el = document.getElementById('authMsg');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.hidden = !msg;
+}
+function careAuthShowChoices() {
+    careAuthMode = 'login';
+    const c = document.getElementById('authChoices'), f = document.getElementById('authForm'), t = document.getElementById('authTitle');
+    if (c) c.hidden = false;
+    if (f) { f.hidden = true; f.reset(); }
+    if (t) t.textContent = '就医伴侣';
+    careSetAuthMsg('');
+}
+function careAuthShowForm(mode) {
+    careAuthMode = mode;
+    const c = document.getElementById('authChoices'), f = document.getElementById('authForm'), t = document.getElementById('authTitle'), b = document.getElementById('authSubmit'), p = document.getElementById('authPw');
+    if (c) c.hidden = true;
+    if (f) f.hidden = false;
+    if (t) t.textContent = mode === 'register' ? '注册账号' : '登录';
+    if (b) b.textContent = mode === 'register' ? '注册并登录' : '登录';
+    if (p) p.autocomplete = mode === 'register' ? 'new-password' : 'current-password';
+    careSetAuthMsg('');
+    setTimeout(function () { const u = document.getElementById('authUser'); if (u) { try { u.focus(); } catch (e) { } } }, 30);
+}
+function careSaveAuth(token, user) {
+    CARE_AUTH.token = token;
+    CARE_AUTH.user = user || '用户';
+    const a = careStoreSet(CARE_TOKEN_KEY, CARE_AUTH.token), b = careStoreSet(CARE_USER_KEY, CARE_AUTH.user);
+    if (!a || !b) { if (typeof toastMsg === 'function') toastMsg('浏览器无法保存登录状态，下次打开需要重新登录'); }
+}
+function careApplyAuth() {
+    const gate = document.getElementById('authGate'), bar = document.getElementById('authBar'), hi = document.getElementById('authHi');
+    if (gate) gate.hidden = true;
+    if (bar) bar.hidden = false;
+    if (hi) hi.textContent = '你好，' + (CARE_AUTH.user || '用户');
+    if (typeof view === 'function') { try { view(); } catch (e) { } }
+}
+function careClearAuth(msg) {
+    CARE_AUTH.token = '';
+    CARE_AUTH.user = '';
+    careStoreDel(CARE_TOKEN_KEY);
+    careStoreDel(CARE_USER_KEY);
+    CARE_UI.chat = {};
+    CARE_UI.drafts = {};
+    CARE_UI.task = null;
+    CARE_UI.match = null;
+    CARE_UI.taskMsg = '';
+    CARE_UI.idem = {};
+    CARE_UI.busy = false;
+    if (typeof S !== 'undefined' && S && S.view === 'care') S.view = 'home';
+    const gate = document.getElementById('authGate'), bar = document.getElementById('authBar');
+    if (gate) gate.hidden = false;
+    if (bar) bar.hidden = true;
+    careAuthShowChoices();
+    careSetAuthMsg(msg || '');
+    if (typeof view === 'function') { try { view(); } catch (e) { } }
+}
+async function careAuthRequest(path, user, pw) {
+    let r;
+    try {
+        r = await fetch(CARE_API_BASE + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: user, pw: pw }) });
+    } catch (e) { throw new Error('网络异常，请检查网络后重试'); }
+    let data = null;
+    try { data = await r.json(); } catch (e) { }
+    if (!r.ok || !data || data.ok !== true) throw new Error((data && data.msg) || ('请求失败（HTTP ' + r.status + '）'));
+    if (!data.token) throw new Error('服务器没有返回登录 token');
+    return data;
+}
+function careAuthHeaders(extra) {
+    const h = Object.assign({ 'Content-Type': 'application/json' }, extra || {});
+    if (CARE_AUTH.token) h.Authorization = 'Bearer ' + CARE_AUTH.token;
+    return h;
+}
+async function careApi(path, options) {
+    const o = options || {};
+    const r = await fetch(CARE_API_BASE + path, { method: o.method || 'GET', headers: careAuthHeaders(o.headers), body: o.body });
+    const text = await r.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch (e) { }
+    return { status: r.status, ok: r.ok, data: data };
+}
+function careErr(status, data) {
+    const code = data && data.code;
+    if (status === 401) return '登录已失效，请退出后重新登录。';
+    if (status === 403 || code === 'CARE_SCOPE_FORBIDDEN' || code === 'TASK_FORBIDDEN') return '当前账号没有这家医院的授权。请管理员在 KV 的 user:<用户名> 里加入 care_scopes（tenant_id=' + (careTenant() || '未配置') + '）。';
+    if (code === 'KV_NOT_BOUND') return 'Cloudflare 还没有绑定 KV。';
+    if (code === 'CATALOG_UNAVAILABLE') return '医院目录还没有写入 KV：care:catalog:' + (careTenant() || '…') + '。';
+    if (code === 'CATALOG_VERSION_CONFLICT') return '医院目录已更新，请重新匹配服务。';
+    if (code === 'UNKNOWN_OPTION_ID' || code === 'SERVICE_NOT_MATCHED') return '服务选项 ID 不匹配，请按医院目录里的 option id 填写。';
+    if (code === 'CARE_MODEL_UNAVAILABLE') return '模型暂时不可用，请稍后再试。';
+    if (code === 'TASK_NOT_FOUND') return '任务不存在或不属于当前账号。';
+    if (code === 'TASK_STATE_CONFLICT' || code === 'TASK_STEP_CONFLICT') return '任务步骤已变化，请刷新后重试。';
+    if (code === 'IDEMPOTENCY_KEY_REUSED') return '这次提交与上次不一致，请刷新任务后重试。';
+    if (code === 'CARE_TASK_STORAGE_UNAVAILABLE' || code === 'CARE_TASKS_NOT_BOUND') return '医院任务存储暂时不可用。';
+    if (code === 'FASTGPT_CONFIG_INCOMPLETE') return 'FastGPT 只配置了一半，请同时配置 FASTGPT_URL 和 FASTGPT_KEY。';
+    return (data && (data.msg || data.message)) || ('请求失败（HTTP ' + status + '）');
+}
+function careTaskKey() {
+    return 'companion.care.task.' + (CARE_AUTH.user || 'anon') + '.' + (careTenant() || 'none');
+}
+function careSaveTaskId(id) {
+    if (!careStoreSet(careTaskKey(), id) && typeof toastMsg === 'function') toastMsg('任务已创建，但浏览器无法保存任务入口，请记下任务 ID：' + id);
+}
+async function careLoadTask() {
+    const id = careStoreGet(careTaskKey());
+    if (!id) { CARE_UI.task = null; return; }
+    try {
+        const r = await careApi('/api/care/tasks/' + encodeURIComponent(id));
+        if (r.status === 401) { careClearAuth('登录已失效，请重新登录。'); return; }
+        if (r.ok && r.data && r.data.ok && r.data.task) { CARE_UI.task = r.data.task; }
+        else if (r.status === 403 || r.status === 404) { careStoreDel(careTaskKey()); CARE_UI.task = null; }
+        else { CARE_UI.taskMsg = careErr(r.status, r.data); }
+    } catch (e) { CARE_UI.taskMsg = '任务读取失败，请稍后刷新。'; }
+}
+function careEnter(roleId) {
+    if (roleId) CARE_UI.role = roleId;
+    if (typeof S !== 'undefined') S.view = 'care';
+    if (typeof view === 'function') { try { view(); } catch (e) { } }
+    careLoadTask().then(function () { if (typeof S !== 'undefined' && S.view === 'care') { try { view(); } catch (e) { } } });
+}
+function careTaskStepsHtml(t) {
+    const steps = Array.isArray(t.steps) ? t.steps : [];
+    const cur = Number(t.current_step) || 1;
+    return steps.map(function (s) {
+        const n = Number(s.step) || 0;
+        const done = t.status === 'completed' || n < cur;
+        const isCur = t.status !== 'completed' && n === cur;
+        const url = /^https?:\/\//i.test(String(s.official_url || '')) ? String(s.official_url) : '';
+        return '<div class="care-step ' + (done ? 'done' : '') + ' ' + (isCur ? 'cur' : '') + '"><div><span class="n">' + (done ? '✓' : esc(n)) + '</span><b>' + esc(s.text || ('第 ' + n + ' 步')) + '</b></div>' +
+            (Array.isArray(s.materials) && s.materials.length ? '<small>材料：' + esc(s.materials.join('、')) + '</small>' : '') +
+            (s.time ? '<small>时间：' + esc(s.time) + '</small>' : '') +
+            (s.location ? '<small>地点：' + esc(s.location) + '</small>' : '') +
+            (url ? '<small><a href="' + esc(url) + '" target="_blank" rel="noopener">医院官方说明</a></small>' : '') + '</div>';
+    }).join('');
+}
+function careTaskCard() {
+    const tenant = careTenant();
+    if (!tenant) return '<div class="card"><h2>七步任务</h2><p class="sub">当前入口没有配置医院租户。请用 ?tenant=&lt;tenant_id&gt; 打开，或在医院配置里加 tid。</p></div>';
+    const t = CARE_UI.task;
+    if (t) {
+        const done = t.status === 'completed';
+        const serviceName = (t.service && t.service.name) || '医院服务';
+        return '<div class="card"><h2>七步任务 · ' + esc(serviceName) + '</h2><p class="sub">任务 ' + esc(t.task_id) + ' · 已完成 ' + esc(t.completed_steps) + '/7' + (done ? ' · 已完成' : ' · 当前第 ' + esc(t.current_step) + ' 步') + '</p>' +
+            '<div class="care-meta"><span class="tag">' + (done ? '已完成' : '进行中') + '</span><span class="tag">目录 ' + esc(t.catalog_version) + '</span></div>' +
+            careTaskStepsHtml(t) +
+            '<div class="bar">' + (done ? '' : '<button class="btn" data-care="advance"' + (CARE_UI.busy ? ' disabled' : '') + '>完成第 ' + esc(t.current_step) + ' 步</button>') +
+            '<button class="ghost" data-care="refreshTask">刷新</button><button class="ghost" data-care="clearTask">结束任务</button></div>' +
+            '<p class="care-note">' + esc(CARE_UI.taskMsg || (done ? '七步已完成。如医院步骤有变化，请重新匹配。' : '每一步都需要患者确认后才能推进。')) + '</p></div>';
+    }
+    if (CARE_UI.match) {
+        const m = CARE_UI.match;
+        const list = Array.isArray(m.matches) ? m.matches : [];
+        return '<div class="card"><h2>匹配结果</h2><p class="sub">目录版本：' + esc(m.catalog_version || '') + ' · ' + list.length + ' 个服务</p>' +
+            (list.length ? list.map(function (x) {
+                const s = x.service || {};
+                const oids = Array.isArray(x.option_ids) ? x.option_ids.join(',') : '';
+                return '<div class="care-step"><b>' + esc(s.name || x.service_id) + '</b><small>' + esc(s.department || '') + (s.price ? ' · ' + esc(s.price) : '') + (Array.isArray(s.steps) ? ' · ' + s.steps.length + ' 步' : '') + '</small><div class="bar"><button class="btn" data-care="create" data-sid="' + esc(x.service_id) + '" data-cv="' + esc(m.catalog_version || '') + '" data-oids="' + esc(oids) + '"' + (CARE_UI.busy ? ' disabled' : '') + '>我已确认，开始七步任务</button></div></div>';
+            }).join('') : '<p class="care-note">没有匹配到服务，请检查服务选项 ID。</p>') +
+            '<div class="bar"><button class="ghost" data-care="rematch">重新匹配</button></div>' +
+            '<p class="care-note">' + esc(CARE_UI.taskMsg || '创建任务前请确认医院提供的服务和步骤。') + '</p></div>';
+    }
+    return '<div class="card"><h2>七步任务</h2><p class="sub">先按医院目录里的服务选项 ID 匹配，再由患者确认开始。</p>' +
+        '<label for="careOpts">服务选项 ID（逗号分隔）</label><input id="careOpts" value="' + esc(CARE_UI.options) + '" placeholder="opt-001,opt-002">' +
+        '<div class="bar"><button class="btn" data-care="match"' + (CARE_UI.busy ? ' disabled' : '') + '>匹配医院服务</button></div>' +
+        '<p class="care-note">' + esc(CARE_UI.taskMsg || ('医院租户：' + tenant + '。选项 ID 由医院目录提供。')) + '</p></div>';
+}
+function careEntryCard() {
+    if (typeof CARE_AUTH === 'undefined' || !CARE_AUTH.token) return '';
+    const t = careTenant();
+    return '<div class="card"><h2>医院服务 · 六角色助手</h2><p class="sub">医院：' + esc(t || '未配置') + ' · 账号：' + esc(CARE_AUTH.user) + '</p>' +
+        '<div class="care-role-grid">' + CARE_ROLES.map(function (r) {
+            return '<button class="care-role" data-care="role" data-role="' + r.id + '" style="--c:#0f766e"><em>' + r.id + ' · ' + r.code + '</em><b>' + esc(r.name) + '</b><small>' + esc(r.desc) + '</small></button>';
+        }).join('') + '</div><div class="bar"><button class="btn" data-care="open">七步任务</button></div></div>';
+}
+function careView() {
+    const tenant = careTenant(), role = careRole(CARE_UI.role), list = CARE_UI.chat[role.id] || [], draft = CARE_UI.drafts[role.id] || '';
+    let chat = list.length ? list.map(function (m) {
+        return '<div class="care-msg ' + (m.role === 'user' ? 'me' : m.role === 'error' ? 'err' : 'ai') + '">' + esc(m.content) + '</div>';
+    }).join('') : '<p class="care-note">还没有对话。可以先用下面的示例问题。</p>';
+    return '<div class="bar"><button class="ghost" data-care="home">‹ 返回首页</button><button class="ghost" data-care="logout">退出登录</button></div>' +
+        '<div class="card"><h2>医院服务 · 六角色</h2><p class="sub">医院：' + esc(tenant || '未配置') + ' · 账号：' + esc(CARE_AUTH.user) + '</p>' +
+        '<p class="care-note">六个角色共用同一份医院目录和同一套七步任务；角色只改变回答方式。</p><div class="care-role-grid">' +
+        CARE_ROLES.map(function (r) {
+            return '<button class="care-role" data-care="role" data-role="' + r.id + '" aria-pressed="' + (r.id === role.id) + '" style="--c:#0f766e"><em>' + r.id + ' · ' + r.code + '</em><b>' + esc(r.name) + '</b><small>' + esc(r.desc) + '</small></button>';
+        }).join('') + '</div></div>' +
+        '<div class="card"><h2>' + esc(role.name) + ' <small>' + role.id + ' · ' + role.code + '</small></h2><p class="sub">' + esc(role.desc) + '</p>' +
+        '<div class="care-chat" id="careChat">' + chat + '</div><label for="careInput">问 ' + esc(role.name) + '</label>' +
+        '<textarea id="careInput" rows="3" placeholder="' + esc(role.ex) + '">' + esc(draft) + '</textarea>' +
+        '<div class="bar"><button class="ghost" data-care="useExample">填入示例</button><button class="ghost" data-care="clearChat">清空对话</button>' +
+        '<button class="btn" data-care="send"' + (CARE_UI.busy ? ' disabled' : '') + '>' + (CARE_UI.busy ? '处理中…' : '发送') + '</button></div></div>' + careTaskCard();
+}
+function careHistory(list) {
+    const out = [];
+    let total = 0;
+    for (let i = list.length - 1; i >= 0 && out.length < 20; i--) {
+        const m = list[i];
+        if (!m || (m.role !== 'user' && m.role !== 'assistant')) continue;
+        const c = String(m.content || '');
+        if (!c || c.length > 4000) continue;
+        if (total + c.length > 16000) break;
+        out.unshift({ role: m.role, content: c });
+        total += c.length;
+    }
+    return out;
+}
+function careIdemKey() {
+    try { return crypto.randomUUID(); } catch (e) { return 'k-' + Date.now() + '-' + Math.random().toString(36).slice(2, 12); }
+}
+document.addEventListener('click', async function (e) {
+    const b = e.target && e.target.closest ? e.target.closest('[data-care]') : null;
+    if (!b) return;
+    const act = b.getAttribute('data-care');
+    e.preventDefault();
+    if (act === 'open') { careEnter(''); return; }
+    if (act === 'home') { if (typeof S !== 'undefined') S.view = 'home'; if (typeof view === 'function') view(); return; }
+    if (act === 'role') { careEnter(b.getAttribute('data-role') || 'R1'); return; }
+    if (act === 'logout') { careClearAuth(); return; }
+    if (act === 'useExample') { CARE_UI.drafts[CARE_UI.role] = careRole(CARE_UI.role).ex; if (typeof view === 'function') view(); return; }
+    if (act === 'clearChat') { CARE_UI.chat[CARE_UI.role] = []; if (typeof view === 'function') view(); return; }
+    if (act === 'rematch') { CARE_UI.match = null; CARE_UI.taskMsg = ''; if (typeof view === 'function') view(); return; }
+    if (act === 'clearTask') {
+        if (!confirm('结束本机的任务入口？服务端任务记录不会删除。')) return;
+        careStoreDel(careTaskKey());
+        CARE_UI.task = null;
+        CARE_UI.taskMsg = '已从本机移除任务入口；服务端任务记录不会删除。';
+        if (typeof view === 'function') view();
+        return;
+    }
+    if (act === 'refreshTask') { CARE_UI.taskMsg = ''; await careLoadTask(); if (typeof view === 'function') view(); return; }
+    if (act === 'match') {
+        const el = document.getElementById('careOpts');
+        CARE_UI.options = el ? el.value : CARE_UI.options;
+        const ids = CARE_UI.options.split(/[,，\s]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+        if (!careTenant()) { CARE_UI.taskMsg = '当前入口没有配置医院租户。'; if (typeof view === 'function') view(); return; }
+        if (!ids.length) { CARE_UI.taskMsg = '请填写至少一个服务选项 ID。'; if (typeof view === 'function') view(); return; }
+        CARE_UI.busy = true; CARE_UI.taskMsg = ''; CARE_UI.match = null; if (typeof view === 'function') view();
+        try {
+            const r = await careApi('/api/intel/match', { method: 'POST', body: JSON.stringify({ tenant_id: careTenant(), option_ids: ids }) });
+            if (r.status === 401) { careClearAuth('登录已失效，请重新登录。'); return; }
+            if (r.ok && r.data && Array.isArray(r.data.matches)) { CARE_UI.match = r.data; CARE_UI.taskMsg = ''; }
+            else if (r.ok && r.data) { CARE_UI.taskMsg = '匹配服务返回了无法识别的格式，请检查 FastGPT 或本地目录配置。'; }
+            else { CARE_UI.taskMsg = careErr(r.status, r.data); }
+        } catch (err) { CARE_UI.taskMsg = '匹配失败，请检查网络后重试。'; }
+        CARE_UI.busy = false; if (typeof view === 'function') view();
+        return;
+    }
+    if (act === 'create') {
+        if (!CARE_UI.match) return;
+        const sid = b.getAttribute('data-sid'), cv = b.getAttribute('data-cv'), oids = (b.getAttribute('data-oids') || '').split(',').filter(Boolean);
+        if (!sid || !cv || !oids.length) { CARE_UI.taskMsg = '服务信息不完整，请重新匹配。'; if (typeof view === 'function') view(); return; }
+        if (!confirm('确认医院提供的服务和七步步骤，开始任务？')) return;
+        CARE_UI.busy = true; CARE_UI.taskMsg = ''; if (typeof view === 'function') view();
+        try {
+            const r = await careApi('/api/care/tasks', { method: 'POST', body: JSON.stringify({ tenant_id: careTenant(), option_ids: oids, service_id: sid, catalog_version: cv, confirmed: true }) });
+            if (r.status === 401) { careClearAuth('登录已失效，请重新登录。'); return; }
+            if (r.ok && r.data && r.data.ok && r.data.task) {
+                CARE_UI.task = r.data.task;
+                careSaveTaskId(r.data.task.task_id);
+                CARE_UI.taskMsg = '任务已创建，第 1 步等待患者确认。';
+            } else { CARE_UI.taskMsg = careErr(r.status, r.data); }
+        } catch (err) { CARE_UI.taskMsg = '创建任务失败，请检查网络后重试。'; }
+        CARE_UI.busy = false; if (typeof view === 'function') view();
+        return;
+    }
+    if (act === 'advance') {
+        const t = CARE_UI.task;
+        if (!t) return;
+        if (typeof confirm === 'function' && !confirm('确认已经完成第 ' + t.current_step + ' 步？')) return;
+        const ik = t.task_id + ':' + t.current_step;
+        const key = CARE_UI.idem[ik] || (CARE_UI.idem[ik] = careIdemKey());
+        CARE_UI.busy = true; CARE_UI.taskMsg = ''; if (typeof view === 'function') view();
+        try {
+            const r = await careApi('/api/care/tasks/' + encodeURIComponent(t.task_id), {
+                method: 'PATCH',
+                headers: { 'Idempotency-Key': key },
+                body: JSON.stringify({ step: t.current_step, catalog_version: t.catalog_version, completion: 'patient_confirmed' })
+            });
+            if (r.status === 401) { careClearAuth('登录已失效，请重新登录。'); return; }
+            if (r.ok && r.data && r.data.ok && r.data.task) {
+                CARE_UI.task = r.data.task;
+                delete CARE_UI.idem[ik];
+                CARE_UI.taskMsg = r.data.task.status === 'completed' ? '七步已完成。' : '已推进到第 ' + r.data.task.current_step + ' 步。';
+            } else {
+                CARE_UI.taskMsg = careErr(r.status, r.data);
+                if (r.status === 409) { await careLoadTask(); }
+            }
+        } catch (err) { CARE_UI.taskMsg = '推进失败，请检查网络后重试。'; }
+        CARE_UI.busy = false; if (typeof view === 'function') view();
+        return;
+    }
+    if (act === 'send') {
+        const ta = document.getElementById('careInput');
+        const text = ta ? String(ta.value || '').trim() : '';
+        if (!text || CARE_UI.busy) return;
+        const role = careRole(CARE_UI.role);
+        const list = CARE_UI.chat[role.id] = CARE_UI.chat[role.id] || [];
+        const history = careHistory(list);
+        list.push({ role: 'user', content: text });
+        CARE_UI.drafts[role.id] = '';
+        CARE_UI.busy = true; if (typeof view === 'function') view();
+        try {
+            const r = await careApi('/api/chat', { method: 'POST', body: JSON.stringify({ role: role.id, text: text, history: history }) });
+            if (r.ok && r.data && r.data.ok && typeof r.data.reply === 'string') list.push({ role: 'assistant', content: r.data.reply });
+            else list.push({ role: 'error', content: careErr(r.status, r.data) });
+        } catch (err) { list.push({ role: 'error', content: '网络异常，请稍后再试。' }); }
+        CARE_UI.busy = false; if (typeof view === 'function') view();
+    }
+});
+document.addEventListener('input', function (e) {
+    if (!e.target) return;
+    if (e.target.id === 'careInput') CARE_UI.drafts[CARE_UI.role] = e.target.value;
+    if (e.target.id === 'careOpts') CARE_UI.options = e.target.value;
+});
+document.addEventListener('keydown', function (e) {
+    if (!e.target || e.target.id !== 'careInput' || e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+    e.preventDefault();
+    const b = document.querySelector('[data-care="send"]');
+    if (b) b.click();
+});
+document.getElementById('authGoRegister').addEventListener('click', function () { careAuthShowForm('register'); });
+document.getElementById('authGoLogin').addEventListener('click', function () { careAuthShowForm('login'); });
+document.getElementById('authBack').addEventListener('click', careAuthShowChoices);
+document.getElementById('authOut').addEventListener('click', function () { careClearAuth(); });
+document.getElementById('authForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const uEl = document.getElementById('authUser'), pEl = document.getElementById('authPw'), btn = document.getElementById('authSubmit');
+    const user = String(uEl && uEl.value || '').trim(), pw = String(pEl && pEl.value || '');
+    if (!user) { careSetAuthMsg('请填写用户名。'); return; }
+    if (/\s/.test(user) || user.length > 64) { careSetAuthMsg('用户名不能含空格，且不超过 64 位。'); return; }
+    if (pw.length < 6 || pw.length > 128) { careSetAuthMsg('密码需为 6-128 位。'); return; }
+    if (btn) btn.disabled = true;
+    careSetAuthMsg('');
+    try {
+        let d = await careAuthRequest(careAuthMode === 'register' ? '/api/register' : '/api/login', user, pw);
+        if (careAuthMode === 'register' && !d.token) d = await careAuthRequest('/api/login', user, pw);
+        careSaveAuth(d.token, d.user || user);
+        careApplyAuth();
+        if (typeof toastMsg === 'function') toastMsg(careAuthMode === 'register' ? '注册成功，已登录' : '登录成功');
+    } catch (err) { careSetAuthMsg(err && err.message ? err.message : '请求失败，请稍后再试。'); }
+    finally { if (btn) btn.disabled = false; }
+});
+(function careBoot() {
+    CARE_AUTH.token = careStoreGet(CARE_TOKEN_KEY);
+    CARE_AUTH.user = careStoreGet(CARE_USER_KEY) || '用户';
+    if (CARE_AUTH.token) careApplyAuth();
+    else { careAuthShowChoices(); const g = document.getElementById('authGate'); if (g) g.hidden = false; }
 })();
 </script></body></html>
