@@ -1983,7 +1983,7 @@ function view() {
     else if (S.view === 'bk')
         h += backBar() + bkView();
     else if (S.view === 'home' && S.profiles.length)
-        h += (typeof careEntryCard === 'function' ? careEntryCard() : '') + homeView();
+        h += homeView();
     else if (S.view === 'new') {
         const d = S.draft;
         h += backBar() + `<div class="card"><h2>新建档案</h2><label>成员称呼（必填）</label><input id="mn" placeholder="如 妈妈、小宇、我自己" value="${esc(d.member || '')}">
@@ -2000,7 +2000,7 @@ ${d.disease === 'tumor' ? `<label>肿瘤类型</label><div style="display:flex;f
     else {
         const p = cur();
         if (!p)
-            h += (typeof careEntryCard === 'function' ? careEntryCard() : '') + `<div class="card empty"><h2>还没有档案</h2><p class="sub">选择就诊科室或专科病种，建立第一份档案。先选科室即可，病种可按需要选择。</p><button class="btn" data-act="new">新建档案</button> <button class="ghost" data-act="demo">查看示例</button> <button class="ghost" data-act="bk">从备份恢复</button>${HP ? '' : ' <button class="ghost" data-act="prevhosp">预览医院版（演示）</button>'}</div>` + hospCard() + jnyCard() + actCard() + posCard() + hubData();
+            h += `<div class="card empty"><h2>还没有档案</h2><p class="sub">选择就诊科室或专科病种，建立第一份档案。先选科室即可，病种可按需要选择。</p><button class="btn" data-act="new">新建档案</button> <button class="ghost" data-act="demo">查看示例</button> <button class="ghost" data-act="bk">从备份恢复</button>${HP ? '' : ' <button class="ghost" data-act="prevhosp">预览医院版（演示）</button>'}</div>` + (typeof careEntryCard === 'function' ? careEntryCard() : '') + hospitalZone() + hubData() + homeDemo() + posCard();
         else
             h += `<div class="pnav" style="--c:${COL[p.disease]}"><div class="phd"><button class="back" data-act="home" aria-label="返回全部档案">‹ 返回</button><b class="pname">${esc(label(p))}</b></div>` + tabs() + `</div>` + (S.tab === "tl" ? tlView(p) : S.tab === "mx" ? mxView(p) : S.tab === "sm" ? smView(p) : S.tab === "ai" ? aiView(p) : visitFlowCard(p, flowVisit(p)) + `<div class="card hd" style="--c:${COL[p.disease]}"><h2>档案信息</h2><label>下次复诊日期（可不填）</label><div class="row"><input type="date" data-k="nvd" value="${esc(p.data.nvd || '')}" aria-label="下次复诊日期"><button class="ghost" data-act="tics" data-pid="${p.id}" data-v="1">下载日历提醒文件</button></div><p class="sub">填了日期，复诊前 14 天内首页会出现复诊准备卡，并带你去准备清单和摘要。</p><label>成员称呼</label><input data-mem="1" value="${esc(p.member)}">${secs(p)}${medsView(p)}<div class="bar"><span class="saved" id="sv">修改会自动保存在本机</span>${more('<button class="ghost del" data-act="del">删除档案</button>')}</div></div>`);
     }
@@ -2029,7 +2029,7 @@ const iget = async (k) => { const d = await idb(); return new Promise((s, j) => 
 const idel = k => idb().then(d => d.transaction('i', 'readwrite').objectStore('i').delete(k)).catch(() => { });
 const idelw = async (k) => { const d = await idb(); return new Promise((s, j) => { const t = d.transaction('i', 'readwrite'); t.objectStore('i').delete(k); t.oncomplete = s; t.onerror = () => j(t.error); t.onabort = () => j(t.error); }); };
 const tabs = () => `<nav class="tabs" aria-label="档案栏目">${[['info', '档案', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3h6v3H9zM8.5 11h7M8.5 15h5"/></svg>'], ['tl', '时间线', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>'], ['mx', '指标', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16h16"/><path d="M7 15l4-4 3 3 5-6"/></svg>'], ['sm', '复诊摘要', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>'], ['ai', '智能助手', '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a4 4 0 0 0-4 4v1a7 7 0 1 0 8 0V7a4 4 0 0 0-4-4z"/><path d="M9 11h.01M15 11h.01M9.5 15a3 3 0 0 0 5 0"/></svg>']].map(t => `<button class="tab" aria-pressed="${S.tab === t[0]}" data-act="tab" data-t="${t[0]}"><span class="ti" aria-hidden="true">${t[2]}</span><span class="tl">${t[1]}</span></button>`).join('')}</nav>`;
-const APP_VER = '2026.11.24';
+const APP_VER = '2026.11.30';
 const CC_SYM = ['发烧 / 怕冷', '咳嗽 / 咳痰', '头痛 / 头晕', '心慌 / 心悸', '肚子痛 / 胃不舒服', '拉肚子 / 便秘 / 恶心呕吐', '尿频 / 尿痛 / 血尿', '血压 / 血糖问题', '失眠 / 情绪差 / 记性差', '伤口 / 肿块', '腰腿痛 / 关节痛 / 脖子痛', '摔伤 / 扭伤', '牙痛 / 牙龈出血 / 口腔溃疡', '皮疹 / 瘙痒', '看东西模糊 / 眼红 / 眼痛', '耳鸣 / 听力下降 / 鼻塞 / 咽痛', '月经问题 / 备孕', '孩子不舒服', '常规体检 / 带着已有的检查报告', '想看中医 / 调理身体'];
 const CC_DUR = ['今天刚出现', '两三天内', '一周左右', '一个月内', '几个月了', '半年以上', '长期反复'];
 const CC_SEV = ['轻微，不影响生活', '有点难受，能忍', '比较难受，影响睡觉/吃饭', '很难受'];
@@ -2737,7 +2737,7 @@ function otherVisitList(primary) {
         const status = nv ? (d === 0 ? '今天' : d < 0 ? '已过期 ' + (-d) + ' 天' : d + ' 天后') + ' · ' + nv : '未设置复诊日期';
         return `<button class="visit-mini" data-act="pick" data-id="${p.id}"><b>${esc(label(p))}</b><span>${esc(status)}</span></button>`;
     }).join('');
-    return rows ? `<details class="card other-visits"><summary><b>其他档案</b>（${S.profiles.length - (primary ? 1 : 0)}）</summary><p class="sub">首页只突出最早的一次复诊，其他档案保留为状态列表。</p><div class="visit-list">${rows}</div></details>` : '';
+    return rows ? `<details class="card other-visits"><summary><b>其他档案的复诊状态</b>（${S.profiles.length - (primary ? 1 : 0)}）</summary><p class="sub">这里只看其他档案的复诊时间；要录入或查看资料，用下方「我的档案」。</p><div class="visit-list">${rows}</div></details>` : '';
 }
 const jnyHint = pr => { if (!pr || !jnyList().length) return ''; const d = daysTo(pr.nv); if (d === null || d < 0 || d > 7) return ''; return '<div class="card"><b>复诊快到了：可先做一下医院就诊流程清单</b><p class="sub">医院提供的流程只保存在本机；完成一条完整流程后，符合活动规则时可获得整理打卡。</p><div class="row"><button class="btn" data-act="jgo">去做医院就诊流程</button></div></div>'; };
 function todayCard() {
@@ -2760,7 +2760,17 @@ function icsFor(p, o) {
     return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//jiuyiban//CN', 'BEGIN:VEVENT', 'UID:' + o.id + '@jiuyiban', 'DTSTAMP:' + st, 'DTSTART;VALUE=DATE:' + ymd(o.due), 'DTEND;VALUE=DATE:' + n2, 'SUMMARY:' + icsEsc((isSched(o.cat) ? '日程：' : '医嘱到期：') + txt), 'DESCRIPTION:' + icsEsc((isSched(o.cat) ? '本人记录的日程，仅作备忘。' : '按医生原话记录，仅作备忘。') + label(p)), ...al('-PT15H', '明天到期：' + txt), ...al('PT9H', '今天到期：' + txt), 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
 }
 
-const homeView = () => todayCard() + weekCard() + `<h2 class="gt">我的档案（${S.profiles.length}）</h2><div class="opts">${S.profiles.map(p => { const n = (p.tl || []).length, od = (p.orders || []).filter(o => !o.done).length, last = (p.tl || []).map(r => r.date).sort().pop(); return `<button class="opt" style="--c:${COL[p.disease]}" data-act="pick" data-id="${p.id}"><b>${esc(label(p))}</b><small>${n} 条记录${od ? ' · 待办 ' + od : ''}${last ? ' · ' + esc(last.slice(5)) : ''}</small></button>`; }).join('')}</div><div class="row hb"><button class="btn" data-act="new">＋ 新建档案</button></div>${(() => { const q = S.profiles.slice().sort((a, b) => ((b.tl || []).map(r => r.date).sort().pop() || '').localeCompare((a.tl || []).map(r => r.date).sort().pop() || ''))[0]; return q ? `<div class="row hb"><button class="ghost" data-act="qadd" data-id="${q.id}">继续记录：${esc(label(q))}</button></div>` : ''; })()}<details class="home-more"><summary>需要演示资料？加载一个示例档案</summary><div class="row" style="justify-content:center;margin-top:8px"><button class="ghost" data-act="demo">加载示例档案</button>${HP ? '' : '<button class="ghost" data-act="prevhosp">预览医院版（演示）</button>'}</div></details>` + hospCard() + jnyCard() + actCard() + posCard() + hubData();
+const homeDemo = () => `<details class="home-more"><summary>需要演示资料？加载一个示例档案</summary><div class="row" style="justify-content:center;margin-top:8px"><button class="ghost" data-act="demo">加载示例档案</button>${HP ? '' : '<button class="ghost" data-act="prevhosp">预览医院版（演示）</button>'}</div></details>`;
+function hospitalZone() {
+    const z = hospCard() + jnyCard() + actCard();
+    return z ? (HP ? '<h2 class="gt">医院服务与惠民活动</h2>' : '') + z : '';
+}
+function archiveSection() {
+    const cards = S.profiles.map(p => { const n = (p.tl || []).length, od = (p.orders || []).filter(o => !o.done).length, last = (p.tl || []).map(r => r.date).sort().pop(); return `<button class="opt" style="--c:${COL[p.disease]}" data-act="pick" data-id="${p.id}"><b>${esc(label(p))}</b><small>${n} 条记录${od ? ' · 待办 ' + od : ''}${last ? ' · ' + esc(last.slice(5)) : ''}</small></button>`; }).join('');
+    const q = S.profiles.slice().sort((a, b) => ((b.tl || []).map(r => r.date).sort().pop() || '').localeCompare((a.tl || []).map(r => r.date).sort().pop() || ''))[0];
+    return `<h2 class="gt">我的档案（${S.profiles.length}）</h2><div class="opts">${cards}</div>` + (q ? `<div class="row hb"><button class="btn" data-act="qadd" data-id="${q.id}">继续记录：${esc(label(q))}</button></div>` : '') + `<div class="row hb" style="margin-top:8px"><button class="ghost" data-act="new">＋ 新建档案</button></div>`;
+}
+const homeView = () => todayCard() + (typeof careEntryCard === 'function' ? careEntryCard() : '') + archiveSection() + hospitalZone() + weekCard() + hubData() + homeDemo() + posCard();
 function bkToast() { if (A.bk && Date.now() - new Date(A.bk).getTime() < 7 * 864e5)
     return; const t = document.createElement('div'); t.className = 'toast'; t.innerHTML = '已保存到本机（未加密，也不等于已备份） <button>去备份</button>'; document.body.appendChild(t); const x = setTimeout(() => t.remove(), 5000); t.querySelector('button').onclick = () => { clearTimeout(x); t.remove(); S.view = 'bk'; view(); scrollTo(0, 0); }; }
 function inAppModal() {
@@ -4653,7 +4663,7 @@ function careTaskCard() {
 function careEntryCard() {
     if (typeof CARE_AUTH === 'undefined' || !CARE_AUTH.token) return '';
     const t = careTenant();
-    return '<div class="card care-deck"><h2>医院服务 · 六角色助手</h2><p class="sub">医院：' + esc(t || '未配置') + ' · 账号：' + esc(CARE_AUTH.user) + '</p>' +
+    return '<div class="card care-deck"><h2>AI 六角色助手</h2><p class="sub">医院：' + esc(t || '未配置') + ' · 账号：' + esc(CARE_AUTH.user) + '</p>' +
         '<div class="care-role-grid">' + CARE_ROLES.map(function (r) {
             return '<button class="care-role" data-care="role" data-role="' + r.id + '" style="--c:#0f766e"><em>' + r.id + ' · ' + r.code + '</em><b>' + esc(r.name) + '</b><small>' + esc(r.desc) + '</small></button>';
         }).join('') + '</div><div class="bar"><button class="btn" data-care="open">七步任务</button></div></div>';
