@@ -3755,7 +3755,7 @@ function jnyCard() {
 }
 function actCard() {
     const L = actList().slice().sort((x, y) => (y.need ? 1 : 0) - (x.need ? 1 : 0));
-    if (!HP && !HP_KEY) return '<div class="card"><b>医院服务与惠民活动</b><p class="sub">请从医院提供的链接或二维码进入，即可看到医院服务和惠民活动。想先看看效果，可点下方“预览医院版（演示）”。</p></div>';
+    if (!HP && !HP_KEY) return '<div class="card"><b>医院服务与惠民活动</b><p class="sub">请从医院提供的链接或二维码进入，即可看到医院服务和惠民活动。想先看看效果，可点下方“预览医院版（演示）”。</p><div class="row" style="margin-top:10px"><button class="btn" data-act="prevhosp">预览医院版（演示）</button></div></div>';
     
     const g0 = actGet(), ids = new Set(L.map(x => x.id)), orph = Object.keys(g0).filter(k => !ids.has(k)).map(k => [k, (Array.isArray(g0[k]) ? g0[k] : []).filter(v => v && !v.n)]).filter(x => x[1].length), oh = orph.length ? '<details style="margin-top:8px"><summary><b>已下线活动的凭证（' + orph.reduce((n, x) => n + x[1].length, 0) + '）</b></summary><p class="sub">这些活动已不在医院当前配置里，不能在本页核销；是否仍可兑换请联系医院。</p>' + orph.map(x => x[1].slice().reverse().map(v => actVoucherHtml(null, Object.assign({}, v, { off: 1 }))).join('')).join('') + '</details>' : '';
     if (!L.length && !oh) return '';
