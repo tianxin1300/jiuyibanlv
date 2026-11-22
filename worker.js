@@ -5637,7 +5637,10 @@ async function handle(request, env, ctx) {
         const info = {}, budget = Math.max(6000, Math.min(22000, (Number(b.budget_ms) || 45000) - 1500));
         let raw = "";
         try { raw = String(await fsLLMMsgs(env, [{ role: "system", content: FS_CHAT_SYS + "\n\n" + CARE_MODULES.M2 }, { role: "user", content: text }], info, budget) || "").trim(); } catch (e) { raw = ""; }
-        return json({ ok: true, build: FS_BUILD, reply: raw || "这次没接上助手服务，请稍后再试。如有胸痛、呼吸困难、意识不清等紧急情况，请立即就医或拨打 120。", awaiting: false, confirm: "", tools: [], steps: [] });
+        let reply = raw || "这次没接上助手服务，请稍后再试。如有胸痛、呼吸困难、意识不清等紧急情况，请立即就医或拨打 120。";
+        // M2-R3 服务端兜底：识别到急症信号时，强制把“立即就医或拨打120”放在首句，不依赖模型是否遵守提示词
+        if (/(胸痛|胸闷|呼吸困难|喘不上气|意识不清|意识改变|昏迷|抽搐|大出血|呕血|便血|剧烈腹痛|自杀|轻生|不想活)/.test(text) && !/^请立即就医或拨打\s*120/.test(reply)) reply = "请立即就医或拨打120。\n" + reply;
+        return json({ ok: true, build: FS_BUILD, reply, awaiting: false, confirm: "", tools: [], steps: [] });
       }
       const pkey = fsPendKey(chat, who), tkey = fsTurnKey(chat, who);
       const cx = { request, env, ctx, chat, tag: "", msg: {}, openId: String(b.open_id || ""), userText: text, T: fsTables(env), deadline: Date.now() + Math.max(20000, Math.min(120000, Number(b.budget_ms) || 45000)), materials: [], links: [], pkey, tkey, last: await fsTurnGet(env, tkey), pend: await fsPendGet(env, pkey), task: await fsTaskGet(env, fsTaskKey(chat, who)), taskKey: fsTaskKey(chat, who), wikiSpaces: [], pendNew: false, pendUsed: false, confirmQ: "", ack: null, aborted: false, steps: [], left: (reserve, cap) => Math.max(3000, Math.min(cap, cx.deadline - Date.now() - reserve)) };

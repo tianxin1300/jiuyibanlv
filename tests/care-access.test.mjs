@@ -53,8 +53,26 @@ test("患者网页聊天带 M2 红线，且不返回工具与内部步骤", asyn
     assert.equal(response.status, 200);
     assert.match(system, /M2 医疗与广告红线/);
     assert.match(system, /请立即就医或拨打120/);
+    assert.match(data.reply, /^请立即就医或拨打120/);
     assert.deepEqual(data.tools, []);
     assert.deepEqual(data.steps, []);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("非急症提问不会被强行加上 120 首句", async () => {
+  const env = { ...careEnv(), GROQ_KEYS: "test-key" };
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: "先整理复诊要问的问题。" } }] }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+  try {
+    const response = await call(env, { text: "帮我整理复诊问题", chat: "web:alice" });
+    const data = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(data.reply, "先整理复诊要问的问题。");
   } finally {
     globalThis.fetch = original;
   }
