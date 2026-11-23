@@ -810,8 +810,29 @@ select:focus{border-color:#9dbcf7;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 <script>(function(){
 var HINT=(window.__CA_HINT__||"").trim();
 if(!HINT){document.getElementById("caBtn").setAttribute("hidden","");document.getElementById("caBtnTop")&&document.getElementById("caBtnTop").setAttribute("hidden","");return;}
+// 强制显示按钮（防止 iOS Safari fixed 遮挡问题）
+document.getElementById("caBtn").removeAttribute("hidden");
+document.getElementById("caBtnTop")&&document.getElementById("caBtnTop").removeAttribute("hidden");
 var $=function(id){return document.getElementById(id)};
 var btn=$("caBtn"),topBtn=$("caBtnTop"),panel=$("caPanel"),log=$("caLog"),sug=$("caSug"),txt=$("caInput"),send=$("caSend"),close=$("caClose");
+// 如果 fixed 按钮被 iOS Safari 挤没，就在控制台顶部加一条显眼引导
+function ensureVisible(){
+  // 登录成功后注入"点这里问 AI"横幅
+  var existing=document.getElementById("caAskBanner");
+  if(existing)return;
+  // 等登录后登录卡片消失、主工作区出现再注入
+  var login=document.querySelector(".login-card");
+  if(login && getComputedStyle(login).display!=="none"){setTimeout(ensureVisible,300);return;}
+  var br=document.createElement("div");
+  br.id="caAskBanner";
+  br.style.cssText="position:fixed;top:calc(env(safe-area-inset-top,0px) + 56px);left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:8px 18px;border-radius:999px;box-shadow:0 8px 24px rgba(15,23,42,.4);z-index:7000;font-size:13px;display:flex;align-items:center;gap:10px;cursor:pointer;max-width:94vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
+  br.innerHTML='💡 有问题？点右下角或左上角 <b style="color:#fbbf24">✦</b> 问 AI';
+  br.addEventListener("click",openPanel);
+  document.body.appendChild(br);
+  // 12 秒后自动隐藏（不影响 fixed 按钮常驻）
+  setTimeout(function(){br.style.transition="opacity .5s";br.style.opacity="0";setTimeout(function(){br.remove();},500);},12000);
+}
+setTimeout(ensureVisible,600);
 function openPanel(){panel.classList.toggle("open");if(panel.classList.contains("open")){txt.focus();render();}}
 btn&&btn.addEventListener("click",openPanel);
 topBtn&&topBtn.addEventListener("click",openPanel);
