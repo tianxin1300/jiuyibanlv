@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#f6f8fb">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; img-src data: blob:; base-uri 'none'; form-action 'none'">
 <script src="deploy-config.js"></script>
+<script src="ca-extras.js"></script>
 <style>
 :root{--bg:#f6f8fb;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#e5eaf2;--accent:#0d9488;--accent-soft:#e6fffa;--ok:#16a34a;--warn:#d97706;--danger:#dc2626;--r:14px}
 *{box-sizing:border-box}
@@ -1077,6 +1078,10 @@ tr:last-child td{border-bottom:0}
 "R2/S-DEMO   — 只能看目录和事件，不能发布 / 发码",
 "R1/P-ASSIST、R4/Q-AUDIT、R5/F-REDEEM、R6/L-REVIEW — 工作台默认不开放，除非控制台单独授权",
 "",
+"=== 提醒 ===",
+"· 右上角 🔔 铃铛：可以添加/查看/完成/删除提醒，到点浏览器会通知（需保持页面打开并允许通知）。",
+"· 也可以直接跟我说「提醒我明天上午9点查房」让我帮你记。",
+"",
 "=== 典型操作流程（从零到患者可见） ===",
 "a) 登录 → b) 切岗位到 R3（配置）→ c) 打开「医院配置」依次填：基本资料 → 院区 → 病种 → 服务与七步（**数清楚恰好 7 步**）→ 惠民活动 → d) 如有 Logo/配图，目录图片上传 → e) 底部「保存并发布」（**一次性生效，没有草稿箱**）→ f) 切到「本院订阅与续费」选档位生成患者二维码 → g) 发给患者。",
 "",
@@ -1116,9 +1121,10 @@ try{
   var body={text:q.trim(),chat:"web:staff-assistant",assistant_hint:HINT};
   var token=localStorage.getItem("staff_token")||localStorage.getItem("care_token")||"";
   if(token)body.token=token;
-  var r=await fetch((window.API_BASE||"")+"/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  if(window.CA)body.uid=window.CA.uid;
+  var r=await fetch((window.CA?window.CA.base():(window.API_BASE||""))+"/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
   var j=await r.json().catch(function(){return{};});
-  if(j.ok&&j.reply){his.push({role:"assistant",content:j.reply});dot.remove();}
+  if(j.ok&&j.reply){his.push({role:"assistant",content:j.reply});dot.remove();if(window.CA)window.CA.refreshReminders();}
   else{dot.textContent="抱歉，暂时没拿到回复。请稍后再问。";dot.setAttribute("data-err","");}
 }catch(e){dot.textContent="网络好像断了，你切一下网再试。";dot.setAttribute("data-err","");}
 busy=false;send.disabled=false;render();

@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#f6f8fb">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; img-src data:; base-uri 'none'; form-action 'none'">
 <script src="deploy-config.js"></script>
+<script src="ca-extras.js"></script>
 <style>
 :root{--bg:#f6f8fb;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#e5eaf2;--accent:#2563eb;--accent-soft:#eef4ff;--ok:#16a34a;--warn:#d97706;--danger:#dc2626;--r:14px}
 *{box-sizing:border-box}
@@ -861,6 +862,16 @@ select:focus{border-color:#9dbcf7;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 "【H2: 显示完整 Token】",
 "   · 内容：仅用于临时调试，不要分享截图",
 "",
+"=== 你现在可以直接执行的操作（不只是教步骤） ===",
+"已登录管理员时，你可以直接调用后台接口替用户完成操作（每次做一件，做完简短汇报结果）：",
+"· 生成患者码（生成患者有效期二维码，同院发新码自动撤销旧 active 码）",
+"· 生成续费码、确认续期",
+"· 立即备份（全部或指定 tenant_id）",
+"· 查询：医院列表、统计概览、患者码列表、审计日志、院方人员、某院配置",
+"· 提醒：创建/查看/完成/删除提醒，到点在浏览器弹通知",
+"· **危险操作**（清除该院数据 / 从备份恢复 / 清除测试数据）：你提出后系统会先拦下，让用户回复「确认」；用户确认后才真正执行。清除该院数据和恢复都要二次确认，不可撤销——必须明确提醒后果。",
+"用户没给 tenant_id / plan 等关键信息时先问清楚，绝不编造 tenant_id、token 或查询结果。",
+"",
 "=== 典型操作流程（从零到跑通一家医院） ===",
 "a) 登录 → b) 医院列表里确认租户已启用 → c) 切到「患者有效期二维码」选 365 天档生成患者码 → d) 切到「院方人员」给医院分配至少 1 个 R3 账号 → e) 等医院在 staff.html 填好目录并保存发布 → f) 切到「备份与恢复」点「立即备份」留底 → g) 试点到期前切到「医院续费二维码」续期。",
 "",
@@ -924,9 +935,10 @@ try{
   var body={text:q.trim(),chat:"web:console-assistant",assistant_hint:HINT};
   var token=localStorage.getItem("admin_token")||localStorage.getItem("care_token")||"";
   if(token)body.token=token;
-  var r=await fetch((window.API_BASE||"")+"/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  if(window.CA)body.uid=window.CA.uid;
+  var r=await fetch((window.CA?window.CA.base():(window.API_BASE||""))+"/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
   var j=await r.json().catch(function(){return{};});
-  if(j.ok&&j.reply){his.push({role:"assistant",content:j.reply});dot.remove();}
+  if(j.ok&&j.reply){his.push({role:"assistant",content:j.reply});dot.remove();if(window.CA)window.CA.refreshReminders();}
   else{dot.textContent="抱歉，暂时没拿到回复。请稍后再问。";dot.setAttribute("data-err","");}
 }catch(e){dot.textContent="网络好像断了，你切一下网再试。";dot.setAttribute("data-err","");}
 busy=false;send.disabled=false;render();

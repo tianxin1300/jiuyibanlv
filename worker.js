@@ -5289,6 +5289,159 @@ async function lmSyncTodo(env, user, all) {       // todo_add / todo_done 成功
 }
 
 
+// ================= v99w：网页端 AI 工具循环（控制台 / 院方 / 患者提醒）=================
+// 和飞书 Agent 同一种 JSON 协议（模型输出 {"tool":..,"args":..} 或 {"reply":..}），但工具表是网页白名单：
+// 控制台 = 管理后台接口（复用 /api/admin/* 的鉴权 + 审计）+ 提醒；其他网页端 = 仅自己的提醒。
+// AI 不能越过 admin sess；危险操作走「待确认」，必须用户下一句同意才执行。
+const WEB_MAX_STEPS = 5, WEB_MAX_WRITES = 6, WEB_PEND_TTL = 300000;
+function webNow() { const n = Date.now(); return fsFullStamp(n) + " 星期" + fsWd(n); }
+function webToolSpec(list) {
+  return (Array.isArray(list) ? list : []).map((t) => "- " + t.name + (t.danger ? "【危险·需确认】" : "") + "：" + t.desc + " 参数：" + t.params).join("\n");
+}
+async function webActorId(request, env, b) {
+  let user = null;
+  try { user = await userFromReq(request, env, new URL(request.url), String(b && b.token || "")); } catch { user = null; }
+  if (user) return "web:" + user;
+  const uid = String((b && b.uid) || request.headers.get("x-ca-uid") || "").trim().slice(0, 64);
+  if (/^[A-Za-z0-9_-]{6,64}$/.test(uid)) return "web:anon:" + uid;
+  return null;
+}
+async function webPendGet(env, key) { try { return key ? await env.KV.get("webpend:" + key, "json") : null; } catch { return null; } }
+async function webPendSet(env, key, v) { try { if (key) await env.KV.put("webpend:" + key, JSON.stringify(v), { expirationTtl: WEB_PEND_TTL }); } catch {} }
+async function webPendDel(env, key) { try { if (key) await env.KV.delete("webpend:" + key); } catch {} }
+// 进程内调用管理后台接口：复用已有路由的鉴权、逻辑、审计；必须带有效 admin sess。
+async function webAdminCall(env, ctx, request, sess, method, path, body) {
+  const u = new URL(path, request.url);
+  const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + String(sess || "") };
+  const ip = request.headers.get("CF-Connecting-IP"); if (ip) headers["CF-Connecting-IP"] = ip;
+  const req = new Request(u.href, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const res = await handle(req, env, ctx);
+  let data = null; try { data = await res.json(); } catch { data = null; }
+  return { status: res.status, data };
+}
+function webAdminText(path, data) {
+  if (!data || typeof data !== "object") return "接口返回空";
+  if (data.ok === false) return "失败：" + String(data.msg || data.code || "未知错误").slice(0, 160);
+  if (path === "/api/admin/overview") return "概览：" + JSON.stringify(data.counts || {}).slice(0, 300);
+  if (path === "/api/admin/tenants") return "租户 " + (data.tenants || []).length + " 家：" + (data.tenants || []).slice(0, 40).map((t) => (t.tenant_id || "") + "(" + (t.subscription_state || t.state || "?") + ")").join("、");
+  if (path === "/api/admin/access") return "患者码 " + (data.rows || []).length + " 条：" + (data.rows || []).slice(0, 20).map((r) => (r.tenant_id || "") + " " + (r.plan_label || r.plan || "") + " " + (r.state || r.status || "")).join("；");
+  if (path === "/api/admin/renewals") return "续费码 " + (data.rows || []).length + " 条：" + (data.rows || []).slice(0, 20).map((r) => (r.tenant_id || "") + " " + (r.plan_label || r.plan || "") + " " + (r.state || r.status || "")).join("；");
+  if (path === "/api/admin/audit") return "审计 " + (data.rows || []).length + " 条：" + (data.rows || []).slice(0, 10).map((r) => (r.op || "") + " " + String(r.detail || "").slice(0, 40)).join("；");
+  if (path === "/api/admin/staff") return "院方人员 " + (data.staff || []).length + " 人：" + (data.staff || []).slice(0, 30).map((s) => s.username + "(" + (s.roles || []).join(",") + ")").join("、");
+  if (path === "/api/admin/tokens") return "token " + (data.tokens || []).length + " 条";
+  if (path === "/api/admin/backups") return "备份 " + (data.rows || []).length + " 条";
+  if (path === "/api/admin/config") return data.ok ? ("配置 tenant=" + data.tenant_id + " valid=" + data.valid + (data.problem ? " 问题=" + data.problem : "")) : ("读取失败：" + (data.msg || ""));
+  if (data.record && data.record.tenant_id) { const r = data.record; return "已生成 " + (r.plan_label || r.plan || "") + " 患者码：tenant=" + r.tenant_id + " token=" + (r.token || r.ref || "") + " 状态=" + (r.state || r.status || "") + " 到期=" + (r.expires_at ? agFmt(r.expires_at) : "") + "（同院旧 active 码已撤销）"; }
+  if (data.subscription) return "订阅：" + JSON.stringify(data.subscription).slice(0, 260);
+  if (data.backup) return "备份已创建：" + JSON.stringify(data.backup).slice(0, 200);
+  if (data.msg) return String(data.msg).slice(0, 200);
+  return JSON.stringify(data).slice(0, 360);
+}
+// 管理后台工具：run 返回 {ok, text}
+const WEB_ADMIN_TOOLS = [
+  { name: "list_tenants", desc: "查看所有医院租户（tenant_id、订阅状态、到期）", params: "无", run: (c) => webAdminCall(c.env, c.ctx, c.request, c.sess, "GET", "/api/admin/tenants") },
+  { name: "get_overview", desc: "查看控制台统计概览（租户/二维码/审计/备份计数）", params: "无", run: (c) => webAdminCall(c.env, c.ctx, c.request, c.sess, "GET", "/api/admin/overview") },
+  { name: "list_access", desc: "查看患者有效期二维码列表", params: "{tenant_id?} 留空看全部", run: (c, a) => webAdminCall(c.env, c.ctx, c.request, c.sess, "GET", "/api/admin/access" + (a && a.tenant_id ? "?tenant_id=" + encodeURIComponent(String(a.tenant_id)) : "")) },
+  { name: "list_audit", desc: "查看最近审计日志", params: "无", run: (c) => webAdminCall(c.env, c.ctx, c.request, c.sess, "GET", "/api/admin/audit") },
+  { name: "list_staff", desc: "查看院方人员及角色", params: "无", run: (c) => webAdminCall(c.env, c.ctx, c.request, c.sess, "GET", "/api/admin/staff") },
+  { name: "get_config", desc: "读取某医院配置目录", params: "{tenant_id}", run: (c, a) => webAdminCall(c.env, c.ctx, c.request, c.sess, "GET", "/api/admin/config?tenant_id=" + encodeURIComponent(String((a && a.tenant_id) || ""))) },
+  { name: "generate_patient_qr", write: true, desc: "生成患者有效期二维码（同院发新码自动撤销旧 active 码）", params: "{tenant_id, plan} plan=trial7(试用7天)|quarter(3个月)|year(年约1年)", run: (c, a) => webAdminCall(c.env, c.ctx, c.request, c.sess, "POST", "/api/admin/access", { tenant_id: a && a.tenant_id, plan: a && a.plan }) },
+  { name: "generate_renewal_qr", write: true, desc: "生成医院续费二维码（院方扫码后管理员确认才生效）", params: "{tenant_id, plan} plan=trial(试用)|year(年约)", run: (c, a) => webAdminCall(c.env, c.ctx, c.request, c.sess, "POST", "/api/admin/renewals", { tenant_id: a && a.tenant_id, plan: a && a.plan }) },
+  { name: "confirm_renewal", write: true, desc: "确认续期（续费码已被扫码后）", params: "{token} 续费码 token 或 id", run: (c, a) => webAdminCall(c.env, c.ctx, c.request, c.sess, "POST", "/api/admin/renewals/confirm", { token: a && a.token }) },
+  { name: "run_backup", write: true, desc: "立即备份（留空=全部，或指定 tenant_id）", params: "{tenant_id?}", run: (c, a) => webAdminCall(c.env, c.ctx, c.request, c.sess, "POST", "/api/admin/backups/run", (a && a.tenant_id) ? { tenant_id: a.tenant_id } : {}) },
+  { name: "restore_backup", write: true, danger: true, confirmFor: (a) => a && a.tenant_id, desc: "从备份恢复某医院数据（自动建 pre-restore 回滚点）", params: "{backup_id, tenant_id}（确认后自动填 confirm=tenant_id）", run: (c, a) => webAdminCall(c.env, c.ctx, c.request, c.sess, "POST", "/api/admin/backups/restore", { backup_id: a && a.backup_id, tenant_id: a && a.tenant_id, confirm: a && a.confirm }) },
+  { name: "clear_tenant", write: true, danger: true, confirmFor: (a) => a && a.tenant_id, desc: "清除某医院全部数据（不可撤销，会先建快照）", params: "{tenant_id}（确认后自动填 confirm=tenant_id）", run: (c, a) => webAdminCall(c.env, c.ctx, c.request, c.sess, "POST", "/api/admin/clear-tenant", { tenant_id: a && a.tenant_id, confirm: a && a.confirm }) },
+  { name: "clear_test", write: true, danger: true, confirmFor: () => "CLEAR-TEST", desc: "清除测试数据（仅 APP_ENV=test 可用）", params: "无（确认后自动填 confirm=CLEAR-TEST）", run: (c, a) => webAdminCall(c.env, c.ctx, c.request, c.sess, "POST", "/api/admin/clear-test", { confirm: a && a.confirm }) },
+];
+// 提醒工具：所有网页端可用，只操作自己的提醒
+const WEB_REMINDER_TOOLS = [
+  { name: "create_reminder", write: true, desc: "创建一个提醒，到点在浏览器通知用户", params: "{text, when} when=明天上午9点 / 10分钟后 / 下周五15:30 / 2026-12-03 09:00；留空 when 只记不提醒", run: async (c, a) => { try { const r = await agTodo(c.env, c.actor, "add", { text: a && a.text, when: a && a.when }); return { ok: true, text: r.msg }; } catch (e) { return { ok: false, text: String(e && e.message || e) }; } } },
+  { name: "list_reminders", desc: "查看当前未完成的提醒", params: "无", run: async (c) => { try { const r = await agTodo(c.env, c.actor, "list", {}); return { ok: true, text: (r.items || []).length ? (r.items || []).map((t) => (t.due ? t.due + " " : "") + t.text).join("；") : "没有待办提醒" }; } catch (e) { return { ok: false, text: String(e && e.message || e) }; } } },
+  { name: "done_reminder", write: true, desc: "标记某条提醒已完成", params: "{id}", run: async (c, a) => { try { const r = await agTodo(c.env, c.actor, "done", { id: a && a.id }); return { ok: true, text: r.msg }; } catch (e) { return { ok: false, text: String(e && e.message || e) }; } } },
+  { name: "delete_reminder", write: true, desc: "删除某条提醒", params: "{id}", run: async (c, a) => { try { const r = await agTodo(c.env, c.actor, "delete", { id: a && a.id }); return { ok: true, text: r.msg }; } catch (e) { return { ok: false, text: String(e && e.message || e) }; } } },
+];
+function webDangerWhat(tool, args) {
+  const a = args || {};
+  if (tool === "clear_tenant") return "清除医院「" + (a.tenant_id || "?") + "」的全部数据（不可撤销）";
+  if (tool === "restore_backup") return "把医院「" + (a.tenant_id || "?") + "」恢复到备份「" + (a.backup_id || "?") + "」";
+  if (tool === "clear_test") return "清除所有测试数据";
+  return "执行危险操作 " + tool;
+}
+async function runWebToolChat(o) {
+  const { env, request, ctx, text, sess, actor, tools, hint } = o;
+  const pendKey = sess ? ("sess:" + sess) : (actor ? ("actor:" + actor) : "");
+  const sys = "你是就医伴侣网页端的智能助手，用下面的工具替用户办事，做完用简短中文回复结果。\n"
+    + "现在（北京时间）：" + webNow() + "。\n\n"
+    + "【可用工具】\n" + webToolSpec(tools) + "\n\n"
+    + "【输出规则】每次只输出一个 JSON，不加别的文字、不加代码围栏：\n"
+    + "要调工具：{\"tool\":\"名字\",\"args\":{...}}\n要回用户：{\"reply\":\"内容\"}\n"
+    + "工具结果会以「[工具结果] …」发回，你可继续调下一个工具，全部做完再用 reply 简短总结。\n"
+    + "【危险操作】带【危险·需确认】的工具：第一次直接调即可，系统会拦下并替你问用户确认；用户下一句同意后，你再调同一工具并带 \"confirmed\":true，执行的是被拦下时的参数。不准自己带 confirmed 绕过确认。\n"
+    + "【边界】只能调上面列出的工具；查不到就如实说没查到，不编造 tenant_id / token / 结果；参数缺关键信息先问用户；医疗问题不诊断不替代医生，遇到胸痛/呼吸困难/意识不清等急症提醒立即拨打 120。\n"
+    + (hint ? "\n<assistant_hint>\n" + hint + "\n</assistant_hint>" : "");
+  const msgs = [{ role: "system", content: sys }, { role: "user", content: text }];
+  let pend = pendKey ? await webPendGet(env, pendKey) : null;
+  if (pend) {
+    msgs[0].content += "\n\n【待确认】你拦下了危险操作 " + pend.tool + "，参数 " + JSON.stringify(pend.args) + "，等用户确认（5 分钟内）。用户这句若表示同意（可以/好/行/确认/是/执行/删吧），就输出 {\"tool\":\"" + pend.tool + "\",\"args\":" + JSON.stringify(pend.args) + ",\"confirmed\":true}；是别的意思就当新任务处理，这条作废。";
+  }
+  let reply = "", bad = 0, writes = 0;
+  const steps = [];
+  const deadline = Date.now() + 26000;
+  for (let step = 0; step < WEB_MAX_STEPS; step++) {
+    const left = deadline - Date.now(); if (left < 3500) break;
+    const info = {};
+    let raw = "";
+    try { raw = String(await runCareLlm(env, msgs, info, Math.min(12000, left - 3000), (x) => !!fsAgentParse(x), fsLLMMsgs, "auto") || "").trim(); }
+    catch (e) { if (e instanceof CareHttpError) throw e; raw = ""; }
+    if (!raw) break;
+    const d = fsAgentParse(raw); msgs.push({ role: "assistant", content: raw });
+    if (!d) { if (++bad > 1) break; msgs.push({ role: "user", content: "[系统] 输出不是合法 JSON。只输出 {\"tool\":..,\"args\":{..}} 或 {\"reply\":\"..\"}。" }); continue; }
+    if (!d.tool) { reply = d.reply; if (pend) await webPendDel(env, pendKey); break; }
+    const tool = tools.find((t) => t.name === d.tool);
+    if (!tool) { msgs.push({ role: "user", content: "[系统] 没有「" + d.tool + "」工具，可用工具见上面列表。" }); continue; }
+    const danger = !!(typeof tool.danger === "function" ? tool.danger(d.args) : tool.danger);
+    if (danger) {
+      if (!(d.confirmed && pend && pend.tool === d.tool)) {
+        const args = (pend && pend.tool === d.tool) ? pend.args : (d.args || {});
+        await webPendSet(env, pendKey, { tool: d.tool, args, at: Date.now() });
+        steps.push({ tool: d.tool, ok: false, held: true, text: "待确认" });
+        reply = "⚠️ 要" + webDangerWhat(d.tool, args) + "，这是危险操作。确认执行吗？回复「确认」我就执行，回复别的就取消。";
+        break;
+      }
+      await webPendDel(env, pendKey); pend = null;
+      // 用户已确认：自动补齐路由要求的 confirm 字段（clear_tenant/restore = tenant_id；clear_test = CLEAR-TEST）
+      if (typeof tool.confirmFor === "function") { d.args = Object.assign({}, d.args || {}, { confirm: tool.confirmFor(d.args) }); }
+    } else if (pend) {
+      await webPendDel(env, pendKey); pend = null;
+    }
+    if (tool.write && writes >= WEB_MAX_WRITES) { reply = "这一轮已经写了 " + WEB_MAX_WRITES + " 次，先停一下。还要继续回复「继续」。"; break; }
+    if (tool.write) writes++;
+    let res;
+    try {
+      const rawRes = await tool.run({ env, ctx, request, sess, actor }, d.args || {});
+      // admin 工具返回 {status, data}；reminder 工具已返回 {ok, text}
+      if (rawRes && typeof rawRes.status === "number") {
+        const ok = rawRes.status >= 200 && rawRes.status < 300 && rawRes.data && rawRes.data.ok !== false;
+        res = { ok, text: ok ? webAdminText(tool._path || "", rawRes.data) : ("失败（HTTP " + rawRes.status + "）：" + ((rawRes.data && (rawRes.data.msg || rawRes.data.code)) || "未知错误")) };
+        tool._path = tool._path || inferAdminPath(tool.name);
+      } else {
+        res = { ok: !!(rawRes && rawRes.ok), text: (rawRes && rawRes.text) || (rawRes && rawRes.ok ? "成功" : "失败") };
+      }
+    } catch (e) { res = { ok: false, text: "出错：" + String(e && e.message || e).slice(0, 200) }; }
+    steps.push({ tool: d.tool, ok: !!res.ok, held: false, text: String(res.text || "").slice(0, 700) });
+    msgs.push({ role: "user", content: "[工具结果] " + d.tool + "：" + (res.ok ? "成功" : "失败") + "\n" + String(res.text || "").slice(0, 1800) + "\n（请继续调下一个工具，或输出 {\"reply\":\"…\"} 回用户。）" });
+  }
+  if (!reply) reply = "这轮没整理出结果，换个说法再问，或回复「继续」。";
+  return { reply, steps };
+}
+function inferAdminPath(name) {
+  const m = { list_tenants: "/api/admin/tenants", get_overview: "/api/admin/overview", list_access: "/api/admin/access", list_audit: "/api/admin/audit", list_staff: "/api/admin/staff", get_config: "/api/admin/config", generate_patient_qr: "/api/admin/access", generate_renewal_qr: "/api/admin/renewals", confirm_renewal: "/api/admin/renewals/confirm", run_backup: "/api/admin/backups/run", restore_backup: "/api/admin/backups/restore", clear_tenant: "/api/admin/clear-tenant", clear_test: "/api/admin/clear-test" };
+  return m[name] || "";
+}
+// 给 admin 工具预先打上 _path，避免循环里每次推断
+for (const _t of WEB_ADMIN_TOOLS) _t._path = inferAdminPath(_t.name);
+
+
 // ================= /v90 =================
 async function handle(request, env, ctx) {
     const url = new URL(request.url);
@@ -6861,6 +7014,43 @@ async function handle(request, env, ctx) {
       } catch (e) { return careFail(e); }
     }
 
+    // ---- 网页端提醒（不依赖飞书；前端轮询 /due + 浏览器 Notification；AI 工具也走同一份 agTodo）----
+    if (path === "/api/reminders" && request.method === "POST") {
+      const b = await request.json().catch(() => ({}));
+      const actor = await webActorId(request, env, b);
+      if (!actor) return json({ ok: false, code: "UID_REQUIRED", msg: "缺少浏览器标识，请刷新页面后重试" }, 400);
+      try { const r = await agTodo(env, actor, "add", { text: b.text, when: b.when }); return json({ ok: true, ...r }); }
+      catch (e) { return json({ ok: false, code: e && e.code || "REMINDER_ERROR", msg: String(e && e.message || e) }, e && e.status || 400); }
+    }
+    if (path === "/api/reminders" && request.method === "GET") {
+      const actor = await webActorId(request, env, { token: url.searchParams.get("token"), uid: url.searchParams.get("uid") });
+      if (!actor) return json({ ok: false, code: "UID_REQUIRED", msg: "缺少浏览器标识" }, 400);
+      const r = await agTodo(env, actor, "list", {});
+      return json({ ok: true, ...r });
+    }
+    if (path === "/api/reminders/done" && request.method === "POST") {
+      const b = await request.json().catch(() => ({}));
+      const actor = await webActorId(request, env, b);
+      if (!actor) return json({ ok: false, code: "UID_REQUIRED", msg: "缺少浏览器标识" }, 400);
+      try { const r = await agTodo(env, actor, "done", { id: b.id }); return json({ ok: true, ...r }); }
+      catch (e) { return json({ ok: false, msg: String(e && e.message || e) }, e && e.status || 400); }
+    }
+    if (path === "/api/reminders/delete" && request.method === "POST") {
+      const b = await request.json().catch(() => ({}));
+      const actor = await webActorId(request, env, b);
+      if (!actor) return json({ ok: false, code: "UID_REQUIRED", msg: "缺少浏览器标识" }, 400);
+      try { const r = await agTodo(env, actor, "delete", { id: b.id }); return json({ ok: true, ...r }); }
+      catch (e) { return json({ ok: false, msg: String(e && e.message || e) }, e && e.status || 400); }
+    }
+    if (path === "/api/reminders/due" && request.method === "GET") {
+      const actor = await webActorId(request, env, { token: url.searchParams.get("token"), uid: url.searchParams.get("uid") });
+      if (!actor) return json({ ok: false, code: "UID_REQUIRED", msg: "缺少浏览器标识" }, 400);
+      const a = await agTodoLoad(env, actor), now = Date.now();
+      const due = a.filter((t) => !t.done && !t.notified && t.due_at && t.due_at <= now).slice(0, 10);
+      for (const t of due) t.notified = true;
+      if (due.length) { await agTodoSave(env, actor, a); await lmSyncTodo(env, actor, a); }
+      return json({ ok: true, due: due.map((t) => ({ id: t.id, text: t.text, due: t.due_at ? agFmt(t.due_at) : "" })), server_now: agFmt(now) });
+    }
     if (path === "/api/chat" && request.method === "POST") {
       const b = await request.json().catch(() => ({}));
       const text = String(b.text == null ? (b.message || b.q || "") : b.text).trim();
@@ -6888,8 +7078,26 @@ async function handle(request, env, ctx) {
       }
       const user = await userFromReq(request, env, url, String(b.token || "")).catch(() => null);
       const who = String(user || b.who || "web"), chat = String(b.chat || b.chat_id || ("web:" + who));
-      // 患者网页来源：不走飞书多工具 Agent，只带 M2 医疗红线做纯聊天，避免患者看到内部工具与步骤
+      // 网页来源：控制台走工具循环（管理后台接口 + 提醒，需 admin sess）；其他端只开放自己的提醒工具；都没有则退回纯聊天（带 M2 医疗红线）
       if (/^web:/.test(chat)) {
+        const isConsole = chat === "web:console-assistant";
+        const adminTok = isConsole ? String(b.token || "") : "";
+        const adminOk = adminTok ? await adminSessionUser(env, request, adminTok) : null;
+        const actor = await webActorId(request, env, b);
+        let webTools = [];
+        if (isConsole && adminOk) webTools = WEB_ADMIN_TOOLS.concat(WEB_REMINDER_TOOLS);
+        else if (actor) webTools = WEB_REMINDER_TOOLS;
+        if (webTools.length) {
+          try {
+            const r = await runWebToolChat({ env, request, ctx, text, sess: adminTok || null, actor: actor || ("web:" + (user || "guest")), chat, tools: webTools, hint: assistantHint });
+            let reply = r.reply;
+            // M2-R3 服务端兜底：急症信号强制把“立即就医或拨打120”放在首句
+            if (/(胸痛|胸闷|呼吸困难|喘不上气|意识不清|意识改变|昏迷|抽搐|大出血|呕血|便血|剧烈腹痛|自杀|轻生|不想活)/.test(text) && !/^请立即就医或拨打\s*120/.test(reply)) reply = "请立即就医或拨打120。\n" + reply;
+            const steps = (r.steps || []).map((s) => ({ tool: s.tool, ok: !!s.ok, held: !!s.held, text: String(s.text || "").slice(0, 1000) }));
+            const ranTools = steps.filter((s) => s.tool && s.held !== true).map((s) => s.tool);
+            return json({ ok: true, build: FS_BUILD, reply, awaiting: false, confirm: "", tools: ranTools, steps });
+          } catch (e) { return careFail(e); }
+        }
         const info = {}, budget = Math.max(6000, Math.min(22000, (Number(b.budget_ms) || 45000) - 1500));
         let systemText = FS_CHAT_SYS + "\n\n" + CARE_MODULES.M2;
         if (assistantHint) systemText = systemText + "\n\n<assistant_hint>\n" + assistantHint + "\n</assistant_hint>";
@@ -6901,7 +7109,6 @@ async function handle(request, env, ctx) {
           raw = "";
         }
         let reply = raw || "这次没接上助手服务，请稍后再试。如有胸痛、呼吸困难、意识不清等紧急情况，请立即就医或拨打 120。";
-        // M2-R3 服务端兜底：识别到急症信号时，强制把“立即就医或拨打120”放在首句，不依赖模型是否遵守提示词
         if (/(胸痛|胸闷|呼吸困难|喘不上气|意识不清|意识改变|昏迷|抽搐|大出血|呕血|便血|剧烈腹痛|自杀|轻生|不想活)/.test(text) && !/^请立即就医或拨打\s*120/.test(reply)) reply = "请立即就医或拨打120。\n" + reply;
         return json({ ok: true, build: FS_BUILD, reply, awaiting: false, confirm: "", tools: [], steps: [] });
       }
