@@ -5298,12 +5298,20 @@ function webNow() { const n = Date.now(); return fsFullStamp(n) + " 星期" + fs
 function webToolSpec(list) {
   return (Array.isArray(list) ? list : []).map((t) => "- " + t.name + (t.danger ? "【危险·需确认】" : "") + "：" + t.desc + " 参数：" + t.params).join("\n");
 }
+// 网页端提醒按浏览器 uid 落库：右上角铃铛轮询永远带同一个 uid（ca-extras.js），
+// AI 请求也带 uid，所以 uid 优先能保证「AI 建的提醒」和「铃铛看到的」是同一份；
+// 只有 uid 缺失时才退回登录用户名（兼容无前端 uid 的旧调用）。
+function looksLikeReminder(text) {
+  const t = String(text || "").trim();
+  if (!t || t.length > 160) return false;
+  return /(提醒我|帮我(?:记|设|定|提醒)|给我(?:记|设|定|提醒)|记(?:一?下|个)?提醒|设(?:一?个)?提醒|定(?:一?个)?提醒|到(?:时候|点|时)提醒|别忘了|记得要?)/.test(t);
+}
 async function webActorId(request, env, b) {
+  const uid = String((b && b.uid) || request.headers.get("x-ca-uid") || "").trim().slice(0, 64);
+  if (/^[A-Za-z0-9_-]{6,64}$/.test(uid)) return "web:anon:" + uid;
   let user = null;
   try { user = await userFromReq(request, env, new URL(request.url), String(b && b.token || "")); } catch { user = null; }
   if (user) return "web:" + user;
-  const uid = String((b && b.uid) || request.headers.get("x-ca-uid") || "").trim().slice(0, 64);
-  if (/^[A-Za-z0-9_-]{6,64}$/.test(uid)) return "web:anon:" + uid;
   return null;
 }
 async function webPendGet(env, key) { try { return key ? await env.KV.get("webpend:" + key, "json") : null; } catch { return null; } }
@@ -7005,6 +7013,15 @@ async function handle(request, env, ctx) {
       if (access.error) return access.error;
       try {
         if (!(await careAiRateLimit(env, access.token))) return json({ ok: false, code: "AI_RATE_LIMITED", msg: "调用过于频繁，请一分钟后再试" }, 429);
+        // 患者主面板：明确的提醒意图 → 走提醒工具循环（AI 真的帮记，右上角铃铛能看到、到点通知）；
+        // 其余消息仍走原角色医疗聊天 runCareChat，零回归。
+        const remindActor = await webActorId(request, env, b);
+        if (remindActor && looksLikeReminder(text)) {
+          const r = await runWebToolChat({ env, request, ctx, text, sess: null, actor: remindActor, tools: WEB_REMINDER_TOOLS, hint: b.assistant_hint });
+          const ranTools = (r.steps || []).filter((s) => s.tool && s.held !== true).map((s) => s.tool);
+          if (b.stream === true) return careAiSse({ reply: r.reply });
+          return json({ ok: true, build: FS_BUILD, role: canonical, reply: r.reply, awaiting: false, confirm: "", tools: ranTools, steps: (r.steps || []).map((s) => ({ tool: s.tool, ok: !!s.ok, held: !!s.held, text: String(s.text || "").slice(0, 1200) })) });
+        }
         const r = await runCareChat(
           { env, role: canonical, text, history: b.history, l2: b.l2, budget_ms: b.budget_ms, assistant_hint: b.assistant_hint },
           (llmEnv, messages, info, budget, accept) => runCareLlm(llmEnv, messages, info, budget, accept, fsLLMMsgs, b.provider)

@@ -177,3 +177,57 @@ test("工具循环：服务端急症兜底，console 回复首句强制 120", as
     assert.ok(r.body.ok); assert.ok(/^请立即就医或拨打120/.test(r.body.reply));
   } finally { restore(); }
 });
+
+// ---------- 患者主面板（/api/ai/chat）AI 建提醒 ----------
+const PATIENT_TOKEN = "patient-token-001";
+function patientReminderEnv() {
+  const env = { ...careEnv(), GROQ_KEYS: "test-only-key" };
+  env.KV.seed("access:" + PATIENT_TOKEN, { tenant_id: "tenant1", status: "active", expires_at: Date.now() + 3600000 });
+  env.KV.seed("sub:tenant1", { status: "active", expires_at: Date.now() + 3600000 });
+  return env;
+}
+function patientReminderBody(overrides = {}) {
+  return { access: PATIENT_TOKEN, tenant_id: "tenant1", role: "R1", uid: "uid-patient-9988", ...overrides };
+}
+
+test("患者主面板：AI 说『提醒我…』会真的创建提醒，铃铛同 uid 可见且跨 uid 隔离", async () => {
+  const env = patientReminderEnv();
+  const restore = mockLlm(['{"tool":"create_reminder","args":{"text":"明早9点吃降压药","when":"明天上午9点"}}', '{"reply":"好的，已帮你记下明天上午9点吃降压药，到点会提醒你。"}']);
+  try {
+    const r = await jbody(await callWorker(env, "/api/ai/chat", { body: patientReminderBody({ text: "提醒我明天上午9点吃降压药" }), token: "" }));
+    assert.equal(r.status, 200); assert.ok(r.body.ok);
+    assert.ok((r.body.tools || []).includes("create_reminder"), "应调用 create_reminder：" + JSON.stringify(r.body.tools));
+    // 右上角铃铛用同一个 uid 拉列表 → 能看到
+    const list = await jbody(await callWorker(env, "/api/reminders?uid=uid-patient-9988"));
+    assert.ok(list.body.items.some((t) => t.text === "明早9点吃降压药"), "提醒应落库且同 uid 可见：" + JSON.stringify(list.body.items));
+    // 别的 uid 看不到（隔离）
+    const other = await jbody(await callWorker(env, "/api/reminders?uid=uid-other-0000"));
+    assert.equal(other.body.items.filter((t) => t.text === "明早9点吃降压药").length, 0);
+  } finally { restore(); }
+});
+
+test("患者主面板：非提醒医疗消息不走提醒工具、不写提醒库", async () => {
+  const env = patientReminderEnv();
+  const restore = mockLlm(["头痛可能有多种原因，建议先测量血压并记录，持续不缓解请及时就医。"]);
+  try {
+    const r = await jbody(await callWorker(env, "/api/ai/chat", { body: patientReminderBody({ text: "我这两天头痛怎么办" }), token: "" }));
+    assert.equal(r.status, 200); assert.ok(r.body.ok);
+    assert.equal((r.body.tools || []).length, 0, "普通问诊不应调用提醒工具：" + JSON.stringify(r.body.tools));
+    const list = await jbody(await callWorker(env, "/api/reminders?uid=uid-patient-9988"));
+    assert.equal(list.body.items.length, 0, "不应创建任何提醒：" + JSON.stringify(list.body.items));
+  } finally { restore(); }
+});
+
+test("患者主面板：提醒意图走 SSE 流式也能返回结果并落库", async () => {
+  const env = patientReminderEnv();
+  const restore = mockLlm(['{"tool":"create_reminder","args":{"text":"喝水","when":"10分钟后"}}', '{"reply":"记下了，10分钟后提醒你喝水。"}']);
+  try {
+    const res = await callWorker(env, "/api/ai/chat", { body: patientReminderBody({ text: "提醒我10分钟后喝水", stream: true }), token: "" });
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get("Content-Type"), /^text\/event-stream/);
+    const text = await res.text();
+    assert.ok(text.includes("记下了"), "SSE 应包含回复内容：" + text);
+    const list = await jbody(await callWorker(env, "/api/reminders?uid=uid-patient-9988"));
+    assert.ok(list.body.items.some((t) => t.text === "喝水"));
+  } finally { restore(); }
+});
