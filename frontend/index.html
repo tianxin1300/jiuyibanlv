@@ -2321,6 +2321,8 @@ function view() {
         h += backBar() + bkView();
     else if (S.view === 'home' && S.profiles.length)
         h += homeView();
+    else if (S.view === 'home')
+        h += hAI();
     else if (S.view === 'new') {
         const d = S.draft;
         h += backBar() + `<div class="card"><h2>新建档案</h2><label>成员称呼（必填）</label><input id="mn" placeholder="如 妈妈、小宇、我自己" value="${esc(d.member || '')}">
@@ -5353,8 +5355,8 @@ function careView() {
             CARE_GROUPS.map(function (g) {
                 return '<p class="care-gl">' + g[0] + '</p><div class="care-role-grid">' + g[1].map(function (id) { return careRoleBtn(careRole(id), role); }).join('') + '</div>';
             }).join('') + '</div>'
-        : '<div class="card care-deck"><h2>AI 陪诊助手</h2><p class="sub">医院：' + esc(tenant || '未配置') + ' · 账号：' + esc(CARE_AUTH.user) + '</p>' +
-            '<p class="care-note">只做资料整理、复诊准备和沟通准备；不诊断、不推荐用药。</p></div>';
+        : '<div class="card care-deck" onclick="var _i=document.getElementById(\'careInput\');if(_i){_i.focus();}var _c=document.getElementById(\'careChat\');if(_c){_c.scrollIntoView({behavior:\'smooth\',block:\'center\'});}" style="cursor:pointer" title="点击进入对话"><h2>AI 陪诊助手</h2><p class="sub">医院：' + esc(tenant || '未配置') + ' · 账号：' + esc(CARE_AUTH.user) + '</p>' +
+            '<p class="care-note">只做资料整理、复诊准备和沟通准备；不诊断、不推荐用药。点此卡片直接开始对话。</p></div>';
     return '<div class="bar"><button class="ghost" data-care="home">‹ 返回首页</button><button class="ghost" data-care="logout">退出登录</button></div>' + deck +
         '<div class="card"><h2>' + esc(role.name) + ' <small>' + role.id + ' · ' + role.code + '</small></h2><p class="sub">' + esc(role.desc) + '</p>' +
         '<div class="care-chat" id="careChat">' + chat + '</div><label for="careInput">问 ' + esc(role.name) + '</label>' +
