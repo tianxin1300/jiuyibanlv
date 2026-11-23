@@ -852,7 +852,8 @@ h1{font-size:20px!important;margin:2px 0 6px!important}
 .hfold .card{box-shadow:none}
 @media(max-width:360px){.qgrid{grid-template-columns:repeat(2,1fr)}.qbtn{flex-direction:row;justify-content:flex-start;gap:8px;padding:10px}}
 </style></head><body>
-<header id="authBar" hidden><div class="authbar-in"><div class="authbar-brand"><button class="brand-mark" data-brand type="button" aria-label="播放品牌动画"><i class="orbit"></i><i class="ripple"></i></button><b>就医伴侣</b></div><span id="authHi"></span><button class="ghost" id="authOut" type="button">退出登录</button></div></header>
+<header id="authBar" hidden><div class="authbar-in"><div class="authbar-brand"><button class="brand-mark" data-brand type="button" aria-label="播放品牌动画"><i class="orbit"></i><i class="ripple"></i></button><b>就医伴侣</b></div>
+      <button id="caNavBtn" type="button" title="AI 助手" aria-label="AI 助手" style="margin-left:12px;border:1px solid var(--line);background:var(--c);color:#fff;border-radius:999px;padding:5px 12px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(15,118,110,.25)">✦ AI 助手</button><span id="authHi"></span><button class="ghost" id="authOut" type="button">退出登录</button></div></header>
 <main id="app"></main>
 <footer id="icp" hidden></footer>
 <div id="authGate" role="dialog" aria-modal="true" aria-labelledby="authTitle">
@@ -5622,13 +5623,14 @@ document.getElementById('authForm').addEventListener('submit', async function (e
 </div>
 <script>(function(){
 var HINT=(window.__CA_HINT__||"").trim();
-if(!HINT){document.getElementById("caBtn").setAttribute("hidden","");document.getElementById("caBtnTop")&&document.getElementById("caBtnTop").setAttribute("hidden","");return;}
+if(!HINT){document.getElementById("caBtn").setAttribute("hidden","");document.getElementById("caBtnTop")&&document.getElementById("caBtnTop").setAttribute("hidden","");document.getElementById("caNavBtn")&&document.getElementById("caNavBtn").setAttribute("hidden","");return;}
 var $=function(id){return document.getElementById(id)};
-var btn=$("caBtn"),topBtn=$("caBtnTop"),panel=$("caPanel"),log=$("caLog"),sug=$("caSug"),txt=$("caInput"),send=$("caSend"),close=$("caClose");
+var btn=$("caBtn"),topBtn=$("caBtnTop"),navBtn=$("caNavBtn"),panel=$("caPanel"),log=$("caLog"),sug=$("caSug"),txt=$("caInput"),send=$("caSend"),close=$("caClose");
 var his=[{role:"assistant",content:"你好，我是**就医伴侣智能助手**。有什么操作或功能拿不准，直接问我就行；但就医决策请以医生意见为准。"}],busy=false;
 function openPanel(){panel.classList.toggle("open");if(panel.classList.contains("open")){txt.focus();render();}}
 btn&&btn.addEventListener("click",openPanel);
 topBtn&&topBtn.addEventListener("click",openPanel);
+navBtn&&navBtn.addEventListener("click",openPanel);
 close.addEventListener("click",function(){panel.classList.remove("open");});
 function render(){
 log.innerHTML="";

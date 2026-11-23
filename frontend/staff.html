@@ -120,6 +120,7 @@ tr:last-child td{border-bottom:0}
   <header class="top" style="margin:-24px -18px 0">
     <div class="top-in">
       <div class="brand"><span class="mark" aria-hidden="true"></span><span>院方工作台<small>HOSPITAL STAFF</small></span></div>
+      <button id="caNavBtn" type="button" title="AI 助手" aria-label="AI 助手" style="margin-left:-4px;border:1px solid rgba(13,148,136,.3);background:linear-gradient(140deg,#0d9488,#14b8a6);color:#fff;border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(13,148,136,.25)">✦ AI 助手</button>
       <div class="sp"></div>
       <span id="sessInfo" class="sess"></span>
       <button id="refresh" class="btn ghost small" type="button">刷新</button>
@@ -1034,13 +1035,14 @@ tr:last-child td{border-bottom:0}
 </div>
 <script>(function(){
 var HINT=(window.__CA_HINT__||"").trim();
-if(!HINT){document.getElementById("caBtn").setAttribute("hidden","");document.getElementById("caBtnTop")&&document.getElementById("caBtnTop").setAttribute("hidden","");return;}
+if(!HINT){document.getElementById("caBtn").setAttribute("hidden","");document.getElementById("caBtnTop")&&document.getElementById("caBtnTop").setAttribute("hidden","");document.getElementById("caNavBtn")&&document.getElementById("caNavBtn").setAttribute("hidden","");return;}
 var $=function(id){return document.getElementById(id)};
-var btn=$("caBtn"),topBtn=$("caBtnTop"),panel=$("caPanel"),log=$("caLog"),sug=$("caSug"),txt=$("caInput"),send=$("caSend"),close=$("caClose");
+var btn=$("caBtn"),topBtn=$("caBtnTop"),navBtn=$("caNavBtn"),panel=$("caPanel"),log=$("caLog"),sug=$("caSug"),txt=$("caInput"),send=$("caSend"),close=$("caClose");
 var his=[{role:"assistant",content:"你好，我是**院方工作台智能助手**。目录配置、权限、发布步骤我都熟，但最终还要你自己提交和审核。"}],busy=false;
 function openPanel(){panel.classList.toggle("open");if(panel.classList.contains("open")){txt.focus();render();}}
 btn&&btn.addEventListener("click",openPanel);
 topBtn&&topBtn.addEventListener("click",openPanel);
+navBtn&&navBtn.addEventListener("click",openPanel);
 close.addEventListener("click",function(){panel.classList.remove("open");});
 function render(){
 log.innerHTML="";
