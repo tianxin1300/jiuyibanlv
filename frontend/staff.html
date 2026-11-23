@@ -1033,45 +1033,6 @@ tr:last-child td{border-bottom:0}
   <div class="ca-sug" id="caSug"></div>
   <div class="ca-ft"><textarea id="caInput" placeholder="按一下 ✦ 有什么拿不准？"></textarea><button id="caSend">发送</button></div>
 </div>
-<script>(function(){
-var HINT=(window.__CA_HINT__||"").trim();
-if(!HINT){document.getElementById("caNavBtn")&&document.getElementById("caNavBtn").setAttribute("hidden","");return;}
-var $=function(id){return document.getElementById(id)};
-var navBtn=$("caNavBtn"),panel=$("caPanel"),log=$("caLog"),sug=$("caSug"),txt=$("caInput"),send=$("caSend"),close=$("caClose");
-var his=[{role:"assistant",content:"你好，我是**院方工作台智能助手**。目录配置、权限、发布步骤我都熟，但最终还要你自己提交和审核。"}],busy=false;
-function openPanel(){panel.classList.toggle("open");if(panel.classList.contains("open")){txt.focus();render();}}
-navBtn&&navBtn.addEventListener("click",openPanel);
-close.addEventListener("click",function(){panel.classList.remove("open");});
-function render(){
-log.innerHTML="";
-his.forEach(function(m){var d=document.createElement("div");d.className="ca-b "+(m.role==="user"?"u":"a");d.innerHTML=m.content.replace(/\n/g,"<br>");if(m.err)d.setAttribute("data-err","");log.appendChild(d);});
-log.scrollTop=log.scrollHeight;
-sug.innerHTML="";
-if(his.length<=1){
-  [{t:"首次进来做什么？",q:"我是医院管理员，第一次用院方工作台，告诉我从登录到能让患者看到功能的完整步骤"},
-   {t:"什么角色能改目录？",q:"R1-R6 各角色能做什么？谁能改公开目录、谁只能看、谁不能发布"},
-   {t:"患者码怎么发？",q:"怎么给患者发二维码，7天/3个月/365天三档分别什么时候用"}
-  ].forEach(function(s){var b=document.createElement("button");b.textContent=s.t;b.addEventListener("click",function(){ask(s.q);});sug.appendChild(b);});
-}
-}
-async function ask(q){
-if(busy||!q.trim())return;
-busy=true;his.push({role:"user",content:q.trim()});var dot=document.createElement("div");dot.className="ca-b a";dot.textContent="正在查…";log.appendChild(dot);log.scrollTop=log.scrollHeight;txt.value="";send.disabled=true;render();
-try{
-  var body={text:q.trim(),chat:"web:staff-assistant",assistant_hint:HINT};
-  var token=localStorage.getItem("staff_token")||localStorage.getItem("care_token")||"";
-  if(token)body.token=token;
-  var r=await fetch((window.API_BASE||"")+"/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-  var j=await r.json().catch(function(){return{};});
-  if(j.ok&&j.reply){his.push({role:"assistant",content:j.reply});dot.remove();}
-  else{dot.textContent="抱歉，暂时没拿到回复。请稍后再问。";dot.setAttribute("data-err","");}
-}catch(e){dot.textContent="网络好像断了，你切一下网再试。";dot.setAttribute("data-err","");}
-busy=false;send.disabled=false;render();
-}
-send.addEventListener("click",function(){ask(txt.value);});
-txt.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();ask(txt.value);}});
-render();
-})();</script>
 <script>window.__CA_HINT__=[
 "你正在协助医院工作人员使用就医伴侣「院方工作台」（staff.html）。以下是**页面真实存在**的卡片、按钮和字段，按 DOM 从上到下顺序排列。回答必须基于这些真实元素，不能编造不存在的功能。",
 "",
@@ -1129,4 +1090,44 @@ render();
 "",
 "回答要求：中文、短句、2–3 段；必须明确引用页面真实存在的按钮/卡片名；结尾给下一步动作（例如「先切岗位到 R3，再填『医院项目与惠民服务』里的七步」）。"
 ].join("\n");</script>
+<script>(function(){
+var HINT=(window.__CA_HINT__||"").trim();
+if(!HINT){document.getElementById("caNavBtn")&&document.getElementById("caNavBtn").setAttribute("hidden","");return;}
+var $=function(id){return document.getElementById(id)};
+var navBtn=$("caNavBtn"),panel=$("caPanel"),log=$("caLog"),sug=$("caSug"),txt=$("caInput"),send=$("caSend"),close=$("caClose");
+var his=[{role:"assistant",content:"你好，我是**院方工作台智能助手**。目录配置、权限、发布步骤我都熟，但最终还要你自己提交和审核。"}],busy=false;
+function openPanel(){panel.classList.toggle("open");if(panel.classList.contains("open")){txt.focus();render();}}
+navBtn&&navBtn.addEventListener("click",openPanel);
+close.addEventListener("click",function(){panel.classList.remove("open");});
+function render(){
+log.innerHTML="";
+his.forEach(function(m){var d=document.createElement("div");d.className="ca-b "+(m.role==="user"?"u":"a");d.innerHTML=m.content.replace(/\n/g,"<br>");if(m.err)d.setAttribute("data-err","");log.appendChild(d);});
+log.scrollTop=log.scrollHeight;
+sug.innerHTML="";
+if(his.length<=1){
+  [{t:"首次进来做什么？",q:"我是医院管理员，第一次用院方工作台，告诉我从登录到能让患者看到功能的完整步骤"},
+   {t:"什么角色能改目录？",q:"R1-R6 各角色能做什么？谁能改公开目录、谁只能看、谁不能发布"},
+   {t:"患者码怎么发？",q:"怎么给患者发二维码，7天/3个月/365天三档分别什么时候用"}
+  ].forEach(function(s){var b=document.createElement("button");b.textContent=s.t;b.addEventListener("click",function(){ask(s.q);});sug.appendChild(b);});
+}
+}
+async function ask(q){
+if(busy||!q.trim())return;
+busy=true;his.push({role:"user",content:q.trim()});var dot=document.createElement("div");dot.className="ca-b a";dot.textContent="正在查…";log.appendChild(dot);log.scrollTop=log.scrollHeight;txt.value="";send.disabled=true;render();
+try{
+  var body={text:q.trim(),chat:"web:staff-assistant",assistant_hint:HINT};
+  var token=localStorage.getItem("staff_token")||localStorage.getItem("care_token")||"";
+  if(token)body.token=token;
+  var r=await fetch((window.API_BASE||"")+"/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  var j=await r.json().catch(function(){return{};});
+  if(j.ok&&j.reply){his.push({role:"assistant",content:j.reply});dot.remove();}
+  else{dot.textContent="抱歉，暂时没拿到回复。请稍后再问。";dot.setAttribute("data-err","");}
+}catch(e){dot.textContent="网络好像断了，你切一下网再试。";dot.setAttribute("data-err","");}
+busy=false;send.disabled=false;render();
+}
+send.addEventListener("click",function(){ask(txt.value);});
+txt.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();ask(txt.value);}});
+render();
+})();</script>
+
 </body></html>

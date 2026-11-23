@@ -808,67 +808,6 @@ select:focus{border-color:#9dbcf7;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
   <div class="ca-sug" id="caSug"></div>
   <div class="ca-ft"><textarea id="caInput" placeholder="按一下 ✦ 有什么拿不准？"></textarea><button id="caSend">发送</button></div>
 </div>
-<script>(function(){
-var HINT=(window.__CA_HINT__||"").trim();
-if(!HINT){return;}
-// 强制显示按钮（防止 iOS Safari fixed 遮挡问题）
-document.getElementById("caBtn").removeAttribute("hidden");
-document.getElementById("caBtnTop")&&document.getElementById("caBtnTop").removeAttribute("hidden");
-document.getElementById("caNavBtn")&&document.getElementById("caNavBtn").removeAttribute("hidden");
-var $=function(id){return document.getElementById(id)};
-var navBtn=$("caNavBtn"),panel=$("caPanel"),log=$("caLog"),sug=$("caSug"),txt=$("caInput"),send=$("caSend"),close=$("caClose");
-// 如果 fixed 按钮被 iOS Safari 挤没，就在控制台顶部加一条显眼引导
-function ensureVisible(){
-  // 登录成功后注入"点这里问 AI"横幅
-  var existing=document.getElementById("caAskBanner");
-  if(existing)return;
-  // 等登录后登录卡片消失、主工作区出现再注入
-  var login=document.querySelector(".login-card");
-  if(login && getComputedStyle(login).display!=="none"){setTimeout(ensureVisible,300);return;}
-  var br=document.createElement("div");
-  br.id="caAskBanner";
-  br.style.cssText="position:fixed;top:calc(env(safe-area-inset-top,0px) + 56px);left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:8px 18px;border-radius:999px;box-shadow:0 8px 24px rgba(15,23,42,.4);z-index:7000;font-size:13px;display:flex;align-items:center;gap:10px;cursor:pointer;max-width:94vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
-  br.innerHTML='💡 有问题？点右下角或左上角 <b style="color:#fbbf24">✦</b> 问 AI';
-  br.addEventListener("click",openPanel);
-  document.body.appendChild(br);
-  // 12 秒后自动隐藏（不影响 fixed 按钮常驻）
-  setTimeout(function(){br.style.transition="opacity .5s";br.style.opacity="0";setTimeout(function(){br.remove();},500);},12000);
-}
-setTimeout(ensureVisible,600);
-function openPanel(){panel.classList.toggle("open");if(panel.classList.contains("open")){txt.focus();render();}}
-navBtn&&navBtn.addEventListener("click",openPanel);
-close.addEventListener("click",function(){panel.classList.remove("open");});
-var his=[{role:"assistant",content:"你好，我是**管理控制台智能助手**。租户/备份/清除这些操作风险高，我帮你核对步骤，但最终由你执行。"}],busy=false;
-function render(){
-log.innerHTML="";
-his.forEach(function(m){var d=document.createElement("div");d.className="ca-b "+(m.role==="user"?"u":"a");d.innerHTML=m.content.replace(/\n/g,"<br>");if(m.err)d.setAttribute("data-err","");log.appendChild(d);});
-log.scrollTop=log.scrollHeight;
-sug.innerHTML="";
-if(his.length<=1){
-  [{t:"首次进来做什么？",q:"第一次打开管理控制台，告诉我从零到跑通一家医院需要做哪些事，按顺序列出来"},
-   {t:"清除按钮会删什么？",q:"控制台里「清除」按钮到底会删哪些数据？生产环境能不能碰"},
-   {t:"备份恢复流程？",q:"立即备份、按院恢复、pre-restore 自动创建分别在什么场景用"}
-  ].forEach(function(s){var b=document.createElement("button");b.textContent=s.t;b.addEventListener("click",function(){ask(s.q);});sug.appendChild(b);});
-}
-}
-async function ask(q){
-if(busy||!q.trim())return;
-busy=true;his.push({role:"user",content:q.trim()});var dot=document.createElement("div");dot.className="ca-b a";dot.textContent="正在查…";log.appendChild(dot);log.scrollTop=log.scrollHeight;txt.value="";send.disabled=true;render();
-try{
-  var body={text:q.trim(),chat:"web:console-assistant",assistant_hint:HINT};
-  var token=localStorage.getItem("admin_token")||localStorage.getItem("care_token")||"";
-  if(token)body.token=token;
-  var r=await fetch((window.API_BASE||"")+"/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-  var j=await r.json().catch(function(){return{};});
-  if(j.ok&&j.reply){his.push({role:"assistant",content:j.reply});dot.remove();}
-  else{dot.textContent="抱歉，暂时没拿到回复。请稍后再问。";dot.setAttribute("data-err","");}
-}catch(e){dot.textContent="网络好像断了，你切一下网再试。";dot.setAttribute("data-err","");}
-busy=false;send.disabled=false;render();
-}
-send.addEventListener("click",function(){ask(txt.value);});
-txt.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();ask(txt.value);}});
-render();
-})();</script>
 <script>window.__CA_HINT__=[
 "你正在协助**平台管理员**使用就医伴侣「管理控制台」（console.html）。以下是**页面真实存在**的卡片、按钮和字段，按 DOM 从上到下顺序排列。回答必须基于这些真实元素，不能编造不存在的功能。",
 "",
@@ -937,4 +876,66 @@ render();
 "",
 "回答要求：中文、短句、2–3 段；风险操作必须明确提醒「**后果 + 二次确认要求**」；必须引用页面真实存在的按钮/卡片名；结尾给下一步动作（例如「先在『医院列表』确认租户已 active」）。"
 ].join("\n");</script>
+<script>(function(){
+var HINT=(window.__CA_HINT__||"").trim();
+if(!HINT){return;}
+// 强制显示按钮（防止 iOS Safari fixed 遮挡问题）
+document.getElementById("caBtn").removeAttribute("hidden");
+document.getElementById("caBtnTop")&&document.getElementById("caBtnTop").removeAttribute("hidden");
+document.getElementById("caNavBtn")&&document.getElementById("caNavBtn").removeAttribute("hidden");
+var $=function(id){return document.getElementById(id)};
+var navBtn=$("caNavBtn"),panel=$("caPanel"),log=$("caLog"),sug=$("caSug"),txt=$("caInput"),send=$("caSend"),close=$("caClose");
+// 如果 fixed 按钮被 iOS Safari 挤没，就在控制台顶部加一条显眼引导
+function ensureVisible(){
+  // 登录成功后注入"点这里问 AI"横幅
+  var existing=document.getElementById("caAskBanner");
+  if(existing)return;
+  // 等登录后登录卡片消失、主工作区出现再注入
+  var login=document.querySelector(".login-card");
+  if(login && getComputedStyle(login).display!=="none"){setTimeout(ensureVisible,300);return;}
+  var br=document.createElement("div");
+  br.id="caAskBanner";
+  br.style.cssText="position:fixed;top:calc(env(safe-area-inset-top,0px) + 56px);left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:8px 18px;border-radius:999px;box-shadow:0 8px 24px rgba(15,23,42,.4);z-index:7000;font-size:13px;display:flex;align-items:center;gap:10px;cursor:pointer;max-width:94vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
+  br.innerHTML='💡 有问题？点右下角或左上角 <b style="color:#fbbf24">✦</b> 问 AI';
+  br.addEventListener("click",openPanel);
+  document.body.appendChild(br);
+  // 12 秒后自动隐藏（不影响 fixed 按钮常驻）
+  setTimeout(function(){br.style.transition="opacity .5s";br.style.opacity="0";setTimeout(function(){br.remove();},500);},12000);
+}
+setTimeout(ensureVisible,600);
+function openPanel(){panel.classList.toggle("open");if(panel.classList.contains("open")){txt.focus();render();}}
+navBtn&&navBtn.addEventListener("click",openPanel);
+close.addEventListener("click",function(){panel.classList.remove("open");});
+var his=[{role:"assistant",content:"你好，我是**管理控制台智能助手**。租户/备份/清除这些操作风险高，我帮你核对步骤，但最终由你执行。"}],busy=false;
+function render(){
+log.innerHTML="";
+his.forEach(function(m){var d=document.createElement("div");d.className="ca-b "+(m.role==="user"?"u":"a");d.innerHTML=m.content.replace(/\n/g,"<br>");if(m.err)d.setAttribute("data-err","");log.appendChild(d);});
+log.scrollTop=log.scrollHeight;
+sug.innerHTML="";
+if(his.length<=1){
+  [{t:"首次进来做什么？",q:"第一次打开管理控制台，告诉我从零到跑通一家医院需要做哪些事，按顺序列出来"},
+   {t:"清除按钮会删什么？",q:"控制台里「清除」按钮到底会删哪些数据？生产环境能不能碰"},
+   {t:"备份恢复流程？",q:"立即备份、按院恢复、pre-restore 自动创建分别在什么场景用"}
+  ].forEach(function(s){var b=document.createElement("button");b.textContent=s.t;b.addEventListener("click",function(){ask(s.q);});sug.appendChild(b);});
+}
+}
+async function ask(q){
+if(busy||!q.trim())return;
+busy=true;his.push({role:"user",content:q.trim()});var dot=document.createElement("div");dot.className="ca-b a";dot.textContent="正在查…";log.appendChild(dot);log.scrollTop=log.scrollHeight;txt.value="";send.disabled=true;render();
+try{
+  var body={text:q.trim(),chat:"web:console-assistant",assistant_hint:HINT};
+  var token=localStorage.getItem("admin_token")||localStorage.getItem("care_token")||"";
+  if(token)body.token=token;
+  var r=await fetch((window.API_BASE||"")+"/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  var j=await r.json().catch(function(){return{};});
+  if(j.ok&&j.reply){his.push({role:"assistant",content:j.reply});dot.remove();}
+  else{dot.textContent="抱歉，暂时没拿到回复。请稍后再问。";dot.setAttribute("data-err","");}
+}catch(e){dot.textContent="网络好像断了，你切一下网再试。";dot.setAttribute("data-err","");}
+busy=false;send.disabled=false;render();
+}
+send.addEventListener("click",function(){ask(txt.value);});
+txt.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();ask(txt.value);}});
+render();
+})();</script>
+
 </body></html>
