@@ -878,7 +878,7 @@ select:focus{border-color:#9dbcf7;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 var HINT=(window.__CA_HINT__||"").trim();
 if(!HINT){return;}
 // 强制显示按钮（防止 iOS Safari fixed 遮挡问题）
-document.getElementById("caBtn").removeAttribute("hidden");
+document.getElementById("caBtn")&&document.getElementById("caBtn").removeAttribute("hidden");
 document.getElementById("caBtnTop")&&document.getElementById("caBtnTop").removeAttribute("hidden");
 document.getElementById("caNavBtn")&&document.getElementById("caNavBtn").removeAttribute("hidden");
 var $=function(id){return document.getElementById(id)};
