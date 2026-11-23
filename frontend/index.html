@@ -853,7 +853,7 @@ h1{font-size:20px!important;margin:2px 0 6px!important}
 @media(max-width:360px){.qgrid{grid-template-columns:repeat(2,1fr)}.qbtn{flex-direction:row;justify-content:flex-start;gap:8px;padding:10px}}
 </style></head><body>
 <header id="authBar" hidden><div class="authbar-in"><div class="authbar-brand"><button class="brand-mark" data-brand type="button" aria-label="播放品牌动画"><i class="orbit"></i><i class="ripple"></i></button><b>就医伴侣</b></div>
-      <button id="caNavBtn" type="button" title="AI 助手" aria-label="AI 助手" style="margin-left:12px;border:1px solid var(--line);background:var(--c);color:#fff;border-radius:999px;padding:5px 12px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(15,118,110,.25)">✦ AI 助手</button><span id="authHi"></span><button class="ghost" id="authOut" type="button">退出登录</button></div></header>
+      <span id="authHi"></span><button class="ghost" id="authOut" type="button">退出登录</button></div></header>
 <main id="app"></main>
 <footer id="icp" hidden></footer>
 <div id="authGate" role="dialog" aria-modal="true" aria-labelledby="authTitle">
@@ -5590,48 +5590,14 @@ document.getElementById('authForm').addEventListener('submit', async function (e
 })();
 </script>
 <style id="ca-assistant-style">
-.ca-btn{position:fixed;right:18px;bottom:calc(22px + env(safe-area-inset-bottom,0px));width:52px;height:52px;border-radius:50%;border:0;background:linear-gradient(140deg,#0f766e,#14b8a6);color:#fff;font:22px/1 system-ui,serif;box-shadow:0 10px 24px rgba(15,118,110,.35);cursor:pointer;z-index:6000;display:grid;place-items:center;border:2px solid #fff;animation:caPulse 2.4s ease-in-out infinite}
-.ca-btn.top{top:calc(env(safe-area-inset-top,0px) + 70px);bottom:auto;left:16px;right:auto;width:40px;height:40px;font:16px/1 system-ui,serif;box-shadow:0 4px 16px rgba(0,0,0,.3)}
-@keyframes caPulse{0%,100%{box-shadow:0 10px 24px rgba(0,0,0,.35),0 0 0 4px rgba(0,0,0,.06)}50%{box-shadow:0 10px 24px rgba(0,0,0,.35),0 0 0 10px rgba(0,0,0,.03)}}
-.ca-btn[hidden]{display:none}
-.ca-btn:active{transform:scale(.94)}
-.ca-panel{position:fixed;left:16px;right:16px;bottom:calc(94px + env(safe-area-inset-bottom,0px));max-width:460px;margin:0 auto;background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 48px rgba(15,23,42,.18);z-index:5999;display:none;flex-direction:column;max-height:72vh;overflow:hidden}
-.ca-panel.open{display:flex}
-.ca-hd{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;background:linear-gradient(140deg,#e6fffa,#fff)}
-.ca-hd b{font-size:14px;color:#0f5f59}
-.ca-hd small{color:var(--mute);font-size:12px;flex:1}
-.ca-x{margin-left:auto;border:0;background:transparent;color:var(--mute);font-size:18px;cursor:pointer}
-.ca-log{flex:1;overflow-y:auto;padding:10px 14px;font-size:14px;line-height:1.6}
-.ca-log .ca-b{margin:8px 0;padding:8px 12px;border-radius:12px;max-width:90%}
-.ca-log .ca-b.u{background:var(--c);color:#fff;margin-left:auto}
-.ca-log .ca-b.a{background:#f1f5f5;color:var(--ink)}
-.ca-log .ca-b.a[data-err]{background:#fef2f2;color:#b91c1c}
-.ca-ft{border-top:1px solid var(--line);padding:10px;display:flex;gap:8px}
-.ca-ft textarea{min-height:44px;flex:1;resize:none;background:var(--bg)}
-.ca-ft button{border:0;background:var(--c);color:#fff;border-radius:10px;padding:0 14px;font:inherit}
-.ca-ft button:disabled{opacity:.5;cursor:default}
-.ca-sug{display:flex;gap:6px 8px;flex-wrap:wrap;padding:0 12px 8px}
-.ca-sug button{background:#f1f5f5;border:1px solid var(--line);border-radius:999px;color:var(--ink);padding:5px 10px;font-size:12px;cursor:pointer}
+
 </style>
-<button class="ca-btn top" id="caBtnTop" aria-label="AI助手" title="AI助手（点这里）">✦</button>
-<button class="ca-btn" id="caBtn" aria-label="智能助手" title="智能助手">✦</button>
-<div class="ca-panel" id="caPanel">
-  <div class="ca-hd"><b>智能助手</b><small>不懂就问，不会替你做决定</small><button class="ca-x" id="caClose" aria-label="关闭">×</button></div>
-  <div class="ca-log" id="caLog"></div>
-  <div class="ca-sug" id="caSug"></div>
-  <div class="ca-ft"><textarea id="caInput" placeholder="按一下 ✦ 有什么想问的？"></textarea><button id="caSend">发送</button></div>
-</div>
+
+
+
 <script>(function(){
 var HINT=(window.__CA_HINT__||"").trim();
-if(!HINT){document.getElementById("caBtn").setAttribute("hidden","");document.getElementById("caBtnTop")&&document.getElementById("caBtnTop").setAttribute("hidden","");document.getElementById("caNavBtn")&&document.getElementById("caNavBtn").setAttribute("hidden","");return;}
-var $=function(id){return document.getElementById(id)};
-var btn=$("caBtn"),topBtn=$("caBtnTop"),navBtn=$("caNavBtn"),panel=$("caPanel"),log=$("caLog"),sug=$("caSug"),txt=$("caInput"),send=$("caSend"),close=$("caClose");
-var his=[{role:"assistant",content:"你好，我是**就医伴侣智能助手**。有什么操作或功能拿不准，直接问我就行；但就医决策请以医生意见为准。"}],busy=false;
-function openPanel(){panel.classList.toggle("open");if(panel.classList.contains("open")){txt.focus();render();}}
-btn&&btn.addEventListener("click",openPanel);
-topBtn&&topBtn.addEventListener("click",openPanel);
-navBtn&&navBtn.addEventListener("click",openPanel);
-close.addEventListener("click",function(){panel.classList.remove("open");});
+// 本页唯一 AI 入口：中部"AI 陪诊助手"卡片（data-care="open"），已由下方事件委托处理；此处不再额外注入入口按钮。
 function render(){
 log.innerHTML="";
 his.forEach(function(m){var d=document.createElement("div");d.className="ca-b "+(m.role==="user"?"u":"a");d.innerHTML=m.content.replace(/\n/g,"<br>");if(m.err)d.setAttribute("data-err","");log.appendChild(d);});

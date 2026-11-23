@@ -779,10 +779,10 @@ select:focus{border-color:#9dbcf7;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 })();
 </script>
 <style id="ca-assistant-style">
-.ca-btn{position:fixed;right:18px;bottom:calc(22px + env(safe-area-inset-bottom,0px));width:52px;height:52px;border-radius:50%;border:2px solid #fff;background:linear-gradient(140deg,#0f172a,#334155);color:#fff;font:22px/1 system-ui,serif;box-shadow:0 8px 30px rgba(15,23,42,.55),0 0 0 4px rgba(15,23,42,.1);cursor:pointer;z-index:6000;display:grid;place-items:center;animation:caPulse 2.4s ease-in-out infinite}
-.ca-btn.top{top:calc(env(safe-area-inset-top,0px) + 70px);bottom:auto;left:16px;right:auto;width:40px;height:40px;font:16px/1 system-ui,serif;box-shadow:0 4px 16px rgba(15,23,42,.35)}
-@keyframes caPulse{0%,100%{box-shadow:0 8px 30px rgba(15,23,42,.55),0 0 0 4px rgba(15,23,42,.1)}50%{box-shadow:0 8px 30px rgba(15,23,42,.55),0 0 0 10px rgba(15,23,42,.06)}}
-.ca-btn:active{transform:scale(.94)}
+
+
+50%{box-shadow:0 8px 30px rgba(15,23,42,.55),0 0 0 10px rgba(15,23,42,.06)}}
+
 .ca-panel{position:fixed;left:16px;right:16px;bottom:calc(94px + env(safe-area-inset-bottom,0px));max-width:460px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:18px;box-shadow:0 24px 48px rgba(15,23,42,.18);z-index:5999;display:none;flex-direction:column;max-height:72vh;overflow:hidden;color:#0f172a}
 .ca-panel.open{display:flex}
 .ca-hd{padding:12px 16px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:10px;background:linear-gradient(140deg,#f1f5f9,#fff)}
@@ -800,8 +800,8 @@ select:focus{border-color:#9dbcf7;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 .ca-sug{display:flex;gap:6px 8px;flex-wrap:wrap;padding:0 12px 8px}
 .ca-sug button{background:#f1f5f9;border:1px solid #e5e7eb;border-radius:999px;color:#0f172a;padding:5px 10px;font-size:12px;cursor:pointer}
 </style>
-<button class="ca-btn top" id="caBtnTop" aria-label="AI助手" title="AI助手（点这里）">✦</button>
-<button class="ca-btn" id="caBtn" aria-label="智能助手" title="智能助手">✦</button>
+
+
 <div class="ca-panel" id="caPanel">
   <div class="ca-hd"><b>智能助手</b><small>管理员专属，数据操作慎之又慎</small><button class="ca-x" id="caClose" aria-label="关闭">×</button></div>
   <div class="ca-log" id="caLog"></div>
@@ -810,13 +810,13 @@ select:focus{border-color:#9dbcf7;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 </div>
 <script>(function(){
 var HINT=(window.__CA_HINT__||"").trim();
-if(!HINT){document.getElementById("caBtn").setAttribute("hidden","");document.getElementById("caBtnTop")&&document.getElementById("caBtnTop").setAttribute("hidden","");return;}
+if(!HINT){return;}
 // 强制显示按钮（防止 iOS Safari fixed 遮挡问题）
 document.getElementById("caBtn").removeAttribute("hidden");
 document.getElementById("caBtnTop")&&document.getElementById("caBtnTop").removeAttribute("hidden");
 document.getElementById("caNavBtn")&&document.getElementById("caNavBtn").removeAttribute("hidden");
 var $=function(id){return document.getElementById(id)};
-var btn=$("caBtn"),topBtn=$("caBtnTop"),navBtn=$("caNavBtn"),panel=$("caPanel"),log=$("caLog"),sug=$("caSug"),txt=$("caInput"),send=$("caSend"),close=$("caClose");
+var navBtn=$("caNavBtn"),panel=$("caPanel"),log=$("caLog"),sug=$("caSug"),txt=$("caInput"),send=$("caSend"),close=$("caClose");
 // 如果 fixed 按钮被 iOS Safari 挤没，就在控制台顶部加一条显眼引导
 function ensureVisible(){
   // 登录成功后注入"点这里问 AI"横幅
@@ -836,8 +836,6 @@ function ensureVisible(){
 }
 setTimeout(ensureVisible,600);
 function openPanel(){panel.classList.toggle("open");if(panel.classList.contains("open")){txt.focus();render();}}
-btn&&btn.addEventListener("click",openPanel);
-topBtn&&topBtn.addEventListener("click",openPanel);
 navBtn&&navBtn.addEventListener("click",openPanel);
 close.addEventListener("click",function(){panel.classList.remove("open");});
 var his=[{role:"assistant",content:"你好，我是**管理控制台智能助手**。租户/备份/清除这些操作风险高，我帮你核对步骤，但最终由你执行。"}],busy=false;
