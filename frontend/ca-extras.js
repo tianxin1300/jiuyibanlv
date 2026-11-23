@@ -123,46 +123,105 @@
 
   /* ---------- 提醒铃铛 + 面板 ---------- */
   var rem = { list: [] };
+  /* 铃铛与面板的样式：深蓝玻璃 + 蓝紫渐变，和患者端「深海·科技」主题一致；自带颜色，三端通用 */
+  function injectStyle() {
+    if (document.getElementById("caRemStyle")) return;
+    var s = document.createElement("style"); s.id = "caRemStyle";
+    s.textContent = [
+      "#caBell{position:relative;flex:none;width:36px;height:36px;min-height:0!important;padding:0!important;border-radius:50%;border:1px solid rgba(150,166,255,.38);background:rgba(18,28,104,.72);color:#dfe6ff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:0 6px 20px -8px rgba(100,110,255,.7);transition:transform .15s,box-shadow .2s}",
+      "#caBell.fixed{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);right:12px;z-index:8000;width:40px;height:40px}",
+      "#caBell:active{transform:scale(.94)}",
+      "#caBell svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}",
+      "#caBell.has{color:#fff;border-color:rgba(170,186,255,.7);box-shadow:0 0 0 3px rgba(123,147,255,.18),0 6px 22px -6px rgba(120,120,255,.9)}",
+      "#caBell.has svg{animation:caRing 4.5s ease-in-out infinite;transform-origin:50% 12%}",
+      "@keyframes caRing{0%,86%,100%{transform:rotate(0)}89%{transform:rotate(14deg)}92%{transform:rotate(-12deg)}95%{transform:rotate(8deg)}98%{transform:rotate(-4deg)}}",
+      "@media (prefers-reduced-motion:reduce){#caBell.has svg{animation:none}}",
+      "#caBellBadge{position:absolute;top:-3px;right:-3px;background:linear-gradient(135deg,#ff8a5c,#ff4f8b);color:#fff;font-size:10px;min-width:16px;height:16px;border-radius:8px;display:none;align-items:center;justify-content:center;padding:0 4px;font-weight:700;box-shadow:0 2px 8px rgba(255,79,139,.55)}",
+      "#caRemPanel{position:fixed;top:calc(env(safe-area-inset-top,0px) + 56px);right:12px;z-index:8001;width:340px;max-width:calc(100vw - 24px);max-height:72vh;overflow-y:auto;background:linear-gradient(160deg,rgba(24,38,122,.97),rgba(10,16,72,.97));border:1px solid rgba(150,166,255,.3);border-radius:18px;box-shadow:0 24px 60px -24px rgba(0,0,40,.9);padding:16px;font-size:14px;color:#e9edff;display:none;-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);color-scheme:dark}",
+      "#caRemPanel .rm-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}",
+      "#caRemPanel .rm-h b{font-size:16px;letter-spacing:.02em;color:#f4f6ff}",
+      "#caRemPanel .rm-x{border:0;background:rgba(255,255,255,.08);color:#b7c3f3;width:30px;height:30px;border-radius:50%;font-size:18px;line-height:1;cursor:pointer}",
+      "#caRemPanel input{width:100%;box-sizing:border-box;background:rgba(4,9,50,.6);border:1px solid rgba(150,166,255,.28);color:#eef1ff;-webkit-text-fill-color:#eef1ff;border-radius:11px;padding:10px 12px;font:inherit;font-size:15px;outline:0}",
+      "#caRemPanel input:focus{border-color:#8aa2ff;box-shadow:0 0 0 3px rgba(122,146,255,.25)}",
+      "#caRemPanel input::placeholder{color:#7d8bc6;-webkit-text-fill-color:#7d8bc6}",
+      "#caRemPanel .rm-q{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}",
+      "#caRemPanel .rm-q button{border:1px solid rgba(150,166,255,.28);background:rgba(255,255,255,.06);color:#cdd6ff;border-radius:999px;padding:7px 12px;font:inherit;font-size:12.5px;cursor:pointer}",
+      "#caRemPanel .rm-q button:active{background:rgba(123,147,255,.28);color:#fff}",
+      "#caRemPanel .rm-row{display:flex;gap:8px;align-items:stretch;margin-top:8px}",
+      "#caRemPanel .rm-row input{flex:1;min-width:0;width:auto}",
+      "#caRemPanel .rm-add{flex:none;border:0;background:linear-gradient(135deg,#4f6bff,#8a5cff);color:#fff;border-radius:11px;padding:0 18px;font:inherit;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 8px 20px -10px rgba(110,110,255,.9)}",
+      "#caRemPanel .rm-hint{font-size:11.5px;color:#8f9cd6;margin-top:6px}",
+      "#caRemPanel .rm-list{margin-top:10px}",
+      "#caRemPanel .rm-it{display:flex;gap:8px;align-items:center;padding:11px 0;border-bottom:1px solid rgba(146,163,255,.14)}",
+      "#caRemPanel .rm-it:last-child{border-bottom:0}",
+      "#caRemPanel .rm-m{flex:1;min-width:0}",
+      "#caRemPanel .rm-t{font-weight:600;font-size:14px;color:#f1f4ff;word-break:break-word}",
+      "#caRemPanel .rm-d{font-size:12px;color:#9db1ff;margin-top:3px}",
+      "#caRemPanel .rm-d::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:#ffe86b;box-shadow:0 0 6px #ffe86b;margin-right:6px;vertical-align:1px}",
+      "#caRemPanel .rm-d.n{color:#7f8cc4}#caRemPanel .rm-d.n::before{background:#6f7cb8;box-shadow:none}",
+      "#caRemPanel .rm-ok,#caRemPanel .rm-del{flex:none;min-width:46px;min-height:36px;border-radius:10px;font:inherit;font-size:12.5px;cursor:pointer}",
+      "#caRemPanel .rm-ok{border:1px solid rgba(150,170,255,.35);background:rgba(255,255,255,.06);color:#dfe6ff}",
+      "#caRemPanel .rm-del{border:1px solid rgba(255,120,120,.35);background:rgba(255,90,90,.12);color:#ffb3ab}",
+      "#caRemPanel .rm-empty{color:#8f9cd6;font-size:13px;padding:16px 0;text-align:center}",
+      "#caRemPanel .rm-ft{font-size:11px;color:#7f8cc4;margin-top:10px;line-height:1.55}"
+    ].join("\n");
+    document.head.appendChild(s);
+  }
   function ensureBell() {
     if (document.getElementById("caBell")) return;
+    injectStyle();
     var b = document.createElement("button"); b.id = "caBell"; b.type = "button"; b.title = "提醒";
     b.setAttribute("aria-label", "提醒");
-    b.style.cssText = "position:fixed;top:calc(env(safe-area-inset-top,0px) + 12px);right:12px;z-index:8000;width:40px;height:40px;border-radius:50%;border:0;background:var(--accent,#2563eb);color:#fff;font-size:18px;cursor:pointer;box-shadow:0 4px 14px rgba(37,99,235,.4);display:flex;align-items:center;justify-content:center";
-    b.innerHTML = '🔔<span id="caBellBadge" style="position:absolute;top:-2px;right:-2px;background:#ef4444;color:#fff;font-size:10px;min-width:16px;height:16px;border-radius:8px;display:none;align-items:center;justify-content:center;padding:0 3px;font-weight:700"></span>';
-    b.onclick = togglePanel; document.body.appendChild(b); updateBadge();
+    b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span id="caBellBadge"></span>';
+    b.onclick = togglePanel;
+    var host = document.querySelector("#authBar .authbar-in");      // 患者端：放进顶栏，不再悬浮遮挡「退出登录」
+    if (host) host.appendChild(b); else { b.className = "fixed"; document.body.appendChild(b); }
+    updateBadge();
   }
   function updateBadge() {
     var bd = document.getElementById("caBellBadge"); if (!bd) return;
     var n = (rem.list || []).filter(function (t) { return !t.done; }).length;
+    var bell = document.getElementById("caBell"); if (bell) bell.classList.toggle("has", n > 0);
     if (n > 0) { bd.style.display = "flex"; bd.textContent = n > 99 ? "99+" : String(n); } else bd.style.display = "none";
   }
   function panelEl() { return document.getElementById("caRemPanel"); }
-  function togglePanel() { var p = panelEl(); if (p) { p.style.display = p.style.display === "none" ? "block" : "none"; if (p.style.display !== "none") renderPanel(); } else { ensurePanel(); renderPanel(); } }
+  function togglePanel() { var p = panelEl(); if (p) { p.style.display = p.style.display === "none" ? "block" : "none"; if (p.style.display !== "none") renderPanel(); } else { ensurePanel(); renderPanel(); panelEl().style.display = "block"; } }
   function ensurePanel() {
     if (panelEl()) return;
+    injectStyle();
     var p = document.createElement("div"); p.id = "caRemPanel";
-    p.style.cssText = "position:fixed;top:calc(env(safe-area-inset-top,0px) + 58px);right:12px;z-index:8001;width:320px;max-width:calc(100vw - 24px);max-height:70vh;overflow-y:auto;background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.18);padding:14px;font-size:14px;color:#0f172a;display:none";
+    p.style.display = "none";
     document.body.appendChild(p);
   }
-  function localMinStr() {
-    var d = new Date(), z = function (n) { return (n < 10 ? "0" : "") + n; };
-    return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate()) + "T" + z(d.getHours()) + ":" + z(d.getMinutes());
+  /* 时间一律按北京时间处理（后端也按北京时间解析），选择器、快捷按钮、最小值口径一致 */
+  function bjStr(ms) { return new Date(ms + 8 * 3600e3).toISOString().slice(0, 16); }
+  function quickWhen(k) {
+    var now = Date.now();
+    if (k === "10m") return bjStr(now + 10 * 60e3);
+    var bj = new Date(now + 8 * 3600e3), y = bj.getUTCFullYear(), m = bj.getUTCMonth(), d = bj.getUTCDate();
+    var at = function (dd, h) { return Date.UTC(y, m, dd, h, 0) - 8 * 3600e3; };
+    if (k === "tn") { var t = at(d, 20); if (t <= now + 60e3) t = at(d + 1, 20); return bjStr(t); }
+    return bjStr(at(d + 1, 9));
   }
   function renderPanel() {
     var p = panelEl(); if (!p) return;
     var oldText = p.querySelector("#caRemText"), oldWhen = p.querySelector("#caRemWhen");
     var keepText = oldText ? oldText.value : "", keepWhen = oldWhen ? oldWhen.value : "";   // 刷新列表时别把已填的内容冲掉
     var rows = (rem.list || []).filter(function (t) { return !t.done; }).map(function (t) {
-      return '<div style="display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid #f1f5f9"><div style="flex:1"><div style="font-weight:600;font-size:13px">' + escHtml(t.text) + '</div>' + (t.due ? '<div style="font-size:12px;color:#64748b">⏰ ' + escHtml(t.due) + '</div>' : '<div style="font-size:12px;color:#94a3b8">未设提醒时间</div>') + '</div><button data-rm-done="' + escHtml(t.id) + '" style="border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:8px;padding:3px 8px;font-size:12px;cursor:pointer">完成</button><button data-rm-del="' + escHtml(t.id) + '" style="border:0;background:#fef2f2;color:#b91c1c;border-radius:8px;padding:3px 8px;font-size:12px;cursor:pointer">删</button></div>';
+      return '<div class="rm-it"><div class="rm-m"><div class="rm-t">' + escHtml(t.text) + '</div>'
+        + (t.due ? '<div class="rm-d">' + escHtml(t.due) + '</div>' : '<div class="rm-d n">未设提醒时间</div>')
+        + '</div><button class="rm-ok" data-rm-done="' + escHtml(t.id) + '">完成</button><button class="rm-del" data-rm-del="' + escHtml(t.id) + '">删除</button></div>';
     }).join("");
-    p.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b style="font-size:15px">提醒</b><button id="caRemClose" style="border:0;background:none;color:#94a3b8;font-size:18px;cursor:pointer;line-height:1">×</button></div>'
-      + '<div style="margin-bottom:10px"><input id="caRemText" placeholder="提醒内容，例如：就医" style="width:100%;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:8px;padding:7px 9px;font:inherit;font-size:13px;margin-bottom:6px">'
-      + '<div style="display:flex;gap:6px;align-items:center"><input id="caRemWhen" type="datetime-local" step="60" min="' + localMinStr() + '" aria-label="提醒时间（可不选）" style="flex:1;min-width:0;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font:inherit;font-size:13px"><button id="caRemAdd" style="border:0;background:var(--accent,#2563eb);color:#fff;border-radius:8px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer;font-weight:600;white-space:nowrap">添加</button></div>'
-      + '<div style="font-size:11px;color:#94a3b8;margin-top:4px">选好提醒时间（北京时间）；不选就只记待办，不提醒。</div></div>'
-      + '<div id="caRemList">' + (rows || '<div style="color:#94a3b8;font-size:13px;padding:12px 0;text-align:center">还没有提醒。让 AI 帮你记，或在上面添加。</div>') + '</div>'
-      + '<div style="font-size:11px;color:#94a3b8;margin-top:8px;line-height:1.5">到点会在浏览器通知（需保持页面打开并允许通知）。关闭浏览器后收不到。</div>';
+    p.innerHTML = '<div class="rm-h"><b>提醒</b><button class="rm-x" id="caRemClose" aria-label="关闭">×</button></div>'
+      + '<input id="caRemText" placeholder="提醒内容，例如：就医" maxlength="100">'
+      + '<div class="rm-q"><button type="button" data-q="10m">10 分钟后</button><button type="button" data-q="tn">今晚 8 点</button><button type="button" data-q="tm">明早 9 点</button></div>'
+      + '<div class="rm-row"><input id="caRemWhen" type="datetime-local" step="60" min="' + bjStr(Date.now()) + '" aria-label="提醒时间（可不选）"><button id="caRemAdd" class="rm-add">添加</button></div>'
+      + '<div class="rm-hint">点上面的快捷时间，或自己选；不选时间就只记待办，不提醒（北京时间）。</div>'
+      + '<div class="rm-list" id="caRemList">' + (rows || '<div class="rm-empty">还没有提醒。让 AI 帮你记，或在上面添加。</div>') + '</div>'
+      + '<div class="rm-ft">到点会在浏览器通知（需保持页面打开并允许通知）。关闭浏览器后收不到。</div>';
     p.querySelector("#caRemText").value = keepText; p.querySelector("#caRemWhen").value = keepWhen;
     p.querySelector("#caRemClose").onclick = function () { p.style.display = "none"; };
+    p.querySelectorAll("[data-q]").forEach(function (b) { b.onclick = function () { p.querySelector("#caRemWhen").value = quickWhen(b.getAttribute("data-q")); }; });
     p.querySelector("#caRemAdd").onclick = function () {
       var text = (p.querySelector("#caRemText").value || "").trim();
       var when = (p.querySelector("#caRemWhen").value || "").trim();   // datetime-local 形如 2026-12-03T09:00，后端可直接解析
@@ -190,8 +249,8 @@
     speak("提醒：" + t.text);
     try { if ("Notification" in window && Notification.permission === "granted") new Notification("就医伴侣提醒", { body: t.text + (t.due ? "（原定 " + t.due + "）" : ""), tag: t.id }); } catch (e) {}
     var flash = document.createElement("div");
-    flash.style.cssText = "position:fixed;left:50%;top:70px;transform:translateX(-50%);background:#fff;border:1px solid #e2e8f0;border-left:4px solid var(--accent,#2563eb);border-radius:10px;padding:10px 14px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:8500;max-width:90vw;font-size:14px";
-    flash.innerHTML = "<b>⏰ 提醒</b><div>" + escHtml(t.text) + "</div>";
+    flash.style.cssText = "position:fixed;left:50%;top:70px;transform:translateX(-50%);background:linear-gradient(160deg,rgba(24,38,122,.98),rgba(10,16,72,.98));color:#eef1ff;border:1px solid rgba(150,166,255,.35);border-left:4px solid #ffe86b;border-radius:14px;padding:11px 16px;box-shadow:0 16px 40px -14px rgba(0,0,40,.8);z-index:8500;max-width:90vw;font-size:14px";
+    flash.innerHTML = "<b>提醒</b><div>" + escHtml(t.text) + "</div>";
     document.body.appendChild(flash);
     setTimeout(function () { flash.style.transition = "opacity .5s"; flash.style.opacity = "0"; setTimeout(function () { flash.remove(); }, 500); }, 9000);
   }
