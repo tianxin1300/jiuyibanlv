@@ -778,7 +778,9 @@ select:focus{border-color:#9dbcf7;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 })();
 </script>
 <style id="ca-assistant-style">
-.ca-btn{position:fixed;right:18px;bottom:calc(22px + env(safe-area-inset-bottom,0px));width:52px;height:52px;border-radius:50%;border:0;background:linear-gradient(140deg,#0f172a,#334155);color:#fff;font:22px/1 system-ui,serif;box-shadow:0 10px 24px rgba(15,23,42,.35);cursor:pointer;z-index:6000;display:grid;place-items:center}
+.ca-btn{position:fixed;right:18px;bottom:calc(22px + env(safe-area-inset-bottom,0px));width:52px;height:52px;border-radius:50%;border:2px solid #fff;background:linear-gradient(140deg,#0f172a,#334155);color:#fff;font:22px/1 system-ui,serif;box-shadow:0 8px 30px rgba(15,23,42,.55),0 0 0 4px rgba(15,23,42,.1);cursor:pointer;z-index:6000;display:grid;place-items:center;animation:caPulse 2.4s ease-in-out infinite}
+.ca-btn.top{top:calc(env(safe-area-inset-top,0px) + 70px);bottom:auto;left:16px;right:auto;width:40px;height:40px;font:16px/1 system-ui,serif;box-shadow:0 4px 16px rgba(15,23,42,.35)}
+@keyframes caPulse{0%,100%{box-shadow:0 8px 30px rgba(15,23,42,.55),0 0 0 4px rgba(15,23,42,.1)}50%{box-shadow:0 8px 30px rgba(15,23,42,.55),0 0 0 10px rgba(15,23,42,.06)}}
 .ca-btn:active{transform:scale(.94)}
 .ca-panel{position:fixed;left:16px;right:16px;bottom:calc(94px + env(safe-area-inset-bottom,0px));max-width:460px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:18px;box-shadow:0 24px 48px rgba(15,23,42,.18);z-index:5999;display:none;flex-direction:column;max-height:72vh;overflow:hidden;color:#0f172a}
 .ca-panel.open{display:flex}
@@ -797,6 +799,7 @@ select:focus{border-color:#9dbcf7;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 .ca-sug{display:flex;gap:6px 8px;flex-wrap:wrap;padding:0 12px 8px}
 .ca-sug button{background:#f1f5f9;border:1px solid #e5e7eb;border-radius:999px;color:#0f172a;padding:5px 10px;font-size:12px;cursor:pointer}
 </style>
+<button class="ca-btn top" id="caBtnTop" aria-label="AI助手" title="AI助手（点这里）">✦</button>
 <button class="ca-btn" id="caBtn" aria-label="智能助手" title="智能助手">✦</button>
 <div class="ca-panel" id="caPanel">
   <div class="ca-hd"><b>智能助手</b><small>管理员专属，数据操作慎之又慎</small><button class="ca-x" id="caClose" aria-label="关闭">×</button></div>
@@ -806,12 +809,14 @@ select:focus{border-color:#9dbcf7;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 </div>
 <script>(function(){
 var HINT=(window.__CA_HINT__||"").trim();
-if(!HINT){document.getElementById("caBtn").setAttribute("hidden","");return;}
+if(!HINT){document.getElementById("caBtn").setAttribute("hidden","");document.getElementById("caBtnTop")&&document.getElementById("caBtnTop").setAttribute("hidden","");return;}
 var $=function(id){return document.getElementById(id)};
-var btn=$("caBtn"),panel=$("caPanel"),log=$("caLog"),sug=$("caSug"),txt=$("caInput"),send=$("caSend"),close=$("caClose");
-var his=[{role:"assistant",content:"你好，我是**管理控制台智能助手**。租户/备份/清除这些操作风险高，我帮你核对步骤，但最终由你执行。"}],busy=false;
-btn.addEventListener("click",function(){panel.classList.toggle("open");if(panel.classList.contains("open")){txt.focus();render();}});
+var btn=$("caBtn"),topBtn=$("caBtnTop"),panel=$("caPanel"),log=$("caLog"),sug=$("caSug"),txt=$("caInput"),send=$("caSend"),close=$("caClose");
+function openPanel(){panel.classList.toggle("open");if(panel.classList.contains("open")){txt.focus();render();}}
+btn&&btn.addEventListener("click",openPanel);
+topBtn&&topBtn.addEventListener("click",openPanel);
 close.addEventListener("click",function(){panel.classList.remove("open");});
+var his=[{role:"assistant",content:"你好，我是**管理控制台智能助手**。租户/备份/清除这些操作风险高，我帮你核对步骤，但最终由你执行。"}],busy=false;
 function render(){
 log.innerHTML="";
 his.forEach(function(m){var d=document.createElement("div");d.className="ca-b "+(m.role==="user"?"u":"a");d.innerHTML=m.content.replace(/\n/g,"<br>");if(m.err)d.setAttribute("data-err","");log.appendChild(d);});
