@@ -22,7 +22,10 @@
     var q = opts.query || {}; q.uid = uid; var t = token(); if (t) q.token = t;
     var qs = Object.keys(q).map(function (k) { return encodeURIComponent(k) + "=" + encodeURIComponent(q[k] == null ? "" : q[k]); }).join("&");
     if (qs) url += (url.indexOf("?") >= 0 ? "&" : "?") + qs;
-    return fetch(url, { method: opts.method || "GET", headers: authHeaders(opts.headers), body: opts.body ? JSON.stringify(opts.body) : undefined })
+    // 后端 POST 只从请求体取 uid（跨域不放行自定义请求头），所以体里必须带上，不能只拼在 URL 上
+    var payload = null;
+    if (opts.body) { payload = { uid: uid }; for (var bk in opts.body) payload[bk] = opts.body[bk]; }
+    return fetch(url, { method: opts.method || "GET", headers: authHeaders(opts.headers), body: payload ? JSON.stringify(payload) : undefined })
       .then(function (r) { return r.json().catch(function () { return ({}); }).then(function (j) { return { ok: r.ok, status: r.status, data: j }; }); });
   }
 
@@ -141,20 +144,29 @@
     p.style.cssText = "position:fixed;top:calc(env(safe-area-inset-top,0px) + 58px);right:12px;z-index:8001;width:320px;max-width:calc(100vw - 24px);max-height:70vh;overflow-y:auto;background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.18);padding:14px;font-size:14px;color:#0f172a;display:none";
     document.body.appendChild(p);
   }
+  function localMinStr() {
+    var d = new Date(), z = function (n) { return (n < 10 ? "0" : "") + n; };
+    return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate()) + "T" + z(d.getHours()) + ":" + z(d.getMinutes());
+  }
   function renderPanel() {
     var p = panelEl(); if (!p) return;
+    var oldText = p.querySelector("#caRemText"), oldWhen = p.querySelector("#caRemWhen");
+    var keepText = oldText ? oldText.value : "", keepWhen = oldWhen ? oldWhen.value : "";   // 刷新列表时别把已填的内容冲掉
     var rows = (rem.list || []).filter(function (t) { return !t.done; }).map(function (t) {
       return '<div style="display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid #f1f5f9"><div style="flex:1"><div style="font-weight:600;font-size:13px">' + escHtml(t.text) + '</div>' + (t.due ? '<div style="font-size:12px;color:#64748b">⏰ ' + escHtml(t.due) + '</div>' : '<div style="font-size:12px;color:#94a3b8">未设提醒时间</div>') + '</div><button data-rm-done="' + escHtml(t.id) + '" style="border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:8px;padding:3px 8px;font-size:12px;cursor:pointer">完成</button><button data-rm-del="' + escHtml(t.id) + '" style="border:0;background:#fef2f2;color:#b91c1c;border-radius:8px;padding:3px 8px;font-size:12px;cursor:pointer">删</button></div>';
     }).join("");
     p.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b style="font-size:15px">提醒</b><button id="caRemClose" style="border:0;background:none;color:#94a3b8;font-size:18px;cursor:pointer;line-height:1">×</button></div>'
-      + '<div style="display:flex;gap:6px;margin-bottom:10px"><input id="caRemText" placeholder="提醒内容" style="flex:1;border:1px solid #e2e8f0;border-radius:8px;padding:7px 9px;font:inherit;font-size:13px"><input id="caRemWhen" placeholder="时间：明天上午9点 / 10分钟后" style="width:130px;border:1px solid #e2e8f0;border-radius:8px;padding:7px 9px;font:inherit;font-size:13px"><button id="caRemAdd" style="border:0;background:var(--accent,#2563eb);color:#fff;border-radius:8px;padding:7px 12px;font:inherit;font-size:13px;cursor:pointer;font-weight:600">添加</button></div>'
+      + '<div style="margin-bottom:10px"><input id="caRemText" placeholder="提醒内容，例如：就医" style="width:100%;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:8px;padding:7px 9px;font:inherit;font-size:13px;margin-bottom:6px">'
+      + '<div style="display:flex;gap:6px;align-items:center"><input id="caRemWhen" type="datetime-local" step="60" min="' + localMinStr() + '" aria-label="提醒时间（可不选）" style="flex:1;min-width:0;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font:inherit;font-size:13px"><button id="caRemAdd" style="border:0;background:var(--accent,#2563eb);color:#fff;border-radius:8px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer;font-weight:600;white-space:nowrap">添加</button></div>'
+      + '<div style="font-size:11px;color:#94a3b8;margin-top:4px">选好提醒时间（北京时间）；不选就只记待办，不提醒。</div></div>'
       + '<div id="caRemList">' + (rows || '<div style="color:#94a3b8;font-size:13px;padding:12px 0;text-align:center">还没有提醒。让 AI 帮你记，或在上面添加。</div>') + '</div>'
       + '<div style="font-size:11px;color:#94a3b8;margin-top:8px;line-height:1.5">到点会在浏览器通知（需保持页面打开并允许通知）。关闭浏览器后收不到。</div>';
+    p.querySelector("#caRemText").value = keepText; p.querySelector("#caRemWhen").value = keepWhen;
     p.querySelector("#caRemClose").onclick = function () { p.style.display = "none"; };
     p.querySelector("#caRemAdd").onclick = function () {
       var text = (p.querySelector("#caRemText").value || "").trim();
-      var when = (p.querySelector("#caRemWhen").value || "").trim();
-      if (!text) return;
+      var when = (p.querySelector("#caRemWhen").value || "").trim();   // datetime-local 形如 2026-12-03T09:00，后端可直接解析
+      if (!text) { p.querySelector("#caRemText").focus(); return; }
       addReminder(text, when).then(function (ok) { if (ok) { p.querySelector("#caRemText").value = ""; p.querySelector("#caRemWhen").value = ""; } });
     };
     p.querySelectorAll("[data-rm-done]").forEach(function (b) { b.onclick = function () { doneReminder(b.getAttribute("data-rm-done")); }; });

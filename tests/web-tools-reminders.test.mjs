@@ -64,6 +64,22 @@ test("提醒：创建/列表/完成/删除 + 缺少 uid 拒绝", async () => {
   assert.equal(r.status, 200);
 });
 
+test("提醒：uid 只在 URL 查询参数里（前端 api() 的写法）POST 也能创建/完成/删除，时间支持 datetime-local 格式", async () => {
+  const env = { ...careEnv() };
+  const q = "?uid=uid-query-only-1234";
+  let r = await jbody(await callWorker(env, "/api/reminders" + q, { body: { text: "就医", when: "明天9点" } }));
+  assert.equal(r.status, 200); assert.equal(r.body.ok, true);
+  r = await jbody(await callWorker(env, "/api/reminders" + q, { body: { text: "带片子", when: "2099-01-05T08:30" } }));
+  assert.equal(r.status, 200); assert.equal(r.body.due, "2099-01-05 08:30");
+  const id = r.body.added.id;
+  r = await jbody(await callWorker(env, "/api/reminders/done" + q, { body: { id } }));
+  assert.equal(r.status, 200); assert.equal(r.body.ok, true);
+  r = await jbody(await callWorker(env, "/api/reminders/delete" + q, { body: { id } }));
+  assert.equal(r.status, 200); assert.equal(r.body.ok, true);
+  r = await jbody(await callWorker(env, "/api/reminders", { body: { text: "没有 uid", when: "明天9点" } }));
+  assert.equal(r.status, 400); assert.equal(r.body.code, "UID_REQUIRED");
+});
+
 test("提醒：跨用户隔离 + /due 返回到期并标记 notified", async () => {
   const env = { ...careEnv() };
   // A 创建一条

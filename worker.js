@@ -5307,7 +5307,8 @@ function looksLikeReminder(text) {
   return /(提醒我|帮我(?:记|设|定|提醒)|给我(?:记|设|定|提醒)|记(?:一?下|个)?提醒|设(?:一?个)?提醒|定(?:一?个)?提醒|到(?:时候|点|时)提醒|别忘了|记得要?)/.test(t);
 }
 async function webActorId(request, env, b) {
-  const uid = String((b && b.uid) || request.headers.get("x-ca-uid") || "").trim().slice(0, 64);
+  let qUid = ""; try { qUid = new URL(request.url).searchParams.get("uid") || ""; } catch {}   // 前端 api() 把 uid 拼在 URL 上；POST 体里没有时用它兜底
+  const uid = String((b && b.uid) || request.headers.get("x-ca-uid") || qUid || "").trim().slice(0, 64);
   if (/^[A-Za-z0-9_-]{6,64}$/.test(uid)) return "web:anon:" + uid;
   let user = null;
   try { user = await userFromReq(request, env, new URL(request.url), String(b && b.token || "")); } catch { user = null; }
