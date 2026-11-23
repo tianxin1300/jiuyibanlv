@@ -2815,7 +2815,7 @@ async function aiCall(txt) {
     const p = cur(), who = (p && p.id) || 'web';
     let out;
     try {
-        const r = await fetch(base + '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: maskSensitive(txt), who, chat: 'web:' + who, uid: (window.CA && window.CA.uid) || undefined }) });
+        const r = await fetch(base + '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: maskSensitive(txt), who, chat: 'web:' + who, uid: (window.CA && window.CA.uid) || undefined, assistant_hint: (window.__CA_HINT__||'') }) });
         const j = await r.json().catch(() => ({}));
         if (r.ok && j && j.ok !== false) {
             let t = String(j.reply || '').trim();
