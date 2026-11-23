@@ -1002,4 +1002,92 @@ tr:last-child td{border-bottom:0}
   }
 })();
 </script>
+<style id="ca-assistant-style">
+.ca-btn{position:fixed;right:18px;bottom:calc(22px + env(safe-area-inset-bottom,0px));width:52px;height:52px;border-radius:50%;border:0;background:linear-gradient(140deg,#0d9488,#14b8a6);color:#fff;font:22px/1 system-ui,serif;box-shadow:0 10px 24px rgba(13,148,136,.35);cursor:pointer;z-index:6000;display:grid;place-items:center}
+.ca-btn:active{transform:scale(.94)}
+.ca-panel{position:fixed;left:16px;right:16px;bottom:calc(94px + env(safe-area-inset-bottom,0px));max-width:460px;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 48px rgba(15,23,42,.18);z-index:5999;display:none;flex-direction:column;max-height:72vh;overflow:hidden}
+.ca-panel.open{display:flex}
+.ca-hd{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;background:linear-gradient(140deg,#e6fffa,#fff)}
+.ca-hd b{font-size:14px;color:#0f5f59}.ca-hd small{color:var(--muted);font-size:12px;flex:1}
+.ca-x{margin-left:auto;border:0;background:transparent;color:var(--muted);font-size:18px;cursor:pointer}
+.ca-log{flex:1;overflow-y:auto;padding:10px 14px;font-size:14px;line-height:1.6;color:#0f172a}
+.ca-log .ca-b{margin:8px 0;padding:8px 12px;border-radius:12px;max-width:90%}
+.ca-log .ca-b.u{background:#0d9488;color:#fff;margin-left:auto}
+.ca-log .ca-b.a{background:#f1f5f5;color:#0f172a}
+.ca-log .ca-b.a[data-err]{background:#fef2f2;color:#b91c1c}
+.ca-ft{border-top:1px solid var(--line);padding:10px;display:flex;gap:8px}
+.ca-ft textarea{min-height:44px;flex:1;resize:none;background:#fbfcfe;color:#0f172a}
+.ca-ft button{border:0;background:#0d9488;color:#fff;border-radius:10px;padding:0 14px;font:inherit}
+.ca-ft button:disabled{opacity:.5;cursor:default}
+.ca-sug{display:flex;gap:6px 8px;flex-wrap:wrap;padding:0 12px 8px}
+.ca-sug button{background:#f1f5f5;border:1px solid var(--line);border-radius:999px;color:#0f172a;padding:5px 10px;font-size:12px;cursor:pointer}
+</style>
+<button class="ca-btn" id="caBtn" aria-label="智能助手" title="智能助手">✦</button>
+<div class="ca-panel" id="caPanel">
+  <div class="ca-hd"><b>智能助手</b><small>不懂就问，不替你审批或发布</small><button class="ca-x" id="caClose" aria-label="关闭">×</button></div>
+  <div class="ca-log" id="caLog"></div>
+  <div class="ca-sug" id="caSug"></div>
+  <div class="ca-ft"><textarea id="caInput" placeholder="按一下 ✦ 有什么拿不准？"></textarea><button id="caSend">发送</button></div>
+</div>
+<script>(function(){
+var HINT=(window.__CA_HINT__||"").trim();
+if(!HINT){document.getElementById("caBtn").setAttribute("hidden","");return;}
+var $=function(id){return document.getElementById(id)};
+var btn=$("caBtn"),panel=$("caPanel"),log=$("caLog"),sug=$("caSug"),txt=$("caInput"),send=$("caSend"),close=$("caClose");
+var his=[{role:"assistant",content:"你好，我是**院方工作台智能助手**。目录配置、权限、发布步骤我都熟，但最终还要你自己提交和审核。"}],busy=false;
+btn.addEventListener("click",function(){panel.classList.toggle("open");if(panel.classList.contains("open")){txt.focus();render();}});
+close.addEventListener("click",function(){panel.classList.remove("open");});
+function render(){
+log.innerHTML="";
+his.forEach(function(m){var d=document.createElement("div");d.className="ca-b "+(m.role==="user"?"u":"a");d.innerHTML=m.content.replace(/\n/g,"<br>");if(m.err)d.setAttribute("data-err","");log.appendChild(d);});
+log.scrollTop=log.scrollHeight;
+sug.innerHTML="";
+if(his.length<=1){
+  [{t:"首次进来做什么？",q:"我是医院管理员，第一次用院方工作台，告诉我从登录到能让患者看到功能的完整步骤"},
+   {t:"什么角色能改目录？",q:"R1-R6 各角色能做什么？谁能改公开目录、谁只能看、谁不能发布"},
+   {t:"患者码怎么发？",q:"怎么给患者发二维码，7天/3个月/365天三档分别什么时候用"}
+  ].forEach(function(s){var b=document.createElement("button");b.textContent=s.t;b.addEventListener("click",function(){ask(s.q);});sug.appendChild(b);});
+}
+}
+async function ask(q){
+if(busy||!q.trim())return;
+busy=true;his.push({role:"user",content:q.trim()});var dot=document.createElement("div");dot.className="ca-b a";dot.textContent="正在查…";log.appendChild(dot);log.scrollTop=log.scrollHeight;txt.value="";send.disabled=true;render();
+try{
+  var body={text:q.trim(),chat:"web:staff-assistant",assistant_hint:HINT};
+  var token=localStorage.getItem("staff_token")||localStorage.getItem("care_token")||"";
+  if(token)body.token=token;
+  var r=await fetch((window.API_BASE||"")+"/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  var j=await r.json().catch(function(){return{};});
+  if(j.ok&&j.reply){his.push({role:"assistant",content:j.reply});dot.remove();}
+  else{dot.textContent="抱歉，暂时没拿到回复。请稍后再问。";dot.setAttribute("data-err","");}
+}catch(e){dot.textContent="网络好像断了，你切一下网再试。";dot.setAttribute("data-err","");}
+busy=false;send.disabled=false;render();
+}
+send.addEventListener("click",function(){ask(txt.value);});
+txt.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();ask(txt.value);}});
+render();
+})();</script>
+<script>window.__CA_HINT__=[
+"你正在协助医院工作人员使用就医伴侣「院方工作台」（staff.html）。",
+"=== 功能范围（按页面区块） ===",
+"1. 登录：医院账号 + ADMIN_KEY 或工作人员账号登录；登录后所有操作都会审计。",
+"2. 公开目录配置：就诊流程七步标题/说明、惠民服务列表、服务选项、科室/医生、惠民活动；保存后立即生效，患者端可见。",
+"3. 目录图片：Logo 和服务配图，最多 5 张，PNG/JPEG/WebP，单张 ≤ 2MB；存 KV/R2，发布时一并生效。",
+"4. 事件看板：患者允许上传后发过来的复诊/陪诊事件，含最近 300 条 + 按月汇总（只看数量和分布，不看患者姓名病历）。",
+"5. 患者码/二维码：7 天（短期就诊）/ 3 个月（季度治疗）/ 365 天（全年）三档；同院发新码自动撤销旧码；二维码不能离线伪造。",
+"6. 医疗摘要开关：给患者开服务器端摘要前必须先启用，并告知「患者自行决定是否同意」。",
+"7. 审计日志：所有目录修改、图片上传、二维码生成都记下来。",
+"=== 角色权限（R1–R6） ===",
+"* R3/C-CONFIG（配置）：唯一能改公开目录、发患者码、启用医疗摘要的角色。",
+"* R2/S-DEMO（演示）：只能看目录和事件，不能发布。",
+"* R1/P-ASSIST、R4/Q-AUDIT、R5/F-REDEEM、R6/L-REVIEW：工作台默认不开放，除非控制台单独授权。",
+"* 任何角色都不能替患者上传病历、报告、用药清单；医疗信息上传必须由患者本人在患者端同意。",
+"=== 典型操作步骤 ===",
+"a) 登录 → b) 左栏「目录配置」按七步填好标题和说明 → c) 惠民服务 / 服务选项 / 惠民活动填好 → d) 如有 Logo/配图，「目录图片」上传 → e) 保存即发布（实时生效，患者端刷新即可见）→ f) 二维码区选档位（7天/3个月/365天）填「关联医院/科室」生成 → g) 事件看板看患者是否已在打卡 → h) 如有服务器端摘要，单独在「医疗摘要」区启用并告知患者。",
+"=== 红线 ===",
+"* 绝不替患者上传病历/报告/诊断/用药。",
+"* 目录发布前必须自己核对七步数量（必须恰好 7 步），助手不替你签字。",
+"* 同院发新患者码会撤销旧码，别误发给同一批人两次。",
+"回答：中文、短句、2–3 段、结尾给下一步动作建议（例如「先填七步标题」）。"
+].join("\n");</script>
 </body></html>

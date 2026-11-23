@@ -133,8 +133,8 @@ export async function runCareLlm(env, messages, info, budget, accept, overseasLl
   return overseasLlm(env, safeMessages, info, deadline - Date.now(), accept);
 }
 
-export async function runCareChat({ env, role, text, history, l2, budget_ms }, llm) {
-  const built = buildCareMessages({ role, text, history, l2 });
+export async function runCareChat({ env, role, text, history, l2, budget_ms, assistant_hint }, llm) {
+  const built = buildCareMessages({ role, text, history, l2, assistant_hint });
   const requestedBudget = Number(budget_ms) || 45000;
   const budget = Math.max(6000, Math.min(45000, Math.max(20000, Math.min(120000, requestedBudget)) - 1500));
   const info = {};

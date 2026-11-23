@@ -6853,7 +6853,7 @@ async function handle(request, env, ctx) {
       try {
         if (!(await careAiRateLimit(env, access.token))) return json({ ok: false, code: "AI_RATE_LIMITED", msg: "调用过于频繁，请一分钟后再试" }, 429);
         const r = await runCareChat(
-          { env, role: canonical, text, history: b.history, l2: b.l2, budget_ms: b.budget_ms },
+          { env, role: canonical, text, history: b.history, l2: b.l2, budget_ms: b.budget_ms, assistant_hint: b.assistant_hint },
           (llmEnv, messages, info, budget, accept) => runCareLlm(llmEnv, messages, info, budget, accept, fsLLMMsgs, b.provider)
         );
         if (b.stream === true) return careAiSse(r);
@@ -6865,6 +6865,7 @@ async function handle(request, env, ctx) {
       const b = await request.json().catch(() => ({}));
       const text = String(b.text == null ? (b.message || b.q || "") : b.text).trim();
       if (!text) return json({ ok: false, msg: "缺少 text" }, 400);
+      const assistantHint = String(b.assistant_hint == null ? "" : b.assistant_hint).trim().slice(0, 4000);
       if (String(b.role == null ? "" : b.role).trim()) {
         const canonical = normalizeCareRole(b.role);
         if (!canonical) return json({ ok: false, code: "CARE_ROLE_INVALID", msg: "角色不存在" }, 400);
@@ -6879,7 +6880,7 @@ async function handle(request, env, ctx) {
         if (roleId !== "R1" && !roleAllowed) return json({ ok: false, code: "CARE_ROLE_FORBIDDEN", msg: "该角色只对院方账号开放" }, 403);
         try {
           const r = await runCareChat(
-            { env, role: canonical, text, history: b.history, l2: b.l2, budget_ms: b.budget_ms },
+            { env, role: canonical, text, history: b.history, l2: b.l2, budget_ms: b.budget_ms, assistant_hint: assistantHint },
             (llmEnv, messages, info, budget, accept) => runCareLlm(llmEnv, messages, info, budget, accept, fsLLMMsgs, b.provider)
           );
           return json({ ok: true, build: FS_BUILD, role: r.role, reply: r.reply, awaiting: false, confirm: "", tools: [], steps: [] });
@@ -6890,9 +6891,11 @@ async function handle(request, env, ctx) {
       // 患者网页来源：不走飞书多工具 Agent，只带 M2 医疗红线做纯聊天，避免患者看到内部工具与步骤
       if (/^web:/.test(chat)) {
         const info = {}, budget = Math.max(6000, Math.min(22000, (Number(b.budget_ms) || 45000) - 1500));
+        let systemText = FS_CHAT_SYS + "\n\n" + CARE_MODULES.M2;
+        if (assistantHint) systemText = systemText + "\n\n<assistant_hint>\n" + assistantHint + "\n</assistant_hint>";
         let raw = "";
         try {
-          raw = String(await runCareLlm(env, [{ role: "system", content: FS_CHAT_SYS + "\n\n" + CARE_MODULES.M2 }, { role: "user", content: text }], info, budget, undefined, fsLLMMsgs, b.provider) || "").trim();
+          raw = String(await runCareLlm(env, [{ role: "system", content: systemText }, { role: "user", content: text }], info, budget, undefined, fsLLMMsgs, b.provider) || "").trim();
         } catch (e) {
           if (e instanceof CareHttpError) return careFail(e);
           raw = "";

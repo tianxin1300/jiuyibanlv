@@ -5587,4 +5587,92 @@ document.getElementById('authForm').addEventListener('submit', async function (e
         if (e.key === 'Escape' && !stage.hidden) closeStage();
     });
 })();
+</script>
+<style id="ca-assistant-style">
+.ca-btn{position:fixed;right:18px;bottom:calc(22px + env(safe-area-inset-bottom,0px));width:52px;height:52px;border-radius:50%;border:0;background:linear-gradient(140deg,#0f766e,#14b8a6);color:#fff;font:22px/1 system-ui,serif;box-shadow:0 10px 24px rgba(15,118,110,.35);cursor:pointer;z-index:6000;display:grid;place-items:center}
+.ca-btn[hidden]{display:none}
+.ca-btn:active{transform:scale(.94)}
+.ca-panel{position:fixed;left:16px;right:16px;bottom:calc(94px + env(safe-area-inset-bottom,0px));max-width:460px;margin:0 auto;background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 48px rgba(15,23,42,.18);z-index:5999;display:none;flex-direction:column;max-height:72vh;overflow:hidden}
+.ca-panel.open{display:flex}
+.ca-hd{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;background:linear-gradient(140deg,#e6fffa,#fff)}
+.ca-hd b{font-size:14px;color:#0f5f59}
+.ca-hd small{color:var(--mute);font-size:12px;flex:1}
+.ca-x{margin-left:auto;border:0;background:transparent;color:var(--mute);font-size:18px;cursor:pointer}
+.ca-log{flex:1;overflow-y:auto;padding:10px 14px;font-size:14px;line-height:1.6}
+.ca-log .ca-b{margin:8px 0;padding:8px 12px;border-radius:12px;max-width:90%}
+.ca-log .ca-b.u{background:var(--c);color:#fff;margin-left:auto}
+.ca-log .ca-b.a{background:#f1f5f5;color:var(--ink)}
+.ca-log .ca-b.a[data-err]{background:#fef2f2;color:#b91c1c}
+.ca-ft{border-top:1px solid var(--line);padding:10px;display:flex;gap:8px}
+.ca-ft textarea{min-height:44px;flex:1;resize:none;background:var(--bg)}
+.ca-ft button{border:0;background:var(--c);color:#fff;border-radius:10px;padding:0 14px;font:inherit}
+.ca-ft button:disabled{opacity:.5;cursor:default}
+.ca-sug{display:flex;gap:6px 8px;flex-wrap:wrap;padding:0 12px 8px}
+.ca-sug button{background:#f1f5f5;border:1px solid var(--line);border-radius:999px;color:var(--ink);padding:5px 10px;font-size:12px;cursor:pointer}
+</style>
+<button class="ca-btn" id="caBtn" aria-label="智能助手" title="智能助手">✦</button>
+<div class="ca-panel" id="caPanel">
+  <div class="ca-hd"><b>智能助手</b><small>不懂就问，不会替你做决定</small><button class="ca-x" id="caClose" aria-label="关闭">×</button></div>
+  <div class="ca-log" id="caLog"></div>
+  <div class="ca-sug" id="caSug"></div>
+  <div class="ca-ft"><textarea id="caInput" placeholder="按一下 ✦ 有什么想问的？"></textarea><button id="caSend">发送</button></div>
+</div>
+<script>(function(){
+var HINT=(window.__CA_HINT__||"").trim();
+if(!HINT){document.getElementById("caBtn").setAttribute("hidden","");return;}
+var $=function(id){return document.getElementById(id)};
+var btn=$("caBtn"),panel=$("caPanel"),log=$("caLog"),sug=$("caSug"),txt=$("caInput"),send=$("caSend"),close=$("caClose");
+var his=[{role:"assistant",content:"你好，我是**就医伴侣智能助手**。有什么操作或功能拿不准，直接问我就行；但就医决策请以医生意见为准。"}],busy=false;
+btn.addEventListener("click",function(){panel.classList.toggle("open");if(panel.classList.contains("open")){txt.focus();render();}});
+close.addEventListener("click",function(){panel.classList.remove("open");});
+function render(){
+log.innerHTML="";
+his.forEach(function(m){var d=document.createElement("div");d.className="ca-b "+(m.role==="user"?"u":"a");d.innerHTML=m.content.replace(/\n/g,"<br>");if(m.err)d.setAttribute("data-err","");log.appendChild(d);});
+log.scrollTop=log.scrollHeight;
+sug.innerHTML="";
+if(his.length<=1){
+  [{t:"我第一次来怎么用？",q:"第一次使用就医伴侣，告诉我从进入到完成一次就诊大概的步骤"},
+   {t:"哪些数据会上传？",q:"告诉我就医伴侣哪些数据默认不上传，哪些需要我同意"},
+   {t:"怎么联系医院？",q:"我想联系这家医院的联系人或查看惠民活动在哪"}
+  ].forEach(function(s){var b=document.createElement("button");b.textContent=s.t;b.addEventListener("click",function(){ask(s.q);});sug.appendChild(b);});
+}
+}
+async function ask(q){
+if(busy||!q.trim())return;
+busy=true;his.push({role:"user",content:q.trim()});var dot=document.createElement("div");dot.className="ca-b a";dot.textContent="正在查…";log.appendChild(dot);log.scrollTop=log.scrollHeight;txt.value="";send.disabled=true;render();
+try{
+  var body={text:q.trim(),chat:"web:ca-assistant",assistant_hint:HINT};
+  var token=localStorage.getItem("care_token")||"";
+  if(token)body.token=token;
+  var tpl=window.__CA_API_URL__||(window.API_BASE||"")+"/api";
+  var r=await fetch((tpl||"/api")+"/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  var j=await r.json().catch(function(){return{};});
+  if(j.ok&&j.reply){his.push({role:"assistant",content:j.reply});dot.remove();}
+  else{dot.textContent="抱歉，暂时没拿到回复。请稍后再问。";dot.setAttribute("data-err","");}
+}catch(e){dot.textContent="网络好像断了，你切一下网再试。";dot.setAttribute("data-err","");}
+busy=false;send.disabled=false;render();
+}
+send.addEventListener("click",function(){ask(txt.value);});
+txt.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();ask(txt.value);}});
+render();
+})();</script>
+<script>window.__CA_HINT__=[
+"你正在协助患者使用就医伴侣「患者端」（index.html）。",
+"=== 功能范围 ===",
+"1. 就诊档案：在本机浏览器保存医院、科室、医生、病历、用药、报告等资料；默认不上传服务器。",
+"2. 七步任务：如果所在医院开通了「智能七步助手」且患者有患者码，医院会把一次就诊拆成七步，按完成情况勾掉；不是每家医院都开。",
+"3. 打卡（复诊/陪诊）：患者自己选「允许上传」后，打卡才会发去医院查看；默认不上传，已打卡但没上传的只在本机可见。",
+"4. 医疗摘要：AI 帮整理病历/用药要点，默认保存在本机；如需服务器摘要，必须先手动同意、再用患者码触发，300 字上限。",
+"5. 惠民活动：所在医院在公开目录里发布的活动（义诊、讲座、免费项目）；患者不能修改。",
+"6. 智能陪伴：纯聊天，帮回顾就诊、准备问题、整理用药，不做医疗诊断。",
+"7. 上传开关：首页「允许上传」——关掉后，任何打卡/摘要都不会发去医院；已发的历史记录需要联系医院删除。",
+"=== 操作步骤（新患者进来） ===",
+"a) 从医院给的链接或二维码进入 → b) 登录（微信/手机号，或游客）→ c) 如果页面要求「输入患者码」，请从医院获取后粘贴 → d) 首页各卡片依次用：档案 → 七步任务 → 打卡 → 摘要 → 活动 → AI。",
+"=== 权限 / 红线 ===",
+"* 绝不替患者上传任何病历、报告、处方、用药清单到服务器；这些永远只在本机。",
+"* 诊断/用药/剂量/紧急情况/自杀自伤/中毒/胸痛呼吸困难——必须明确让「立刻就医 / 打 120 / 联系医生」，不能替医生下结论。",
+"* 如果患者没开「允许上传」，回答一律是「默认不上传，你自己决定要不要开」，不要怂恿。",
+"* 如果患者没患者码但问到了七步/摘要服务器端，先提醒「七步助手和服务器端摘要需要医院给患者码，联系医院开通」。",
+"回答：用短句、中文、不超过 3 段；结尾给 1–2 个下一步建议（例如「先去首页点『就诊档案』」）。"
+].join("\n");</script>
 </script></body></html>
