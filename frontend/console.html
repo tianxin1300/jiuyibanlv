@@ -103,7 +103,7 @@ select:focus{border-color:#9dbcf7;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
   <header class="top" style="margin:-24px -18px 0">
     <div class="top-in">
       <div class="brand"><span class="mark" aria-hidden="true"></span><span>就医伴侣<small>DEVELOPER CONSOLE</small></span></div>
-      <button id="caNavBtn" type="button" title="AI 助手" aria-label="AI 助手" style="margin-left:-4px;border:1px solid rgba(15,23,42,.15);background:#0f172a;color:#fff;border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(15,23,42,.2)">✦ AI 助手</button>
+      <button id="caNavBtn" type="button" title="AI 助手" aria-label="AI 助手" style="margin-left:-4px;border:1px solid rgba(37,99,235,.4);background:var(--accent);color:#fff;border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(37,99,235,.30)">✦ AI 助手</button>
       <div class="sp"></div>
       <span id="sessInfo" class="sess"></span>
       <button id="refresh" class="btn ghost small" type="button">刷新</button>
@@ -779,26 +779,24 @@ select:focus{border-color:#9dbcf7;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 })();
 </script>
 <style id="ca-assistant-style">
-
-
-50%{box-shadow:0 8px 30px rgba(15,23,42,.55),0 0 0 10px rgba(15,23,42,.06)}}
-
-.ca-panel{position:fixed;left:16px;right:16px;bottom:calc(94px + env(safe-area-inset-bottom,0px));max-width:460px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:18px;box-shadow:0 24px 48px rgba(15,23,42,.18);z-index:5999;display:none;flex-direction:column;max-height:72vh;overflow:hidden;color:#0f172a}
+.ca-panel{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 16px);width:420px;max-width:calc(100vw - 24px);max-height:80vh;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 20px 50px rgba(15,23,42,.18);z-index:5999;display:none;flex-direction:column;overflow:hidden;color:var(--ink)}
 .ca-panel.open{display:flex}
-.ca-hd{padding:12px 16px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:10px;background:linear-gradient(140deg,#f1f5f9,#fff)}
-.ca-hd b{font-size:14px;color:#0f172a}.ca-hd small{color:#64748b;font-size:12px;flex:1}
-.ca-x{margin-left:auto;border:0;background:transparent;color:#64748b;font-size:18px;cursor:pointer}
-.ca-log{flex:1;overflow-y:auto;padding:10px 14px;font-size:14px;line-height:1.6}
-.ca-log .ca-b{margin:8px 0;padding:8px 12px;border-radius:12px;max-width:90%}
-.ca-log .ca-b.u{background:#0f172a;color:#fff;margin-left:auto}
-.ca-log .ca-b.a{background:#f1f5f9;color:#0f172a}
+.ca-hd{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;background:var(--accent-soft)}
+.ca-hd b{font-size:14px;color:var(--ink)}.ca-hd small{color:var(--muted);font-size:12px;flex:1}
+.ca-x{margin-left:auto;border:0;background:transparent;color:var(--muted);font-size:18px;cursor:pointer;line-height:1}
+.ca-log{flex:1;overflow-y:auto;padding:12px 14px;font-size:14px;line-height:1.6}
+.ca-log .ca-b{margin:8px 0;padding:8px 12px;border-radius:12px;max-width:88%}
+.ca-log .ca-b.u{background:var(--accent);color:#fff;margin-left:auto}
+.ca-log .ca-b.a{background:#f1f5f9;color:var(--ink)}
 .ca-log .ca-b.a[data-err]{background:#fef2f2;color:#b91c1c}
-.ca-ft{border-top:1px solid #e5e7eb;padding:10px;display:flex;gap:8px}
-.ca-ft textarea{min-height:44px;flex:1;resize:none;background:#f8fafc;color:#0f172a}
-.ca-ft button{border:0;background:#0f172a;color:#fff;border-radius:10px;padding:0 14px;font:inherit}
-.ca-ft button:disabled{opacity:.5;cursor:default}
 .ca-sug{display:flex;gap:6px 8px;flex-wrap:wrap;padding:0 12px 8px}
-.ca-sug button{background:#f1f5f9;border:1px solid #e5e7eb;border-radius:999px;color:#0f172a;padding:5px 10px;font-size:12px;cursor:pointer}
+.ca-sug button{background:#f1f5f9;border:1px solid var(--line);border-radius:999px;color:var(--ink);padding:5px 10px;font-size:12px;cursor:pointer}
+.ca-sug button:hover{background:var(--accent-soft)}
+.ca-ft{border-top:1px solid var(--line);padding:10px;display:flex;gap:8px;align-items:flex-end}
+.ca-ft textarea{min-height:44px;flex:1;resize:none;background:#fbfcfe;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit}
+.ca-ft textarea:focus{outline:none;border-color:var(--accent)}
+.ca-ft button{border:0;background:var(--accent);color:#fff;border-radius:10px;padding:0 16px;height:44px;font:inherit;font-weight:600}
+.ca-ft button:disabled{opacity:.5;cursor:default}
 </style>
 
 
@@ -895,7 +893,7 @@ function ensureVisible(){
   if(login && getComputedStyle(login).display!=="none"){setTimeout(ensureVisible,300);return;}
   var br=document.createElement("div");
   br.id="caAskBanner";
-  br.style.cssText="position:fixed;top:calc(env(safe-area-inset-top,0px) + 56px);left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:8px 18px;border-radius:999px;box-shadow:0 8px 24px rgba(15,23,42,.4);z-index:7000;font-size:13px;display:flex;align-items:center;gap:10px;cursor:pointer;max-width:94vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
+  br.style.cssText="position:fixed;top:calc(env(safe-area-inset-top,0px) + 56px);left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;padding:8px 18px;border-radius:999px;box-shadow:0 8px 24px rgba(37,99,235,.35);z-index:7000;font-size:13px;display:flex;align-items:center;gap:10px;cursor:pointer;max-width:94vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
   br.innerHTML='💡 有问题？点右下角或左上角 <b style="color:#fbbf24">✦</b> 问 AI';
   br.addEventListener("click",openPanel);
   document.body.appendChild(br);
