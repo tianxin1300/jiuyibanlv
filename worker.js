@@ -539,7 +539,8 @@ const CATALOG_IMAGE_MAX = 2 * 1024 * 1024;
 const CATALOG_ASSET_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const catalogAssetKey = (tenantId, assetId) => "catalog/" + tenantId + "/" + assetId;
 // 素材存储：优先 R2；未绑定 R2（例如自动构建账户还没有 bucket）时回落到 KV，保证部署不中断。
-const catalogAssetKvKey = (tenantId, assetId) => "care-asset:" + tenantId + ":" + assetId;
+// KV 兜底沿用与远程 ebbc7e4 一致的 key（catalog/{tenantId}/{assetId}）和 metadata（contentType），
+// 保持旧的 worker 路由和测试 fixture 不变；R2 可用时用相同 key 但走 R2 绑定。
 async function catalogAssetRead(env, tenantId, assetId) {
   if (env.CARE_ASSETS) {
     try {
@@ -551,10 +552,12 @@ async function catalogAssetRead(env, tenantId, assetId) {
     }
   }
   if (!env.KV) return null;
-  const got = await env.KV.getWithMetadata(catalogAssetKvKey(tenantId, assetId), "arrayBuffer").catch(() => null);
+  const got = await env.KV.getWithMetadata(catalogAssetKey(tenantId, assetId), "arrayBuffer").catch(() => null);
   if (!got || !got.value) return null;
   const meta = got.metadata || {};
-  return { body: got.value, mime: meta.mime, size: Number(got.value.byteLength) || 0 };
+  // 兼容历史 KV 写入（contentType）和新写入（mime）
+  const mime = meta.mime || meta.contentType || "";
+  return { body: got.value, mime, size: Number(meta.size || got.value.byteLength || 0) };
 }
 async function catalogAssetWrite(env, tenantId, assetId, body, mime, meta) {
   const bytes = body instanceof ArrayBuffer ? new Uint8Array(body) : body;
@@ -569,14 +572,15 @@ async function catalogAssetWrite(env, tenantId, assetId, body, mime, meta) {
       console.warn("[asset] R2 写入失败，改用 KV 兜底：" + String(e && e.message || e).slice(0, 100));
     }
   }
-  await env.KV.put(catalogAssetKvKey(tenantId, assetId), body, {
-    metadata: { ...meta, mime, size: String(bytes.byteLength) }
+  // KV 兜底：保留 contentType 字段，兼容远程 ebbc7e4 和已有测试 fixture
+  await env.KV.put(catalogAssetKey(tenantId, assetId), body, {
+    metadata: { ...meta, contentType: mime, mime, size: bytes.byteLength }
   });
   return "kv";
 }
 async function catalogAssetRemove(env, tenantId, assetId) {
   if (env.CARE_ASSETS) { try { await env.CARE_ASSETS.delete(catalogAssetKey(tenantId, assetId)); } catch (e) { } }
-  await env.KV.delete(catalogAssetKvKey(tenantId, assetId)).catch(() => {});
+  await env.KV.delete(catalogAssetKey(tenantId, assetId)).catch(() => {});
 }
 function detectCatalogImage(bytes) {
   if (bytes.length >= 24 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a) return "image/png";
@@ -589,7 +593,6 @@ function catalogImageResponse(asset) {
   if (!["image/png", "image/jpeg", "image/webp"].includes(mime)) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在或尚未发布" }, 404);
   return new Response(asset.body, { headers: {
     ...CORS, "Content-Type": mime, "Content-Length": String(asset.size || 0),
- 2f15831 (feat: 补齐患者七步任务入口、二维码生命周期、事件上传、医疗摘要与备份运维)
     "Content-Disposition": "inline", "X-Content-Type-Options": "nosniff", "Cache-Control": "private, max-age=60"
   } });
 }
@@ -6519,7 +6522,6 @@ async function handle(request, env, ctx) {
       const asset = await catalogAssetRead(env, rec.tenant_id, assetId);
       if (!asset) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在或尚未发布" }, 404);
       return catalogImageResponse(asset);
- 2f15831 (feat: 补齐患者七步任务入口、二维码生命周期、事件上传、医疗摘要与备份运维)
     }
 
     // ---- 患者二维码公开访问：患者码有效期与医院订阅有效期是两把独立的锁 ----
@@ -6621,7 +6623,6 @@ async function handle(request, env, ctx) {
         const asset = await catalogAssetRead(env, tenantId, assetId);
         if (!asset) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在" }, 404);
         return catalogImageResponse(asset);
- 2f15831 (feat: 补齐患者七步任务入口、二维码生命周期、事件上传、医疗摘要与备份运维)
       }
       const declared = String(request.headers.get("Content-Type") || "").split(";", 1)[0].trim().toLowerCase();
       const contentLength = Number(request.headers.get("Content-Length") || 0);
@@ -6640,7 +6641,6 @@ async function handle(request, env, ctx) {
       const hash = hex(await crypto.subtle.digest("SHA-256", body));
       const stored = await catalogAssetWrite(env, tenantId, assetId, body, mime, {
         tenant_id: tenantId, service_id: serviceId || "logo", sha256: hash, uploaded_at: String(Date.now())
- 2f15831 (feat: 补齐患者七步任务入口、二维码生命周期、事件上传、医疗摘要与备份运维)
       });
       await adminAudit(env, "staff-config-image", tenantId + " 操作人:" + ctxStaff.username + " 素材:" + assetId + " 大小:" + bytes.length + " 存储:" + stored, request.headers.get("CF-Connecting-IP") || "0");
       return json({ ok: true, tenant_id: tenantId, asset_id: assetId, image_url: "asset:" + assetId, size: bytes.length, mime, store: stored });

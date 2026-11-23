@@ -118,7 +118,7 @@ test("未绑定 R2 时院方素材写入 KV 兜底，自动部署不再依赖预
   assert.equal(r.status, 200);
   const body = await r.json();
   assert.equal(body.store, "kv");
-  assert.ok(await env.KV.get("care-asset:tenant1:" + body.asset_id));
+  assert.ok(await env.KV.get("catalog/tenant1/" + body.asset_id));
 });
 
 test("每日 Cron 会下线过期患者码、清理 30 天前记录并生成备份", async () => {
