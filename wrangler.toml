@@ -51,4 +51,3 @@ APP_ENV = "production"
 # [[env.test.durable_objects.bindings]]
 # name = "CARE_TASKS"
 # class_name = "CareTask"
- 2f15831 (feat: 补齐患者七步任务入口、二维码生命周期、事件上传、医疗摘要与备份运维)
