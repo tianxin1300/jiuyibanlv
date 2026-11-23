@@ -2449,20 +2449,12 @@ function mergeHosp(code, blk) {
     const ja = rd('jny'), jb = blk.jny && typeof blk.jny === 'object' ? blk.jny : {};
     Object.keys(jb).slice(0, 40).forEach(k => { if (!/^[\w-]{1,30}$/.test(k) || !Array.isArray(jb[k])) return; ja[k] = [...new Set([...(Array.isArray(ja[k]) ? ja[k] : []), ...jb[k].filter(z => Number.isInteger(z) && z >= 0 && z < 50)])].sort((x, y) => x - y); });
     try { localStorage.setItem(K('jny'), JSON.stringify(ja)); } catch (e) { }
-    /* 待上传队列（companion.q.<code>）：换机后未上传的打卡/核销记录不丢，月报口径一致。按事件 id 去重追加。 */
-    if (Array.isArray(blk.q)) {
-        let cur = [];
-        try { const z = JSON.parse(localStorage.getItem(K('q')) || '[]'); if (Array.isArray(z)) cur = z; } catch (e) { }
-        const seen = new Set(cur.map(x => x && x.id));
-        blk.q.slice(-300).forEach(e => { if (e && typeof e === 'object' && typeof e.id === 'string' && !seen.has(e.id)) { seen.add(e.id); cur.push(e); } });
-        try { localStorage.setItem(K('q'), JSON.stringify(cur.slice(-300))); } catch (e) { }
-    }
-    /* 上传同意与姓名/尾号：只对当前站点生效，本机已有选择时不覆盖。 */
+    /* 恢复备份不恢复待上传队列和上传同意：默认撤回并清空，避免旧设备的记录被悄悄上传。 */
+    try { localStorage.removeItem(K('q')); } catch (e) { }
     if (isCur) {
-        const cv = blk.consent;
-        try { if (!localStorage.getItem(K('consent')) && (cv === 'name' || cv === 'anon' || cv === 'off')) localStorage.setItem(K('consent'), cv); } catch (e) { }
-        try { if (typeof blk.pn === 'string' && !localStorage.getItem(K('pn'))) localStorage.setItem(K('pn'), blk.pn.slice(0, 20)); } catch (e) { }
-        try { if (typeof blk.pt === 'string' && !localStorage.getItem(K('pt'))) localStorage.setItem(K('pt'), blk.pt.replace(/\D/g, '').slice(0, 4)); } catch (e) { }
+        try { localStorage.setItem(K('consent'), 'off'); } catch (e) { }
+        try { localStorage.removeItem(K('pn')); } catch (e) { }
+        try { localStorage.removeItem(K('pt')); } catch (e) { }
     }
     return st;
 }
@@ -2569,7 +2561,7 @@ async function importBackup(f) {
         pr.forEach(q => (q.tl || []).forEach(r => (r.imgs || []).forEach(k => { if (!have[k])
             miss.add(k); })));
         const rows = pr.map(q => { const ex = S.profiles.some(x => x.id === q.id), mc = (q.mx || []).reduce((n, m) => n + m.pts.length, 0), ic = (q.tl || []).reduce((n, r) => n + (r.imgs || []).length, 0); return '<li><b>' + esc(niceMember(q.member) + ' · ' + dn(q)) + '</b>：' + (q.tl || []).length + ' 条记录，' + mc + ' 个指标数值，' + ic + ' 张图片；' + (ex ? '<span class="bad">覆盖本机同一份档案</span>' : '新增') + '</li>'; }).join('');
-        if (!await askModal('<h2>恢复预览</h2><p class="sub">备份时间：' + esc((o.at || '').slice(0, 10)) + '</p><ul>' + rows + '</ul><p class="sub">本机上不在备份里的档案不受影响。</p>' + (hst.codes ? '<p class="sub" style="background:#fff4e5;color:#8a4b00;border-radius:8px;padding:8px 10px"><b>医院活动数据：</b>将合并 ' + hst.v + ' 张凭证（其中已核销 ' + hst.u + ' 张）、' + hst.n + ' 次整理打卡' + (hst.q ? '，并恢复 ' + hst.q + ' 条还没传上去的记录（联网后会自动继续上传）' : '') + '。合并不会删除本机已有的凭证，已核销的不会变回未核销。<br><b>恢复不会注销旧手机上的数据：两台手机都能看到同一张凭证，兑换以医院登记表为准。</b>备份可能不是最新的，恢复后请以现场登记表核对。</p>' : '') + (miss.size ? '<p class="bad">有 ' + miss.size + ' 张图片在备份文件里缺失，恢复后这些图片无法显示。</p>' : '')))
+        if (!await askModal('<h2>恢复预览</h2><p class="sub">备份时间：' + esc((o.at || '').slice(0, 10)) + '</p><ul>' + rows + '</ul><p class="sub">本机上不在备份里的档案不受影响。</p>' + (hst.codes ? '<p class="sub" style="background:#fff4e5;color:#8a4b00;border-radius:8px;padding:8px 10px"><b>医院活动数据：</b>将合并 ' + hst.v + ' 张凭证（其中已核销 ' + hst.u + ' 张）、' + hst.n + ' 次整理打卡' + (hst.q ? '；备份里的 ' + hst.q + ' 条还没传上去的记录不会恢复，上传同意会重置为不上传' : '') + '。合并不会删除本机已有的凭证，已核销的不会变回未核销。<br><b>恢复不会注销旧手机上的数据：两台手机都能看到同一张凭证，兑换以医院登记表为准。</b>备份可能不是最新的，恢复后请以现场登记表核对。</p>' : '') + (miss.size ? '<p class="bad">有 ' + miss.size + ' 张图片在备份文件里缺失，恢复后这些图片无法显示。</p>' : '')))
             return;
         if (Object.keys(have).length > 1000)
             throw 8;
@@ -2652,13 +2644,13 @@ async function importBackup(f) {
             S.cur = S.profiles[0] ? S.profiles[0].id : null;
         S.view = 'list';
         view();
-        alert('已恢复 ' + pr.length + ' 份档案，' + dec.length + ' 张图片' + (hst.codes ? '，并合并了医院活动凭证和打卡' + (hst.q ? '，以及 ' + hst.q + ' 条待上传记录' : '') + '（两台手机都能看到同一张凭证，兑换以医院登记表为准）' : '') + (bad ? '；其中 ' + bad + ' 张核对失败，请重新导出备份检查' : '，核对无误') + '。');
+        alert('已恢复 ' + pr.length + ' 份档案，' + dec.length + ' 张图片' + (hst.codes ? '，并合并了医院活动凭证和打卡（两台手机都能看到同一张凭证，兑换以医院登记表为准）' : '') + (bad ? '；其中 ' + bad + ' 张核对失败，请重新导出备份检查' : '，核对无误') + '。');
     }
     catch (e) {
         m.textContent = e === 2 ? '备份文件校验失败，文件可能已损坏或被修改。' : e === 3 ? '备份文件内容不符合格式，已拒绝恢复。' : e === 9 ? '恢复失败，而且撤销没有完全成功，本机原有数据的完整性未确认。请保留备份文件，先不要清除或再次恢复，并立即导出当前数据。' : e === 8 ? '备份里图片过多或单张过大（上限 1000 张、每张约 20 MB），已拒绝恢复。' : e === 6 ? '密码不对，或备份文件已损坏。注意：忘记密码无法找回。' : e === 7 ? '这个备份已加密，请先在上方「备份密码」里填写密码。' : e === 4 ? '备份里的图片数据损坏，已拒绝恢复，本机数据未改动。' : e === 5 ? '恢复过程中写入失败（可能空间不足），已撤销，本机原有数据未改动。' : '这不是有效的备份文件。';
     }
 }
-const bkView = () => `<div class="card hd"><h2>数据备份与恢复</h2><p class="sub">备份包含全部档案、时间线、指标和图片。换设备、清理浏览器之前，请先导出。</p><div class="backup-risk"><b>先看清楚再操作</b><ul><li>资料只保存在当前浏览器，清理数据、无痕模式或换设备可能丢失。</li><li>不填写密码导出的文件是明文病历；建议设置独立的备份密码。</li><li>备份文件请保存到手机以外的可信位置，不要发到群聊或公共网盘。备份文件含您的就诊资料，请妥善保管，不要发送给无关人员。</li><li>备份也会带上您在各医院入口里抽到的凭证、整理打卡，以及还没上传给医院的记录。恢复时是“合并”：旧手机不会失效，两台手机都能看到同一张凭证，兑换以医院登记表为准。</li></ul></div><p>${A.bk ? '上次备份：' + A.bk : '<b>还没有备份过。</b>'}</p>${S.quota && S.quota.quota ? `<p class="sub">本机已用空间约 ${(S.quota.usage / 1048576).toFixed(1)} MB（浏览器给的上限约 ${(S.quota.quota / 1048576).toFixed(0)} MB，仅供参考）</p>` : ''}<label>备份密码（强烈建议设置）</label><input type="password" id="bkpw" autocomplete="new-password" placeholder="至少 8 位；导出时填写则加密，恢复加密备份时也填这里"><label>再输一次（仅设置密码时填）</label><input type="password" id="bkpw2" autocomplete="new-password" placeholder="再输入一遍相同的密码"><p class="sub" style="color:var(--warn,#b42318)"><b>不填密码导出的备份是明文文件</b>，任何人拿到都能看到病历内容。请妥善保管，不要发到群里或公共网盘。</p><p class="sub">填了密码，备份文件里的档案和图片会加密。<b>忘记密码无法找回</b>，请自己牢记；不填则导出未加密文件。</p><div class="bar"><button class="btn" data-act="bkexp">导出完整备份</button></div><label>从备份文件恢复</label><input type="file" id="bkf" accept=".json,application/json"><div class="bar"><button class="ghost" data-act="bkimp">选择文件后恢复</button></div><p class="sub" id="bkm"></p></div><div class="card"><h2>清除本机数据</h2><p class="sub">删除这台设备浏览器里的全部档案、记录、指标和图片，不影响你已导出的备份文件。清除前请先导出备份。</p><div class="bar"><button class="ghost del" data-act="wipe">清除全部数据</button></div></div><div class="bar"><button class="ghost" data-act="back">返回档案</button></div>`;
+const bkView = () => `<div class="card hd"><h2>数据备份与恢复</h2><p class="sub">备份包含全部档案、时间线、指标和图片。换设备、清理浏览器之前，请先导出。</p><div class="backup-risk"><b>先看清楚再操作</b><ul><li>资料只保存在当前浏览器，清理数据、无痕模式或换设备可能丢失。</li><li>不填写密码导出的文件是明文病历；建议设置独立的备份密码。</li><li>备份文件请保存到手机以外的可信位置，不要发到群聊或公共网盘。备份文件含您的就诊资料，请妥善保管，不要发送给无关人员。</li><li>备份也会带上您在各医院入口里抽到的凭证、整理打卡，以及还没上传给医院的记录。恢复时是“合并”：旧手机不会失效，两台手机都能看到同一张凭证，兑换以医院登记表为准。恢复不会重新上传旧记录，上传同意会重置为不上传。</li></ul></div><p>${A.bk ? '上次备份：' + A.bk : '<b>还没有备份过。</b>'}</p>${S.quota && S.quota.quota ? `<p class="sub">本机已用空间约 ${(S.quota.usage / 1048576).toFixed(1)} MB（浏览器给的上限约 ${(S.quota.quota / 1048576).toFixed(0)} MB，仅供参考）</p>` : ''}<label>备份密码（强烈建议设置）</label><input type="password" id="bkpw" autocomplete="new-password" placeholder="至少 8 位；导出时填写则加密，恢复加密备份时也填这里"><label>再输一次（仅设置密码时填）</label><input type="password" id="bkpw2" autocomplete="new-password" placeholder="再输入一遍相同的密码"><p class="sub" style="color:var(--warn,#b42318)"><b>不填密码导出的备份是明文文件</b>，任何人拿到都能看到病历内容。请妥善保管，不要发到群里或公共网盘。</p><p class="sub">填了密码，备份文件里的档案和图片会加密。<b>忘记密码无法找回</b>，请自己牢记；不填则导出未加密文件。</p><div class="bar"><button class="btn" data-act="bkexp">导出完整备份</button></div><label>从备份文件恢复</label><input type="file" id="bkf" accept=".json,application/json"><div class="bar"><button class="ghost" data-act="bkimp">选择文件后恢复</button></div><p class="sub" id="bkm"></p></div><div class="card"><h2>清除本机数据</h2><p class="sub">删除这台设备浏览器里的全部档案、记录、指标和图片，不影响你已导出的备份文件。清除前请先导出备份。</p><div class="bar"><button class="ghost del" data-act="wipe">清除全部数据</button></div></div><div class="bar"><button class="ghost" data-act="back">返回档案</button></div>`;
 const kindList = p => [...new Set([...KINDS, ...(p.tl || []).map(r => r.kind)])];
 const tlFilter = (p, n) => n ? `<div class="row"><input id="tq" type="search" placeholder="搜索内容、医院、日期" value="${esc(S.q || '')}" aria-label="搜索"><select id="tkf" aria-label="按类型筛选"><option value="">全部类型</option>${kindList(p).map(k => `<option ${S.kf === k ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select></div>` : '';
 const editForm = (r, p) => `<div class="card hd"><h2>编辑记录</h2><label>记录类型</label><select id="ek">${kindList(p).map(k => `<option ${k === r.kind ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select><label>日期</label><input id="ed" type="date" value="${esc(r.date)}"><label>具体时间（可不填）</label><input id="eti" type="time" value="${esc(r.time || '')}"><label>医院 / 科室</label><input id="eh" value="${esc(r.hosp || '')}"><label>内容摘要</label><textarea id="et">${esc(r.text || '')}</textarea>${(r.fields || []).map((x, i) => `<label>${esc(x.n)}</label><input data-ef="${i}" value="${esc(x.v)}">`).join('')}${(r.imgs || []).length ? '<p class="sub">图片保持不变；如需更换图片，请删除这条记录后重新添加。</p>' : ''}<div class="bar"><button class="ghost" data-act="tlcancel">取消</button><button class="btn" data-act="tlupd" data-id="${r.id}">保存修改</button></div></div>`;
@@ -3157,8 +3149,8 @@ function hNext(cp) {
     return `<article class="card nstep"><div class="nstep-top"><span class="kicker">下一步</span><span class="nstep-when">${esc(when)} · ${esc(hdate(sel))} ${esc(hwday(sel))}</span></div><h2>${esc(title)}</h2><p class="nstep-sub">${esc(dn(cp))}${cp.data.hosp ? ' · ' + esc(cp.data.hosp) : ''} · 只按你填的日期提醒</p>${prep}<div class="nstep-acts">${acts}</div></article>`;
 }
 function hToday(cp) {
-    const ALL = todayItems(true).filter(x => x.pid === cp.id), L = ALL.slice(0, 6);
-    const rows = L.map(i => `<div class="hrow"><div class="hrow-m"><b>${esc(i.text)}</b><small>${esc(i.tag)}</small></div><div class="hrow-a">${i.btns}</div></div>`).join('');
+    const ALL = todayItems(true), L = ALL.slice(0, 6);
+    const rows = L.map(i => `<div class="hrow"><div class="hrow-m"><b>${esc(i.who ? i.who + ' · ' : '')}${esc(i.text)}</b><small>${esc(i.tag)}</small></div><div class="hrow-a">${i.btns}</div></div>`).join('');
     const more = [];
     const ask = String((cp.data || {}).ask || '').split('\n').filter(x => x.trim()).length;
     const imgs = (cp.tl || []).reduce((n, r) => n + ((r.imgs || []).length), 0);
@@ -3170,7 +3162,7 @@ function hToday(cp) {
     const over = ALL.length - L.length;
     if (!rows && !more.length && !over) return `<section class="card htoday-empty"><b>今天没有到期的用药或医嘱</b><p class="sub">有新的情况，随时记录到时间线。</p></section>`;
     const moreHtml = more.slice(0, 3).join('') + (over > 0 ? `<button class="hlink" data-act="tab" data-t="info"><span>另有 ${over} 项待办未展开</span><span>去档案查看 ›</span></button>` : '');
-    return `<section class="card htoday">${rows ? `<div class="sech"><b>今天</b><span>${ALL.length} 项</span></div>${rows}` : ''}${moreHtml}</section>`;
+    return `<section class="card htoday">${rows ? `<div class="sech"><b>全家今天</b><span>${ALL.length} 项</span></div>${rows}` : ''}${moreHtml}</section>`;
 }
 function hQuick(cp) {
     const tlN = (cp.tl || []).length, imgN = (cp.tl || []).reduce((n, r) => n + ((r.imgs || []).length), 0), medN = (cp.meds || []).filter(m => !m.stopped).length, mxN = (cp.mx || []).filter(m => (m.pts || []).length).length;
@@ -4337,11 +4329,12 @@ const ciGrant = key => { if (!actList().some(a => a.need)) return false; const c
 const CHKK = 'companion.chk.' + (HP_KEY || 'solo');
 const chkGet = () => { try { const o = JSON.parse(localStorage.getItem(CHKK) || '{}') || {}; return { n: Math.max(0, +o.n || 0), u: Math.max(0, +o.u || 0), d: typeof o.d === 'string' ? o.d : '', got: Array.isArray(o.got) ? o.got : [], jd: Array.isArray(o.jd) ? o.jd : [] }; } catch (e) { return { n: 0, u: 0, d: '', got: [], jd: [] }; } };
 const chkSet = o => { try { localStorage.setItem(CHKK, JSON.stringify(o)); } catch (e) { } };
-/* ===== 复诊打卡与核销记录上传：医院在配置里写了 up（上传地址）和 tk（上传口令）才开启。
-   患者第一次打卡时先问一次同不同意；记录先进本机待传队列，联网后成批上传；传不上不影响使用，也不会重复上传。 */
-const UP_URL = HP && typeof HP.up === 'string' ? HP.up : '';
-const UP_TK = HP && typeof HP.tk === 'string' ? HP.tk : '';
-const UP_OK = !!(UP_URL && UP_TK && HP_KEY && HK_OK(HP_KEY) && (/^https:\/\//i.test(UP_URL) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?\//i.test(UP_URL)));
+/* ===== 复诊打卡与核销记录上传：经统一 Worker 接口，用医院发放的患者码鉴权。
+   患者第一次打卡时先问一次同不同意；记录先进本机待传队列，联网后成批上传；
+   撤回同意会立即停止并清空未发送队列，但已上传到服务器的记录需要找医院删除。 */
+const UP_URL = AI_DEFAULT + '/api/public/events';
+const UP_TENANT = HP && typeof HP.tid === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(HP.tid) ? HP.tid : HP_KEY;
+const UP_OK = !!(HP_KEY && typeof ACCESS_TOKEN === 'string' && ACCESS_TOKEN);
 /* 智能助手网关：全站只读 deploy-config.js；医院旧配置里的 ai 不再覆盖统一后端地址。 */
 const AI_BASE = AI_DEFAULT;
 const CTK = 'companion.consent.' + (HP_KEY || 'solo');
@@ -4365,21 +4358,30 @@ const uuid = () => { try { if (window.crypto && crypto.randomUUID) return crypto
 const consentGet = () => { const v = lsGet(CTK); return v === 'name' || v === 'anon' || v === 'off' ? v : ''; };
 const qGet = () => { try { const a = JSON.parse(lsGet(QK) || '[]'); return Array.isArray(a) ? a.slice(-300) : []; } catch (e) { return []; } };
 const qSet = a => { lsSet(QK, JSON.stringify(a.slice(-300))); };
-let UP_RUN = 0, UP_STOP = 0, UP_TOLD = 0;
+let UP_RUN = 0, UP_STOP = 0, UP_TOLD = 0, UP_EPOCH = 0;
+function uploadStop(clear) {
+    UP_STOP = 1; UP_RUN = 0; UP_EPOCH++;
+    if (clear) qSet([]);
+}
+function uploadResume() { UP_STOP = 0; UP_TOLD = 0; qFlush(); }
+window.addEventListener('companion:clear-local', () => { UP_STOP = 1; UP_EPOCH++; qSet([]); });
 function qFlush() {
     if (!UP_OK || UP_RUN || UP_STOP) return;
+    const c = consentGet();
+    if (!c || c === 'off') return;
     const a = qGet();
     if (!a.length) return;
     UP_RUN = 1;
-    const batch = a.slice(0, 40), fin = () => { UP_RUN = 0; if (!UP_STOP && qGet().length) setTimeout(qFlush, 30000); };
+    const epoch = UP_EPOCH, batch = a.slice(0, 40), fin = () => { UP_RUN = 0; if (!UP_STOP && consentGet() !== 'off' && qGet().length) setTimeout(qFlush, 30000); };
     try {
-        fetch(UP_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hospital_code: HP_KEY, token: UP_TK, events: batch }) })
+        fetch(UP_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tenant_id: UP_TENANT, access: ACCESS_TOKEN, events: batch }) })
             .then(r => r.text().then(t => ({ st: r.status, t }), () => ({ st: r.status, t: '' })), () => ({ st: 0, t: '' }))
             .then(x => {
+                if (epoch !== UP_EPOCH || UP_STOP) { fin(); return; }
                 let acc = [];
                 try { const j = JSON.parse(x.t || '{}'); if (Array.isArray(j.accepted)) acc = j.accepted; } catch (e) { }
                 if (x.st >= 200 && x.st < 300 && acc.length) { const ok = new Set(acc); qSet(qGet().filter(v => !ok.has(v.id))); }
-                else if (x.st === 400 || x.st === 403 || x.st === 413) { UP_STOP = 1; if (!UP_TOLD) { UP_TOLD = 1; toastMsg('打卡记录暂时传不上去，请告诉医院工作人员核对上传设置'); } }
+                else if (x.st === 401 || x.st === 403 || x.st === 413) { UP_STOP = 1; if (!UP_TOLD) { UP_TOLD = 1; toastMsg('打卡记录暂时传不上去，请让医院确认患者码和上传配置'); } }
                 fin();
             }, fin);
     } catch (e) { fin(); }
@@ -4394,9 +4396,9 @@ function consentAsk(cb) {
         + '<div class="bar"><button class="ghost" id="cs_off">不上传</button><button class="ghost" id="cs_an">只传匿名记录</button><button class="btn" id="cs_ok">同意上传</button></div>');
     const o = [...document.querySelectorAll('.ov')].pop();
     const keep = () => { const n = o.querySelector('#cs_n'), t = o.querySelector('#cs_t'); lsSet(PNK, (((n && n.value) || '').trim()).slice(0, 20)); lsSet(PTK, ((((t && t.value) || '').replace(/\D/g, ''))).slice(0, 4)); };
-    o.querySelector('#cs_ok').onclick = () => { keep(); lsSet(CTK, 'name'); o.remove(); toastMsg('好的，之后有网时会自动上传'); qFlush(); if (cb) cb('name'); };
-    o.querySelector('#cs_an').onclick = () => { lsSet(CTK, 'anon'); o.remove(); toastMsg('好的，只上传不带姓名和手机号的记录'); qFlush(); if (cb) cb('anon'); };
-    o.querySelector('#cs_off').onclick = () => { lsSet(CTK, 'off'); o.remove(); toastMsg('好的，记录只留在您手机里'); if (cb) cb('off'); };
+    o.querySelector('#cs_ok').onclick = () => { keep(); lsSet(CTK, 'name'); o.remove(); toastMsg('好的，之后有网时会自动上传'); uploadResume(); if (cb) cb('name'); };
+    o.querySelector('#cs_an').onclick = () => { lsSet(CTK, 'anon'); o.remove(); toastMsg('好的，只上传不带姓名和手机号的记录'); uploadResume(); if (cb) cb('anon'); };
+    o.querySelector('#cs_off').onclick = () => { lsSet(CTK, 'off'); uploadStop(true); o.remove(); toastMsg('好的，未发送的记录已清除，之后只留在您手机里'); if (cb) cb('off'); };
 }
 function logEvent(kind, ev) {
     if (!UP_OK) return;
@@ -4725,7 +4727,7 @@ function csvText(p) { const q = s => { let t = String(s !== null && s !== void 0
     t = "'" + t; return '"' + t.replace(/"/g, '""') + '"'; }; let r = ['日期,类型,医院科室,内容']; (p.tl || []).slice().sort((a, b) => b.date.localeCompare(a.date)).forEach(x => r.push([x.date, x.kind + (x.tpl ? '·' + x.tpl : ''), x.hosp, [x.text, ...(x.fields || []).map(f => f.n + '：' + f.v)].filter(Boolean).join('；')].map(q).join(','))); r.push('', '指标,单位,日期,数值,化验单参考下限,化验单参考上限,检测机构'); (p.mx || []).forEach(m => m.pts.forEach(x => r.push([m.name, m.unit, x.date, x.v, hasL(x) ? x.rl : '', hasL(x) ? x.rh : '', x.org || ''].map(q).join(',')))); return r.join('\n'); }
 const app = document.getElementById('app');
 app.addEventListener('input', e => { const t = e.target, k = t.dataset && t.dataset.pz; if (!k)
-    return; const p = cur(); if (!p || !['date', 'time', 'place', 'cond', 'need'].includes(k))
+    return; const p = cur(); if (!p || !['who', 'date', 'time', 'place', 'cond', 'need'].includes(k))
     return; if (!p.pz || typeof p.pz !== 'object')
     p.pz = {}; p.pz[k] = t.value.slice(0, 1000); if (!save())
     failToast(); });
@@ -5124,12 +5126,48 @@ function careSkipAuth() {
     careSetAuthMsg('');
     if (typeof view === 'function') { try { view(); } catch (e) { } }
 }
-function careLogout() {
+function careWipeLocal() {
+    try { window.dispatchEvent(new Event('companion:clear-local')); } catch (e) { }
+    try {
+        const kb = (typeof HP_KEY !== 'undefined' && HP_KEY) ? HP_KEY : 'solo';
+        ['companion.consent.', 'companion.q.', 'companion.pn.', 'companion.pt.'].forEach(function (p) { careStoreDel(p + kb); });
+    } catch (e) { }
+    try {
+        Object.keys(localStorage).filter(function (k) {
+            return k.indexOf('companion.care.chat.') === 0 || k.indexOf('companion.care.task.') === 0;
+        }).forEach(function (k) { careStoreDel(k); });
+    } catch (e) { }
+    careStoreDel('companion.v1');
+    careStoreDel('companion.auth.token');
+    careStoreDel('companion.auth.user');
+    careStoreDel('companion.auth.staff');
+    return Promise.resolve().then(function () {
+        if (typeof indexedDB === 'undefined') return null;
+        return new Promise(function (resolve) {
+            try {
+                const req = indexedDB.open('companion-img', 1);
+                req.onupgradeneeded = function () { try { req.result.createObjectStore('i'); } catch (e) { } };
+                req.onerror = function () { resolve(null); };
+                req.onsuccess = function () {
+                    const d = req.result;
+                    try {
+                        const t = d.transaction('i', 'readwrite');
+                        t.objectStore('i').clear();
+                        t.oncomplete = function () { try { d.close(); } catch (e) { } resolve(true); };
+                        t.onerror = function () { resolve(false); };
+                        t.onabort = function () { resolve(false); };
+                    } catch (e) { resolve(false); }
+                };
+            } catch (e) { resolve(null); }
+        });
+    });
+}
+async function careLogout() {
     if (!CARE_AUTH.token) { const g = document.getElementById('authGate'); if (g) g.hidden = false; careAuthShowChoices(); return; }
     if (!confirm('退出登录后，本机档案仍保留在这台设备上。\n如果这是共用设备，建议同时清除本机档案。\n\n点“确定”继续退出。')) return;
-    if (confirm('是否同时清除本机档案数据？\n\n点“确定”=退出并清除；点“取消”=只退出、保留档案。')) {
-        try { Object.keys(localStorage).filter(k => k.indexOf('companion.care.chat.') === 0).forEach(k => localStorage.removeItem(k)); } catch (e) { }
-        try { localStorage.removeItem('companion.v1'); } catch (e) { }
+    if (confirm('是否同时清除本机档案数据？\n\n点“确定”=退出并清除（含本机图片和未上传记录）；点“取消”=只退出、保留档案。')) {
+        const ok = await careWipeLocal().then(function () { return true; }, function () { return false; });
+        if (!ok) { toastMsg('本机图片或缓存清理未完全成功，请刷新后检查。'); }
         location.reload();
         return;
     }
@@ -5149,6 +5187,7 @@ async function careAuthRequest(path, user, pw) {
 function careAuthHeaders(extra) {
     const h = Object.assign({ 'Content-Type': 'application/json' }, extra || {});
     if (CARE_AUTH.token) h.Authorization = 'Bearer ' + CARE_AUTH.token;
+    if (typeof ACCESS_TOKEN === 'string' && ACCESS_TOKEN) h['X-Care-Access'] = ACCESS_TOKEN;
     return h;
 }
 async function careApi(path, options) {
@@ -5248,7 +5287,9 @@ function careTaskStepsHtml(t) {
 }
 function careTaskCard() {
     const tenant = careTenant();
+    if (!CARE_AUTH.token) return '<div class="card"><h2>七步任务</h2><p class="sub">登录后可以按医院提供的服务匹配七步任务；本机档案不会因此上传。</p><div class="bar"><button class="btn" data-care="open">登录</button></div></div>';
     if (!tenant) return '<div class="card"><h2>七步任务</h2><p class="sub">当前入口没有配置医院租户。请用 ?tenant=&lt;tenant_id&gt; 打开，或在医院配置里加 tid。</p></div>';
+    if (typeof ACCESS_TOKEN !== 'string' || !ACCESS_TOKEN) return '<div class="card"><h2>七步任务</h2><p class="sub">七步任务需要医院发放的患者码。请扫医院提供的二维码重新进入；没有患者码时可先使用本机档案和助手。</p></div>';
     const t = CARE_UI.task;
     if (t) {
         const done = t.status === 'completed';
@@ -5272,10 +5313,28 @@ function careTaskCard() {
             '<div class="bar"><button class="ghost" data-care="rematch">重新匹配</button></div>' +
             '<p class="care-note">' + esc(CARE_UI.taskMsg || '创建任务前请确认医院提供的服务和步骤。') + '</p></div>';
     }
-    return '<div class="card"><h2>七步任务</h2><p class="sub">先按医院目录里的服务选项 ID 匹配，再由患者确认开始。</p>' +
-        '<label for="careOpts">服务选项 ID（逗号分隔）</label><input id="careOpts" value="' + esc(CARE_UI.options) + '" placeholder="opt-001,opt-002">' +
-        '<div class="bar"><button class="btn" data-care="match"' + (CARE_UI.busy ? ' disabled' : '') + '>匹配医院服务</button></div>' +
-        '<p class="care-note">' + esc(CARE_UI.taskMsg || ('医院租户：' + tenant + '。选项 ID 由医院目录提供。')) + '</p></div>';
+    const optMap = [];
+    if (typeof HP !== 'undefined' && HP) {
+        [].concat(Array.isArray(HP.show) ? HP.show : [], Array.isArray(HP.benefits) ? HP.benefits : []).forEach(function (s) {
+            if (!s) return;
+            const ids = Array.isArray(s.option_ids) ? s.option_ids : [];
+            ids.forEach(function (id) {
+                if (typeof id !== 'string' || !id) return;
+                if (optMap.some(function (o) { return o.id === id; })) return;
+                optMap.push({ id: id, name: s.t || s.name || '医院服务' });
+            });
+        });
+    }
+    const picked = String(CARE_UI.options || '').split(/[,，\s]+/).filter(Boolean);
+    const chips = optMap.length
+        ? '<p class="sub">请选择您要办理的服务（由医院目录提供）：</p><div class="chips">' + optMap.map(function (o) {
+            return '<button class="chip" type="button" data-care="pickOpt" data-oid="' + esc(o.id) + '" aria-pressed="' + (picked.indexOf(o.id) >= 0) + '">' + esc(o.name) + '</button>';
+        }).join('') + '</div>'
+        : '<p class="care-note">医院目录还没有提供可匹配的服务选项。请联系医院完善后再试。</p>';
+    return '<div class="card"><h2>七步任务</h2><p class="sub">选择医院提供的服务后，先看匹配结果，再由您确认开始。</p>' + chips +
+        (optMap.length ? '<details style="margin-top:8px"><summary class="sub">服务选项 ID（交付人员核对用）</summary><input id="careOpts" value="' + esc(CARE_UI.options) + '" placeholder="opt-001,opt-002"></details>' : '') +
+        '<div class="bar"><button class="btn" data-care="match"' + (CARE_UI.busy || !picked.length ? ' disabled' : '') + '>匹配医院服务</button></div>' +
+        '<p class="care-note">' + esc(CARE_UI.taskMsg || ('医院租户：' + tenant + '。所选服务只用于匹配医院公布的流程。')) + '</p></div>';
 }
 const CARE_GROUPS = [['前台与患者服务', ['R5', 'R1']], ['商务与交付', ['R2', 'R3']], ['质量与合规', ['R4', 'R6']]];
 function careRoleBtn(r, role) {
@@ -5300,7 +5359,7 @@ function careView() {
         '<div class="care-chat" id="careChat">' + chat + '</div><label for="careInput">问 ' + esc(role.name) + '</label>' +
         '<textarea id="careInput" rows="3" placeholder="' + esc(role.ex) + '">' + esc(draft) + '</textarea>' +
         '<div class="bar"><button class="ghost" data-care="useExample">填入常用问题</button><button class="ghost" data-care="clearChat">清空对话</button>' +
-        '<button class="btn" data-care="send"' + (CARE_UI.busy ? ' disabled' : '') + '>' + (CARE_UI.busy ? '处理中…' : '发送') + '</button></div></div>' + (staff ? careTaskCard() : '');
+        '<button class="btn" data-care="send"' + (CARE_UI.busy ? ' disabled' : '') + '>' + (CARE_UI.busy ? '处理中…' : '发送') + '</button></div></div>' + careTaskCard();
 }
 function careHistory(list) {
     const out = [];
@@ -5337,6 +5396,18 @@ document.addEventListener('click', async function (e) {
     if (act === 'logout') { careLogout(); return; }
     if (act === 'useExample') { CARE_UI.drafts[CARE_UI.role] = careRole(CARE_UI.role).ex; if (typeof view === 'function') view(); return; }
     if (act === 'clearChat') { CARE_UI.chat[CARE_UI.role] = []; careSaveChat(); if (typeof view === 'function') view(); return; }
+    if (act === 'pickOpt') {
+        const id = b.getAttribute('data-oid') || '';
+        if (!id) return;
+        const cur = String(CARE_UI.options || '').split(/[,，\s]+/).filter(Boolean);
+        const i = cur.indexOf(id);
+        if (i >= 0) cur.splice(i, 1); else cur.push(id);
+        CARE_UI.options = cur.join(',');
+        CARE_UI.match = null;
+        CARE_UI.taskMsg = '';
+        if (typeof view === 'function') view();
+        return;
+    }
     if (act === 'rematch') { CARE_UI.match = null; CARE_UI.taskMsg = ''; if (typeof view === 'function') view(); return; }
     if (act === 'clearTask') {
         if (!confirm('结束本机的任务入口？服务端任务记录不会删除。')) return;

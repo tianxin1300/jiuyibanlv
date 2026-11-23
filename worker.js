@@ -1,5 +1,5 @@
-import { runCareChat, runCareLlm, careActorFromReq, prepareCareTask, careTaskDo, CareHttpError } from "./care.js";
-import { CARE_CONTROL_FIELDS, careTenantId, careAssetId, careOptionIds, loadCareCatalog, matchCareCatalog, proxyFastGptMatch, validateCareCatalog } from "./care-catalog.js";
+import { runCareChat, runCareLlm, careActorFromReq, prepareCareTask, careTaskDo, CareHttpError, redactCareText } from "./care.js";
+import { CARE_CONTROL_FIELDS, careTenantId, careAssetId, careOptionIds, loadCareCatalog, matchCareCatalog, proxyFastGptMatch, validateCareCatalog, migrateLegacyCatalog } from "./care-catalog.js";
 import { CARE_MODULES, normalizeCareRole } from "./care-prompts.js";
 
 // openmanus-gateway v99y：一个脑子。飞书消息不再自己猜意图，直接调前端同一个 runWorkChat（同一份 WORK_SYSTEM_PROMPT / 同一个模型轮换 / 同一张 FS_TOOLS）。选哪个工具完全由模型自己定：代码里没有关键词分流、没有白名单、没有预调工具，只给任务结构（工具表 + 会话态 + 多轮循环 + 最终自由文本）。删掉飞书先猜意图那层 / 关键词 if-else / 写文档先搜一遍 / 待办提醒与待办表混用。
@@ -434,14 +434,29 @@ function billingPatientOrigin(env, request) {
 }
 const BILLING_PLANS = {
   trial7: { days: 7, label: "试用 7 天" },
-  trial30: { days: 30, label: "试用 30 天" },
+  quarter: { months: 3, label: "3 个月" },
   year: { days: 365, label: "年约 1 年" }
 };
+// 历史已发放的 trial30 / trial 只用于读取和续费确认，不再出现在新发放下拉框中。
+const LEGACY_PLANS = { trial30: { days: 30, label: "试用 30 天（历史）" }, trial: { days: 30, label: "试用 30 天（历史）" } };
 function billingPlan(value, renewal) {
   const id = String(value || "").trim();
-  if (renewal && id === "trial") return { id: "trial30", ...BILLING_PLANS.trial30 };
-  if (!BILLING_PLANS[id] || (renewal && id === "trial7")) return null;
-  return { id, ...BILLING_PLANS[id] };
+  if (renewal && id === "trial7") return null;
+  const plan = BILLING_PLANS[id] || (renewal ? LEGACY_PLANS[id] : null);
+  return plan ? { id: id === "trial" ? "trial30" : id, ...plan } : null;
+}
+// 3 个月按日历顺延并处理月末：1 月 31 日 + 3 个月 = 4 月 30 日。
+function billingAddMonths(ms, months) {
+  const d = new Date(ms);
+  const day = d.getUTCDate();
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() + months);
+  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  d.setUTCDate(Math.min(day, last));
+  return d.getTime();
+}
+function billingExpiry(start, plan) {
+  return plan.months ? billingAddMonths(start, plan.months) : start + plan.days * 86400000;
 }
 function billingSubscriptionState(sub, now = Date.now()) {
   if (!sub || !Number(sub.expires_at) || Number(sub.expires_at) <= now) return "expired";
@@ -484,11 +499,11 @@ function billingPublicConfig(catalog, tenantId) {
   }
   const serviceCard = (s, tag) => ({
     service_id: s.service_id, option_ids: optionIds[s.service_id] || [],
-    t: s.name, d: [s.department, s.clinic_hours].filter(Boolean).join(" · "),
+    t: s.name, d: s.description || [s.department, s.clinic_hours].filter(Boolean).join(" · "),
     department: s.department, clinic_hours: s.clinic_hours,
     materials: Array.isArray(s.materials) ? [...s.materials] : s.materials,
     booking_channel: s.booking_channel, service_type: s.service_type,
-    img: publicCatalogImage(s.image_url), price: s.price, tag
+    img: publicCatalogImage(s.image_url), price: s.price, tag: s.tag || tag
   });
   const projects = rawServices.filter((s) => s.service_type === "project");
   const benefits = rawServices.filter((s) => s.service_type === "benefit");
@@ -505,6 +520,7 @@ function billingPublicConfig(catalog, tenantId) {
     jny: rawServices.map((s) => ({
       id: s.service_id, service_id: s.service_id, option_ids: optionIds[s.service_id] || [],
       t: s.name, note: s.booking_channel, img: publicCatalogImage(s.image_url),
+      d: s.description || "", tag: s.tag || "",
       steps: s.steps.map((step) => ({
         step: step.step, t: step.text,
         d: [step.time, step.location, Array.isArray(step.materials) ? step.materials.join("、") : step.materials].filter(Boolean).join(" · "),
@@ -522,17 +538,58 @@ function billingPublicConfig(catalog, tenantId) {
 const CATALOG_IMAGE_MAX = 2 * 1024 * 1024;
 const CATALOG_ASSET_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const catalogAssetKey = (tenantId, assetId) => "catalog/" + tenantId + "/" + assetId;
+// 素材存储：优先 R2；未绑定 R2（例如自动构建账户还没有 bucket）时回落到 KV，保证部署不中断。
+const catalogAssetKvKey = (tenantId, assetId) => "care-asset:" + tenantId + ":" + assetId;
+async function catalogAssetRead(env, tenantId, assetId) {
+  if (env.CARE_ASSETS) {
+    try {
+      const object = await env.CARE_ASSETS.get(catalogAssetKey(tenantId, assetId));
+      if (object) return { body: object.body, mime: object.httpMetadata && object.httpMetadata.contentType, size: Number(object.size) || 0 };
+      return null;
+    } catch (e) {
+      console.warn("[asset] R2 读取失败，尝试 KV 兜底：" + String(e && e.message || e).slice(0, 100));
+    }
+  }
+  if (!env.KV) return null;
+  const got = await env.KV.getWithMetadata(catalogAssetKvKey(tenantId, assetId), "arrayBuffer").catch(() => null);
+  if (!got || !got.value) return null;
+  const meta = got.metadata || {};
+  return { body: got.value, mime: meta.mime, size: Number(got.value.byteLength) || 0 };
+}
+async function catalogAssetWrite(env, tenantId, assetId, body, mime, meta) {
+  const bytes = body instanceof ArrayBuffer ? new Uint8Array(body) : body;
+  if (env.CARE_ASSETS) {
+    try {
+      await env.CARE_ASSETS.put(catalogAssetKey(tenantId, assetId), body, {
+        httpMetadata: { contentType: mime, contentDisposition: "inline", cacheControl: "private, max-age=60" },
+        customMetadata: { ...meta, mime, size: String(bytes.byteLength) }
+      });
+      return "r2";
+    } catch (e) {
+      console.warn("[asset] R2 写入失败，改用 KV 兜底：" + String(e && e.message || e).slice(0, 100));
+    }
+  }
+  await env.KV.put(catalogAssetKvKey(tenantId, assetId), body, {
+    metadata: { ...meta, mime, size: String(bytes.byteLength) }
+  });
+  return "kv";
+}
+async function catalogAssetRemove(env, tenantId, assetId) {
+  if (env.CARE_ASSETS) { try { await env.CARE_ASSETS.delete(catalogAssetKey(tenantId, assetId)); } catch (e) { } }
+  await env.KV.delete(catalogAssetKvKey(tenantId, assetId)).catch(() => {});
+}
 function detectCatalogImage(bytes) {
   if (bytes.length >= 24 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a) return "image/png";
   if (bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff && bytes[bytes.length - 2] === 0xff && bytes[bytes.length - 1] === 0xd9) return "image/jpeg";
   if (bytes.length >= 16 && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) return "image/webp";
   return "";
 }
-function catalogImageResponse(object) {
-  const mime = object && object.metadata && object.metadata.contentType;
-  if (!object.value || !["image/png", "image/jpeg", "image/webp"].includes(mime)) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在或尚未发布" }, 404);
-  return new Response(object.value, { headers: {
-    ...CORS, "Content-Type": mime, "Content-Length": String(object.metadata.size || object.value.byteLength || 0),
+function catalogImageResponse(asset) {
+  const mime = asset && asset.mime;
+  if (!["image/png", "image/jpeg", "image/webp"].includes(mime)) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在或尚未发布" }, 404);
+  return new Response(asset.body, { headers: {
+    ...CORS, "Content-Type": mime, "Content-Length": String(asset.size || 0),
+ 2f15831 (feat: 补齐患者七步任务入口、二维码生命周期、事件上传、医疗摘要与备份运维)
     "Content-Disposition": "inline", "X-Content-Type-Options": "nosniff", "Cache-Control": "private, max-age=60"
   } });
 }
@@ -572,6 +629,16 @@ async function carePatientAccess(env, rawToken, requestedTenant) {
   const sub = await env.KV.get("sub:" + rec.tenant_id, "json").catch(() => null);
   if (billingSubscriptionState(sub) !== "active") return { error: json({ ok: false, code: "HOSPITAL_EXPIRED", msg: "医院服务已到期，请联系医院续期" }, 403) };
   return { token, rec };
+}
+// 患者码双锁：浏览器总会带 X-Care-Access；缺失时默认兼容旧调用，
+// 生产可用 REQUIRE_PATIENT_ACCESS=1 强制拒绝无患者码的请求。
+async function careAccessGuard(env, request, tenantId) {
+  const token = request.headers.get("X-Care-Access") || "";
+  if (!token) {
+    if (String(env.REQUIRE_PATIENT_ACCESS || "") === "1") return { error: json({ ok: false, code: "ACCESS_REQUIRED", msg: "请使用医院发放的二维码重新进入" }, 401) };
+    return null;
+  }
+  return carePatientAccess(env, token, tenantId);
 }
 async function careAiRateLimit(env, token) {
   const key = "care-ai:" + token + ":" + Math.floor(Date.now() / 60000);
@@ -614,6 +681,220 @@ async function billingRecords(env, kind, max = 500) {
   }
   rows.sort((a, b) => Number(b.created_at || 0) - Number(a.created_at || 0));
   return rows;
+}
+// 每日 Cron：到期患者码下线；到期/撤销满 30 天后删除记录（审计保留，不记录完整 token）。
+async function careQrExpire(env, now = Date.now()) {
+  if (!env.KV) return { expired: 0, removed: 0 };
+  let expired = 0, removed = 0;
+  const keys = await adminListAll(env, "access:", 2000);
+  for (const key of keys) {
+    const rec = await env.KV.get(key.name, "json").catch(() => null);
+    if (!rec || !rec.tenant_id) continue;
+    if (billingAccessState(rec, now) === "active") continue;
+    const endedAt = Number(rec.revoked_at) || Number(rec.expires_at) || 0;
+    if (rec.status !== "revoked" && rec.status !== "expired") {
+      await env.KV.put(key.name, JSON.stringify({ ...rec, status: "expired", offline_at: Number(rec.expires_at) || now }));
+      expired++;
+    }
+    if (endedAt && now - endedAt > 30 * 86400000) { await env.KV.delete(key.name); removed++; }
+  }
+  return { expired, removed };
+}
+// ================= 就医版：患者事件（匿名/实名）、医疗摘要、备份恢复 =================
+const CARE_EVENT_KINDS = new Set(["followup", "journey", "redeem"]);
+const CARE_EVENT_FIELDS = new Set(["id", "device_id", "profile_id", "kind", "occurred_at", "visit_date", "serial", "activity", "prize", "patient_name", "phone_tail"]);
+const CARE_EVENT_MAX_BATCH = 40;
+const CARE_EVENT_KEEP_MS = 180 * 86400000;
+const CARE_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function careEventClean(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { reject: "invalid_event" };
+  for (const key of Object.keys(raw)) if (!CARE_EVENT_FIELDS.has(key)) return { reject: "unknown_field" };
+  const out = {};
+  out.id = String(raw.id || "").trim();
+  if (!/^[A-Za-z0-9-]{8,64}$/.test(out.id)) return { reject: "invalid_id" };
+  out.kind = String(raw.kind || "");
+  if (!CARE_EVENT_KINDS.has(out.kind)) return { reject: "invalid_kind" };
+  out.device_id = /^[a-f0-9]{16}$/.test(String(raw.device_id || "")) ? String(raw.device_id) : "";
+  out.profile_id = String(raw.profile_id || "").trim().slice(0, 80);
+  if (out.profile_id && !/^[A-Za-z0-9._:-]{1,80}$/.test(out.profile_id)) return { reject: "invalid_profile" };
+  const at = Date.parse(String(raw.occurred_at || ""));
+  if (!Number.isFinite(at) || Math.abs(Date.now() - at) > CARE_EVENT_KEEP_MS) return { reject: "invalid_time" };
+  out.occurred_at = new Date(at).toISOString();
+  if (raw.visit_date != null) { if (!CARE_DATE_RE.test(String(raw.visit_date))) return { reject: "invalid_visit_date" }; out.visit_date = String(raw.visit_date); }
+  if (raw.serial != null) { if (!/^[A-Z0-9]{6}$/.test(String(raw.serial))) return { reject: "invalid_serial" }; out.serial = String(raw.serial); }
+  for (const key of ["activity", "prize"]) {
+    if (raw[key] != null) { const v = String(raw[key]).trim(); if (!v || v.length > 120) return { reject: "invalid_" + key }; out[key] = v; }
+  }
+  if (raw.patient_name != null) {
+    const v = String(raw.patient_name).trim();
+    if (!v || v.length > 40) return { reject: "invalid_name" };
+    out.patient_name = v;
+  }
+  if (raw.phone_tail != null) {
+    if (!/^\d{4}$/.test(String(raw.phone_tail))) return { reject: "invalid_phone_tail" };
+    out.phone_tail = String(raw.phone_tail);
+    if (!out.patient_name) return { reject: "name_required_for_phone" };
+  }
+  return { event: out };
+}
+const careEventKey = (tenantId, at, id) => "ev:" + tenantId + ":" + new Date(at).toISOString().slice(0, 7) + ":" + String(at).padStart(13, "0") + ":" + id;
+async function careEventSave(env, tenantId, events) {
+  const accepted = [], rejected = [], skipped = [];
+  for (const raw of events) {
+    const cleaned = careEventClean(raw);
+    if (!cleaned.event) { rejected.push({ id: String(raw && raw.id || "").slice(0, 64), reason: cleaned.reject }); continue; }
+    const ev = cleaned.event;
+    const dedupeKey = "evid:" + tenantId + ":" + ev.id;
+    if (await env.KV.get(dedupeKey)) { skipped.push(ev.id); continue; }
+    const at = Date.parse(ev.occurred_at);
+    await env.KV.put(careEventKey(tenantId, at, ev.id), JSON.stringify({ ...ev, tenant_id: tenantId, received_at: Date.now() }), { expirationTtl: 180 * 86400 });
+    await env.KV.put(dedupeKey, "1", { expirationTtl: 180 * 86400 });
+    accepted.push(ev.id);
+  }
+  return { accepted, rejected, skipped };
+}
+async function careEventRecent(env, tenantId, limit) {
+  const n = Math.max(1, Math.min(300, Number(limit) || 300));
+  const keys = await adminListAll(env, "ev:" + tenantId + ":", 5000);
+  const picked = keys.slice(-n).reverse();
+  const rows = [];
+  for (const key of picked) {
+    const rec = await env.KV.get(key.name, "json").catch(() => null);
+    if (rec) rows.push(rec);
+  }
+  return rows;
+}
+async function careEventMonthly(env, tenantId, month) {
+  const m = CARE_DATE_RE.test(month + "-01") ? month : "";
+  if (!m) return null;
+  const keys = await adminListAll(env, "ev:" + tenantId + ":" + m + ":", 5000);
+  const days = {}, kinds = {}, activities = {}, prizes = {};
+  let total = 0, named = 0;
+  for (const key of keys) {
+    const rec = await env.KV.get(key.name, "json").catch(() => null);
+    if (!rec) continue;
+    total++;
+    const day = String(rec.occurred_at || "").slice(0, 10);
+    days[day] = (days[day] || 0) + 1;
+    kinds[rec.kind] = (kinds[rec.kind] || 0) + 1;
+    if (rec.activity) activities[rec.activity] = (activities[rec.activity] || 0) + 1;
+    if (rec.prize) prizes[rec.prize] = (prizes[rec.prize] || 0) + 1;
+    if (rec.patient_name) named++;
+  }
+  return { tenant_id: tenantId, month: m, total, named, anonymous: total - named, days, kinds, activities, prizes };
+}
+// ---- 医疗摘要：只接受前端已脱敏文本，AES-GCM 加密后落 KV ----
+const MEDICAL_SUMMARY_MAX = 300;
+const MEDICAL_SUMMARY_CHARS = (s) => Array.from(String(s || "")).length;
+function medicalKeyBytes(env) {
+  const raw = String(env.MEDICAL_KEY || "").trim();
+  if (!raw) return null;
+  try {
+    if (/^[a-f0-9]{64}$/i.test(raw)) return Uint8Array.from(raw.match(/.{2}/g).map((h) => parseInt(h, 16)));
+    const bytes = Uint8Array.from(atob(raw.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
+    return bytes.length === 32 ? bytes : null;
+  } catch (e) { return null; }
+}
+const b64enc = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+async function medicalSeal(env, obj) {
+  const keyBytes = medicalKeyBytes(env);
+  if (!keyBytes) throw new Error("MEDICAL_KEY_MISSING");
+  const key = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["encrypt"]);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const data = new TextEncoder().encode(JSON.stringify(obj));
+  const enc = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, data);
+  return { v: 1, key_id: "v1", iv: b64enc(iv), data: b64enc(enc), created_at: Date.now() };
+}
+async function medicalOpen(env, sealed) {
+  const keyBytes = medicalKeyBytes(env);
+  if (!keyBytes || !sealed || !sealed.iv || !sealed.data) return null;
+  const key = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["decrypt"]);
+  const iv = Uint8Array.from(atob(sealed.iv), (c) => c.charCodeAt(0));
+  const data = Uint8Array.from(atob(sealed.data), (c) => c.charCodeAt(0));
+  const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+// ---- 备份：KV 快照；有 R2 时写 R2，否则写 KV ----
+const BACKUP_PREFIXES = ["sub:", "access:", "renew:", "care:catalog:", "summary:", "evid:", "ev:"];
+function backupKeyBelongsTo(key, value, tenantId) {
+  if (!tenantId) return true;
+  if (key === "sub:" + tenantId || key.startsWith("care:catalog:" + tenantId) || key.startsWith("summary:" + tenantId + ":") ||
+      key.startsWith("evid:" + tenantId + ":") || key.startsWith("ev:" + tenantId + ":")) return true;
+  if (key.startsWith("access:") || key.startsWith("renew:")) {
+    try { return JSON.parse(value).tenant_id === tenantId; } catch (e) { return false; }
+  }
+  return false;
+}
+async function medicalBackupCreate(env, tenantId, id) {
+  const store = {};
+  for (const prefix of BACKUP_PREFIXES) {
+    // 事件量最大，只备份当月最近 800 条，避免每日备份拖垮 Cron。
+    // access:/renew: 的租户写在值里，必须按全前缀列出后再过滤。
+    const embedsTenant = prefix !== "access:" && prefix !== "renew:";
+    const p = prefix === "ev:" ? prefix + new Date().toISOString().slice(0, 7) + ":" : (embedsTenant ? prefix + (tenantId || "") : prefix);
+    const max = prefix === "ev:" || prefix === "evid:" ? 800 : 3000;
+    const keys = await adminListAll(env, p, max);
+    for (const key of keys) {
+      if (store[key.name]) continue;
+      const value = await env.KV.get(key.name);
+      if (value == null) continue;
+      if (!backupKeyBelongsTo(key.name, value, tenantId)) continue;
+      store[key.name] = value;
+    }
+  }
+  const snap = { id, tenant_id: tenantId || "", created_at: Date.now(), env: String(env.APP_ENV || "production"), keys: store };
+  const raw = JSON.stringify(snap);
+  if (raw.length > 20 * 1024 * 1024) throw new Error("BACKUP_TOO_LARGE");
+  const meta = { id, tenant_id: snap.tenant_id, created_at: snap.created_at, env: snap.env, count: Object.keys(store).length, bytes: raw.length };
+  const path = "medical-backups/" + snap.env + "/" + (tenantId || "all") + "/snapshots/" + id + ".json";
+  if (env.CARE_ASSETS) { try { await env.CARE_ASSETS.put(path, raw, { httpMetadata: { contentType: "application/json" } }); } catch (e) { } }
+  await env.KV.put("backup:" + id, raw, { expirationTtl: 90 * 86400 });
+  await env.KV.put("backupmeta:" + id, JSON.stringify(meta), { expirationTtl: 90 * 86400 });
+  return meta;
+}
+async function medicalBackupDaily(env) {
+  if (!env.KV) return { skipped: true };
+  const id = "auto-" + new Date().toISOString().slice(0, 10);
+  if (await env.KV.get("backupmeta:" + id)) return { skipped: true, id };
+  return medicalBackupCreate(env, "", id);
+}
+async function medicalBackupRestore(env, backupId, tenantId) {
+  const raw = await env.KV.get("backup:" + backupId);
+  if (!raw) return null;
+  let snap;
+  try { snap = JSON.parse(raw); } catch (e) { return null; }
+  const preId = "pre-restore-" + (tenantId || "all") + "-" + Date.now();
+  await medicalBackupCreate(env, tenantId, preId);
+  const tombKeys = await adminListAll(env, "tombstone:" + tenantId + ":", 2000);
+  const dead = new Set(tombKeys.map((k) => k.name.slice(("tombstone:" + tenantId + ":").length)));
+  let restored = 0;
+  for (const [key, value] of Object.entries(snap.keys || {})) {
+    if (!backupKeyBelongsTo(key, value, tenantId)) continue;
+    if (key.startsWith("summary:" + tenantId + ":") && dead.has(key.slice(("summary:" + tenantId + ":").length))) continue;
+    await env.KV.put(key, value);
+    restored++;
+  }
+  return { restored, pre_restore: preId, tenant_id: tenantId || snap.tenant_id || "" };
+}
+async function careTenantPurge(env, tenantId) {
+  let removed = 0;
+  for (const prefix of BACKUP_PREFIXES) {
+    const keys = await adminListAll(env, prefix, 3000);
+    for (const key of keys) {
+      const value = await env.KV.get(key.name);
+      if (value == null) continue;
+      if (!backupKeyBelongsTo(key.name, value, tenantId)) continue;
+      await env.KV.delete(key.name);
+      removed++;
+    }
+  }
+  if (env.CARE_ASSETS) {
+    try {
+      const listed = await env.CARE_ASSETS.list({ prefix: "catalog/" + tenantId + "/" });
+      for (const obj of listed.objects || []) await env.CARE_ASSETS.delete(obj.key);
+    } catch (e) { }
+  }
+  return removed;
 }
 async function billingTenantSnapshot(env) {
   const [qr, catalogs, access, renewals, subKeys] = await Promise.all([
@@ -3338,6 +3619,8 @@ const WORKER_DEFAULT = {
       try { const r = await agCronReminders(e2); if (r.sent || r.msg) console.log("[cron] reminders", JSON.stringify({ sent: r.sent || 0, pending: r.pending || 0, msg: r.msg || "" })); }
       catch (e) { console.error("[cron] reminders failed", e && e.message || e); }
       try { const n = await runDueTasks(e2); console.log("[cron] tasks done", n); } catch (e) { console.error("[cron] tasks failed", e && e.stack || e); }
+      try { const q = await careQrExpire(e2); console.log("[cron] qr", JSON.stringify(q)); } catch (e) { console.error("[cron] qr expire failed", e && e.message || e); }
+      try { const b = await medicalBackupDaily(e2); console.log("[cron] backup", JSON.stringify(b)); } catch (e) { console.error("[cron] backup failed", e && e.message || e); }
     })());
   }   // 就医版：Cron 只跑到点提醒 + 定时任务（热榜 / 糖果指数 / 早报已移除）
 };
@@ -5510,6 +5793,8 @@ async function handle(request, env, ctx) {
         if (!b || typeof b !== "object" || Array.isArray(b)) return json({ ok: false, code: "INVALID_JSON", msg: "请求必须是 JSON 对象" }, 400);
         const tenantId = careTenantId(b.tenant_id), optionIds = careOptionIds(b.option_ids, 400);
         await careActorFromReq(request, env, url, tenantId, userFromReq);
+        const access = await careAccessGuard(env, request, tenantId);
+        if (access && access.error) return access.error;
         let upstream = null;
         try { upstream = await proxyFastGptMatch(env, tenantId, optionIds); }
         catch (e) { console.error("[care] FastGPT 匹配失败，回落本地目录：" + String(e && e.message || e).slice(0, 120)); }
@@ -5524,6 +5809,8 @@ async function handle(request, env, ctx) {
         if (!b || typeof b !== "object" || Array.isArray(b)) return json({ ok: false, code: "INVALID_JSON", msg: "请求必须是 JSON 对象" }, 400);
         const tenantId = careTenantId(b.tenant_id);
         const actor = await careActorFromReq(request, env, url, tenantId, userFromReq);
+        const access = await careAccessGuard(env, request, tenantId);
+        if (access && access.error) return access.error;
         const task = await prepareCareTask(b, env, actor);
         const result = await careTaskDo(env, task.task_id, "create", { task });
         return json(result.body, result.status);
@@ -5954,11 +6241,16 @@ async function handle(request, env, ctx) {
         try { tenantId = careTenantId(b.tenant_id); }
         catch (e) { return json({ ok: false, code: "INVALID_TENANT", msg: "医院租户 ID 格式不正确" }, 422); }
         const plan = billingPlan(b.plan, false);
-        if (!plan) return json({ ok: false, code: "INVALID_PLAN", msg: "请选择试用 7 天、试用 30 天或年约 1 年" }, 422);
+        if (!plan) return json({ ok: false, code: "INVALID_PLAN", msg: "请选择试用 7 天、3 个月或年约 1 年" }, 422);
         const now = Date.now(), token = rand(32);
+        // 同一医院发放新码时撤销旧码，避免同院多张有效码并存。
+        const previous = (await billingRecords(env, "access")).filter((r) => r.tenant_id === tenantId && billingAccessState(r) === "active");
+        for (const old of previous) {
+          await env.KV.put("access:" + old.token, JSON.stringify({ ...old, status: "revoked", revoked_at: now, replaced_by: token }));
+        }
         const rec = {
           tenant_id: tenantId, plan: plan.id, plan_label: plan.label, status: "active",
-          created_at: now, expires_at: now + plan.days * 86400000, first_scan_at: null,
+          created_at: now, expires_at: billingExpiry(now, plan), first_scan_at: null,
           last_scan_at: null, scan_count: 0, price_label: BILLING_PRICE_LABEL
         };
         await env.KV.put("access:" + token, JSON.stringify(rec));
@@ -6004,7 +6296,7 @@ async function handle(request, env, ctx) {
         const sub = {
           ...(previous || {}), tenant_id: rec.tenant_id, plan: plan.id, plan_label: plan.label,
           status: "active", created_at: previous && previous.created_at || now,
-          renewed_at: now, expires_at: base + plan.days * 86400000, last_renewal_id: token
+          renewed_at: now, expires_at: billingExpiry(base, plan), last_renewal_id: token
         };
         await env.KV.put("sub:" + rec.tenant_id, JSON.stringify(sub));
         const confirmed = { ...rec, status: "confirmed", confirmed_at: now, confirmed_by: "admin", new_expires_at: sub.expires_at };
@@ -6042,14 +6334,70 @@ async function handle(request, env, ctx) {
         return json({ ok: true, rows });
       }
       if (path === "/api/admin/backups" && request.method === "GET") {
-        const keys = await adminListAll(env, "backup:", 300);
+        const keys = await adminListAll(env, "backupmeta:", 300);
         keys.sort((a, b) => b.name.localeCompare(a.name));
         const rows = [];
         for (const k of keys.slice(0, 200)) {
           const v = await env.KV.get(k.name, "json").catch(() => null);
-          rows.push({ key: k.name, ...(v || {}) });
+          if (v) rows.push(v);
+        }
+        // 兼容旧版本只写 backup: 的快照。
+        const legacy = await adminListAll(env, "backup:", 300);
+        for (const k of legacy) {
+          const id = k.name.slice("backup:".length);
+          if (!id || rows.some((r) => r.id === id)) continue;
+          if (rows.length >= 200) break;
+          const v = await env.KV.get(k.name, "json").catch(() => null);
+          if (v) rows.push({ id, tenant_id: v.tenant_id || "", created_at: v.created_at || v.at || 0, count: v.keys ? Object.keys(v.keys).length : undefined });
         }
         return json({ ok: true, rows });
+      }
+      if (path === "/api/admin/backups/run" && request.method === "POST") {
+        const b = await request.json().catch(() => ({}));
+        let tenantId = "";
+        if (b.tenant_id) { try { tenantId = careTenantId(b.tenant_id); } catch (e) { return json({ ok: false, code: "INVALID_TENANT", msg: "医院租户 ID 格式不正确" }, 422); } }
+        try {
+          const meta = await medicalBackupCreate(env, tenantId, "manual-" + (tenantId || "all") + "-" + Date.now());
+          await adminAudit(env, "backup-run", (tenantId || "全部") + " " + meta.id, ip);
+          return json({ ok: true, backup: meta });
+        } catch (e) { return json({ ok: false, code: "BACKUP_FAILED", msg: String(e && e.message || e) }, 500); }
+      }
+      if (path === "/api/admin/backups/restore" && request.method === "POST") {
+        const b = await request.json().catch(() => ({}));
+        const backupId = String(b.backup_id || b.id || "").trim();
+        if (!/^[A-Za-z0-9._:-]{1,120}$/.test(backupId)) return json({ ok: false, code: "INVALID_BACKUP", msg: "备份标识不正确" }, 422);
+        let tenantId = "";
+        if (b.tenant_id) { try { tenantId = careTenantId(b.tenant_id); } catch (e) { return json({ ok: false, code: "INVALID_TENANT", msg: "医院租户 ID 格式不正确" }, 422); } }
+        if (!tenantId) return json({ ok: false, code: "TENANT_REQUIRED", msg: "恢复必须指定单一医院租户" }, 422);
+        if (String(b.confirm || "") !== tenantId) return json({ ok: false, code: "CONFIRM_REQUIRED", msg: "请输入医院租户 ID 二次确认" }, 422);
+        const result = await medicalBackupRestore(env, backupId, tenantId);
+        if (!result) return json({ ok: false, code: "BACKUP_NOT_FOUND", msg: "备份不存在或已过期" }, 404);
+        await adminAudit(env, "backup-restore", tenantId + " <- " + backupId + " pre:" + result.pre_restore, ip);
+        return json({ ok: true, ...result, msg: "已按医院租户恢复到 " + backupId + "，恢复前的数据已另存为 " + result.pre_restore + "，请核对" });
+      }
+      if (path === "/api/admin/clear-test" && request.method === "POST") {
+        const isTest = String(env.APP_ENV || "").toLowerCase() === "test" || String(env.TEST_MODE || "") === "1";
+        if (!isTest) return json({ ok: false, code: "NOT_TEST_ENV", msg: "当前不是测试环境，禁止使用测试清除" }, 403);
+        const b = await request.json().catch(() => ({}));
+        if (String(b.confirm || "") !== "CLEAR-TEST") return json({ ok: false, code: "CONFIRM_REQUIRED", msg: "请输入 CLEAR-TEST 确认" }, 422);
+        let removed = 0;
+        for (const prefix of ["backup:", "backupmeta:", "summary:", "ev:", "evid:"]) {
+          const keys = await adminListAll(env, prefix, 3000);
+          for (const k of keys) { await env.KV.delete(k.name); removed++; }
+        }
+        await adminAudit(env, "clear-test", "清除 " + removed + " 项", ip);
+        return json({ ok: true, removed });
+      }
+      if (path === "/api/admin/clear-tenant" && request.method === "POST") {
+        const b = await request.json().catch(() => ({}));
+        let tenantId;
+        try { tenantId = careTenantId(b.tenant_id); }
+        catch (e) { return json({ ok: false, code: "INVALID_TENANT", msg: "医院租户 ID 格式不正确" }, 422); }
+        if (String(b.confirm || "") !== tenantId) return json({ ok: false, code: "CONFIRM_REQUIRED", msg: "请输入完整医院租户 ID 二次确认" }, 422);
+        const pre = await medicalBackupCreate(env, tenantId, "pre-clear-" + tenantId + "-" + Date.now());
+        const removed = await careTenantPurge(env, tenantId);
+        await adminAudit(env, "clear-tenant", tenantId + " 清除 " + removed + " 项 pre:" + pre.id, ip);
+        return json({ ok: true, removed, pre_clear: pre.id, msg: "已清除该医院数据，清除前快照 " + pre.id + " 保留 90 天" });
       }
       if (path === "/api/admin/staff" && request.method === "GET") {
         const q = String(url.searchParams.get("q") || "").trim().toLowerCase();
@@ -6168,12 +6516,31 @@ async function handle(request, env, ctx) {
       try { normalized = validateCareCatalog(catalog); }
       catch (e) { return json({ ok: false, code: "CATALOG_UNAVAILABLE", msg: "医院服务配置尚未发布完整" }, 503); }
       if (!catalogReferencesAsset(normalized, assetId)) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在或尚未发布" }, 404);
-      const object = await env.KV.getWithMetadata(catalogAssetKey(rec.tenant_id, assetId), "arrayBuffer").catch(() => null);
-      if (!object || !object.value) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在或尚未发布" }, 404);
-      return catalogImageResponse(object);
+      const asset = await catalogAssetRead(env, rec.tenant_id, assetId);
+      if (!asset) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在或尚未发布" }, 404);
+      return catalogImageResponse(asset);
+ 2f15831 (feat: 补齐患者七步任务入口、二维码生命周期、事件上传、医疗摘要与备份运维)
     }
 
     // ---- 患者二维码公开访问：患者码有效期与医院订阅有效期是两把独立的锁 ----
+    // ---- 患者复诊打卡/整理事件：只接收白名单字段，永不接收病历、报告、图片、用药或摘要 ----
+    if (path === "/api/public/events" && request.method === "POST") {
+      const b = await request.json().catch(() => null);
+      if (!b || typeof b !== "object" || Array.isArray(b)) return json({ ok: false, code: "INVALID_JSON", msg: "请求必须是 JSON 对象" }, 400);
+      if (!Array.isArray(b.events) || !b.events.length) return json({ ok: false, code: "NO_EVENTS", msg: "没有可上传的记录" }, 422);
+      if (b.events.length > CARE_EVENT_MAX_BATCH) return json({ ok: false, code: "BATCH_TOO_LARGE", msg: "单批最多 " + CARE_EVENT_MAX_BATCH + " 条" }, 413);
+      let tenantId;
+      try { tenantId = careTenantId(b.tenant_id); }
+      catch (e) { return json({ ok: false, code: "INVALID_TENANT", msg: "医院租户 ID 格式不正确" }, 422); }
+      const access = await carePatientAccess(env, b.access || url.searchParams.get("access"), tenantId);
+      if (access.error) return access.error;
+      const ip = request.headers.get("CF-Connecting-IP") || "0";
+      if (!(await rlOk(env, "care-ev:" + ip, 120))) return json({ ok: false, code: "RATE_LIMITED", msg: "上传太频繁，请稍后再试" }, 429);
+      await rlHit(env, "care-ev:" + ip, 120);
+      const out = await careEventSave(env, tenantId, b.events);
+      return json({ ok: true, tenant_id: tenantId, ...out, server_time: Date.now() });
+    }
+
     if (path === "/api/public/access" && request.method === "GET") {
       const token = billingToken(url.searchParams.get("token"));
       if (!token) return json({ ok: false, code: "INVALID_ACCESS", msg: "患者链接不完整，请使用医院发放的二维码" }, 400);
@@ -6212,6 +6579,32 @@ async function handle(request, env, ctx) {
       const allowed = roles.length ? [...new Set(roles)].sort() : ["R1", "R2", "R3", "R4", "R5", "R6"];
       return json({ ok: true, user: username, roles: allowed, tenant_ids: [...new Set(scopes.map((s) => s.tenant_id))], scopes });
     }
+    if (path === "/api/staff/events" && request.method === "GET") {
+      const ctxStaff = await staffContext(env, request, url);
+      if (ctxStaff.error) return ctxStaff.error;
+      const selected = staffTenant(ctxStaff, url.searchParams.get("tenant_id"));
+      if (selected.error) return selected.error;
+      const month = String(url.searchParams.get("month") || "").trim();
+      if (month) {
+        const report = await careEventMonthly(env, selected.tenantId, month);
+        if (!report) return json({ ok: false, code: "INVALID_MONTH", msg: "月份格式应为 YYYY-MM" }, 422);
+        return json({ ok: true, report });
+      }
+      const limit = Number(url.searchParams.get("limit") || 300);
+      const rows = await careEventRecent(env, selected.tenantId, limit);
+      return json({ ok: true, tenant_id: selected.tenantId, count: rows.length, rows, limit: Math.min(300, Math.max(1, limit)) });
+    }
+    if (path === "/api/staff/catalog/migrate" && request.method === "POST") {
+      const ctxStaff = await staffContext(env, request, url);
+      if (ctxStaff.error) return ctxStaff.error;
+      if (!ctxStaff.roles.includes("R3")) return json({ ok: false, code: "STAFF_ROLE_FORBIDDEN", msg: "只有 R3 配置交付岗位可以迁移院方目录" }, 403);
+      const b = await request.json().catch(() => null);
+      if (!b || typeof b !== "object") return json({ ok: false, code: "INVALID_JSON", msg: "请求必须是 JSON 对象" }, 400);
+      try {
+        const report = migrateLegacyCatalog(b);
+        return json({ ok: true, ...report });
+      } catch (e) { return json({ ok: false, code: "MIGRATE_FAILED", msg: String(e && e.message || e) }, 422); }
+    }
     if (path === "/api/staff/config/image" && (request.method === "GET" || request.method === "POST")) {
       const ctxStaff = await staffContext(env, request, url);
       if (ctxStaff.error) return ctxStaff.error;
@@ -6221,12 +6614,14 @@ async function handle(request, env, ctx) {
       let tenantId;
       try { tenantId = careTenantId(selected.tenantId); }
       catch (e) { return json({ ok: false, code: "INVALID_TENANT", msg: "医院租户 ID 格式不正确" }, 422); }
+      if (!env.CARE_ASSETS && !env.KV) return json({ ok: false, code: "ASSET_STORE_NOT_BOUND", msg: "医院图片存储尚未配置，请联系管理员" }, 503);
       if (request.method === "GET") {
         const assetId = String(url.searchParams.get("asset_id") || "").trim();
         if (!CATALOG_ASSET_ID.test(assetId)) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在" }, 404);
-        const object = await env.KV.getWithMetadata(catalogAssetKey(tenantId, assetId), "arrayBuffer").catch(() => null);
-        if (!object || !object.value) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在" }, 404);
-        return catalogImageResponse(object);
+        const asset = await catalogAssetRead(env, tenantId, assetId);
+        if (!asset) return json({ ok: false, code: "IMAGE_NOT_FOUND", msg: "图片不存在" }, 404);
+        return catalogImageResponse(asset);
+ 2f15831 (feat: 补齐患者七步任务入口、二维码生命周期、事件上传、医疗摘要与备份运维)
       }
       const declared = String(request.headers.get("Content-Type") || "").split(";", 1)[0].trim().toLowerCase();
       const contentLength = Number(request.headers.get("Content-Length") || 0);
@@ -6243,11 +6638,12 @@ async function handle(request, env, ctx) {
       if (serviceId && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(serviceId)) return json({ ok: false, code: "INVALID_SERVICE", msg: "service_id 格式不正确" }, 422);
       const assetId = Date.now().toString(36) + "-" + rand(8);
       const hash = hex(await crypto.subtle.digest("SHA-256", body));
-      await env.KV.put(catalogAssetKey(tenantId, assetId), body, {
-        metadata: { contentType: mime, tenant_id: tenantId, service_id: serviceId || "logo", size: bytes.length, sha256: hash, uploaded_at: Date.now() }
+      const stored = await catalogAssetWrite(env, tenantId, assetId, body, mime, {
+        tenant_id: tenantId, service_id: serviceId || "logo", sha256: hash, uploaded_at: String(Date.now())
+ 2f15831 (feat: 补齐患者七步任务入口、二维码生命周期、事件上传、医疗摘要与备份运维)
       });
-      await adminAudit(env, "staff-config-image", tenantId + " 操作人:" + ctxStaff.username + " 素材:" + assetId + " 大小:" + bytes.length, request.headers.get("CF-Connecting-IP") || "0");
-      return json({ ok: true, tenant_id: tenantId, asset_id: assetId, image_url: "asset:" + assetId, size: bytes.length, mime });
+      await adminAudit(env, "staff-config-image", tenantId + " 操作人:" + ctxStaff.username + " 素材:" + assetId + " 大小:" + bytes.length + " 存储:" + stored, request.headers.get("CF-Connecting-IP") || "0");
+      return json({ ok: true, tenant_id: tenantId, asset_id: assetId, image_url: "asset:" + assetId, size: bytes.length, mime, store: stored });
     }
     if (path === "/api/staff/config" && request.method === "GET") {
       const username = await userFromReq(request, env, url, "");
@@ -6369,6 +6765,80 @@ async function handle(request, env, ctx) {
       }
       if (rec.status !== "pending_confirm") return json({ ok: false, code: "RENEWAL_STATE_INVALID", msg: "续费二维码状态无效" }, 409);
       return json({ ok: true, status: "pending_confirm", record: billingRenewalOut({ ...rec, token }, patientOrigin), msg: "已登记扫码（模拟），等待管理员确认；未发生真实扣款" });
+    }
+
+    // ---- 医疗摘要：只收前端已脱敏文本；300 字硬上限；加密后落独立 KV 前缀 ----
+    const medicalFail = (code, msg, status = 400, extra = {}) => json({ ok: false, code, msg, ...extra }, status);
+    if (path === "/api/medical/summarize" && request.method === "POST") {
+      const b = await request.json().catch(() => null);
+      if (!b || typeof b !== "object" || Array.isArray(b)) return medicalFail("INVALID_JSON", "请求必须是 JSON 对象");
+      let tenantId;
+      try { tenantId = careTenantId(b.tenant_id); } catch (e) { return medicalFail("INVALID_TENANT", "医院租户 ID 格式不正确", 422); }
+      let actor;
+      try { actor = await careActorFromReq(request, env, url, tenantId, userFromReq); }
+      catch (e) { if (e instanceof CareHttpError) return medicalFail(e.code || "FORBIDDEN", e.message, e.status || 403); throw e; }
+      const access = await carePatientAccess(env, b.access || request.headers.get("X-Care-Access"), tenantId);
+      if (access.error) return access.error;
+      if (b.consent !== true) return medicalFail("MEDICAL_CONSENT_REQUIRED", "请先勾选同意后再整理");
+      if (!medicalKeyBytes(env)) return medicalFail("MEDICAL_KEY_MISSING", "医疗加密密钥未配置，暂不能保存摘要", 503);
+      const text = String(b.text == null ? "" : b.text).trim();
+      if (!text) return medicalFail("TEXT_REQUIRED", "请先填写要整理的内容");
+      if (MEDICAL_SUMMARY_CHARS(text) > 2000) return medicalFail("TEXT_TOO_LONG", "待整理内容过长，请分次整理", 422);
+      if (redactCareText(text) !== text) return medicalFail("MEDICAL_PII_REJECTED", "含敏感信息，已拒绝");
+      if (!(await careAiRateLimit(env, access.token))) return medicalFail("RATE_LIMITED", "请求太频繁，请稍后再试", 429);
+      const info = {};
+      let summary = "";
+      try {
+        summary = await runCareLlm(env, [
+          { role: "system", content: "你是就诊资料整理助手。只把用户给出的内容整理成不超过300字的就诊要点。禁止诊断、处方、剂量、治疗建议；不得编造；只输出整理后的纯文本。" },
+          { role: "user", content: text }
+        ], info, 20000, null, null, "auto");
+      } catch (e) {
+        return medicalFail("MEDICAL_MODEL_FAILED", "模型失败，未保存", 500);
+      }
+      summary = String(summary || "").trim();
+      if (!summary) return medicalFail("MEDICAL_MODEL_FAILED", "模型失败，未保存", 500);
+      const len = MEDICAL_SUMMARY_CHARS(summary);
+      if (len > MEDICAL_SUMMARY_MAX) return medicalFail("SUMMARY_TOO_LONG", "摘要超长，请精简到 300 字以内再试", 400, { length: len, max: MEDICAL_SUMMARY_MAX, over: len - MEDICAL_SUMMARY_MAX });
+      let sealed;
+      try { sealed = await medicalSeal(env, { summary, tenant_id: tenantId, profile_id: actor.profile_id, user: actor.username, at: Date.now() }); }
+      catch (e) { return medicalFail("MEDICAL_ENCRYPT_FAILED", "摘要加密失败，未保存", 500); }
+      await env.KV.put("summary:" + tenantId + ":" + actor.profile_id, JSON.stringify(sealed));
+      await adminAudit(env, "medical-summary", tenantId + " profile:" + actor.profile_id + " 字数:" + len, request.headers.get("CF-Connecting-IP") || "0");
+      return json({ ok: true, summary, length: len, max: MEDICAL_SUMMARY_MAX, provider: info.from || "", saved: true });
+    }
+    if (path === "/api/medical/summary" && request.method === "GET") {
+      let tenantId;
+      try { tenantId = careTenantId(url.searchParams.get("tenant_id")); } catch (e) { return medicalFail("INVALID_TENANT", "医院租户 ID 格式不正确", 422); }
+      let actor;
+      try { actor = await careActorFromReq(request, env, url, tenantId, userFromReq); }
+      catch (e) { if (e instanceof CareHttpError) return medicalFail(e.code || "FORBIDDEN", e.message, e.status || 403); throw e; }
+      const sealed = await env.KV.get("summary:" + tenantId + ":" + actor.profile_id, "json").catch(() => null);
+      if (!sealed) return json({ ok: true, summary: null });
+      const plain = await medicalOpen(env, sealed).catch(() => null);
+      return json({ ok: true, summary: plain ? plain.summary : null, created_at: sealed.created_at, length: plain ? MEDICAL_SUMMARY_CHARS(plain.summary) : 0, max: MEDICAL_SUMMARY_MAX });
+    }
+    if (path === "/api/medical/data" && request.method === "DELETE") {
+      let tenantId, body = {};
+      try { body = await request.json().catch(() => ({})); } catch (e) { body = {}; }
+      try { tenantId = careTenantId(body.tenant_id || url.searchParams.get("tenant_id")); } catch (e) { return medicalFail("INVALID_TENANT", "医院租户 ID 格式不正确", 422); }
+      let actor;
+      try { actor = await careActorFromReq(request, env, url, tenantId, userFromReq); }
+      catch (e) { if (e instanceof CareHttpError) return medicalFail(e.code || "FORBIDDEN", e.message, e.status || 403); throw e; }
+      const access = await carePatientAccess(env, body.access || request.headers.get("X-Care-Access"), tenantId);
+      if (access.error) return access.error;
+      if (body.confirm !== true) return medicalFail("DELETE_CONFIRM_REQUIRED", "请明确确认删除服务器数据");
+      await env.KV.delete("summary:" + tenantId + ":" + actor.profile_id);
+      await env.KV.put("tombstone:" + tenantId + ":" + actor.profile_id, JSON.stringify({ at: Date.now(), by: "patient" }));
+      let removedAssets = 0;
+      if (env.CARE_ASSETS) {
+        try {
+          const listed = await env.CARE_ASSETS.list({ prefix: "medical-backups/" + String(env.APP_ENV || "production") + "/" + tenantId + "/profiles/" + actor.profile_id + "/" });
+          for (const obj of listed.objects || []) { await env.CARE_ASSETS.delete(obj.key); removedAssets++; }
+        } catch (e) { }
+      }
+      await adminAudit(env, "medical-delete", tenantId + " profile:" + actor.profile_id + " R2:" + removedAssets, request.headers.get("CF-Connecting-IP") || "0");
+      return json({ ok: true, deleted: true, tombstone: true, msg: "已删除服务器上的摘要与患者专项快照；历史合并快照已标记禁止恢复该患者" });
     }
 
     if (path === "/api/ai/chat" && request.method === "POST") {

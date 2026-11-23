@@ -24,4 +24,31 @@ new_sqlite_classes = ["CareTask"]
 binding = "KV"
 id = "6f56242d19284338b3d2332d823e412d"
 
-# 医院公开目录素材也保存在上方 KV 中；本项目不启用 R2。
+# 医院公开目录素材：默认用 KV 兜底存储，部署不再依赖预先创建 R2 bucket。
+# 若要启用 R2（2 MiB 图片、独立素材桶），先执行 `npx wrangler r2 bucket create jiuyibanlv-care-assets`，
+# 再打开下面三行并重新部署；代码会自动优先使用 R2，缺失时回落到 KV。
+# [[r2_buckets]]
+# binding = "CARE_ASSETS"
+# bucket_name = "jiuyibanlv-care-assets"
+
+# 每日北京时间 00:00（UTC 16:00）执行：到点提醒、定时任务、患者码过期下线与 30 天清理。
+[triggers]
+crons = ["0 16 * * *"]
+
+# 环境标记：测试清除接口只在 APP_ENV=test 时可用，避免误清生产数据。
+[vars]
+APP_ENV = "production"
+
+# 测试/生产隔离（建议）：在 Cloudflare 另建 test 环境的 Worker、KV、R2、DO 和 Secrets 后，
+# 取消下面注释并填入真实资源 ID。不要复用生产 KV。
+# [env.test]
+# name = "juyiibanlvzhinengai-test"
+# [env.test.vars]
+# APP_ENV = "test"
+# [[env.test.kv_namespaces]]
+# binding = "KV"
+# id = "<测试 KV namespace id>"
+# [[env.test.durable_objects.bindings]]
+# name = "CARE_TASKS"
+# class_name = "CareTask"
+ 2f15831 (feat: 补齐患者七步任务入口、二维码生命周期、事件上传、医疗摘要与备份运维)

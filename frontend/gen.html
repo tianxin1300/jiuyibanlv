@@ -70,7 +70,7 @@ if(t.dataset.additem){S.act[+t.dataset.additem].items.push({t:'',g:'',q:'',d:''}
 if(t.dataset.del){const ks=t.dataset.del.split('.'),i=+ks.pop();get(S,ks.join('.')).splice(i,1);render()}
 if(t.dataset.act==='nologo'){S.l='';render()}});
 function msg(s){const m=document.getElementById('msg');m.textContent=s;if(s){const c=document.createElement('button');c.textContent='关闭';c.onclick=()=>{m.textContent='';m.style.color=''};m.append(document.createElement('br'),c)}}
-function build(){const o={n:S.n.trim(),w:S.w.trim(),c:S.c,l:S.l,hideRef:true,key:S.key.trim(),ver:new Date().toISOString().slice(0,10).replace(/-/g,'.')};if((S.splash||'').trim())o.splash=S.splash.trim().slice(0,30);if((S.icp||'').trim())o.icp=S.icp.trim();if((S.gaba||'').trim())o.gaba=S.gaba.trim();
+function build(){const o={n:S.n.trim(),w:S.w.trim(),c:S.c,l:S.l,hideRef:true,key:S.key.trim(),tid:S.key.trim(),ver:new Date().toISOString().slice(0,10).replace(/-/g,'.')};if((S.splash||'').trim())o.splash=S.splash.trim().slice(0,30);if((S.icp||'').trim())o.icp=S.icp.trim();if((S.gaba||'').trim())o.gaba=S.gaba.trim();
 if(S.dept.length)o.dept=S.dept.slice();if(Array.isArray(S.dis))o.dis=S.dis.filter(x=>typeof x==='string').slice(0,40);
 if(S.tel.num.trim())o.tel={n:S.tel.n.trim()||'服务电话',num:S.tel.num.trim()};
 if(S.book.url.trim())o.book={n:S.book.n.trim()||'医院预约入口',url:S.book.url.trim()};
@@ -91,10 +91,9 @@ if((S.splash||'').length>30)er.push('启动页一句话不能超过 30 字');if(
 if((S.gaba||'').trim()&&!/^[\u4e00-\u9fa5]{1,2}公网安备 ?\d{12,14}号$/.test(S.gaba.trim()))er.push('公安备案号格式不对，应类似 沪公网安备 31010402001234号');
 if(S.book.url.trim()&&!/^https:\/\/[^\s"'<>]+$/.test(S.book.url.trim()))er.push('预约链接必须是 https 开头');
 if((S.up||'').trim()&&!/^https:\/\/[^\s"'<>]+$/.test(S.up.trim())&&!/^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?\/[^\s"'<>]*$/.test(S.up.trim()))er.push('上传地址必须是 https 开头（本机测试可用 http://localhost…），且不要带空格');
-if((S.up||'').trim()&&!(S.tk||'').trim())er.push('填了上传地址就要填上传口令（在后台“患者页上传设置”里复制）');
-if((S.tk||'').trim()&&!(S.up||'').trim())er.push('填了上传口令就要填上传地址（在后台“患者页上传设置”里复制）');
-if((S.tk||'').trim()&&!/^[a-f0-9]{64}$/.test(S.tk.trim().toLowerCase()))er.push('上传口令不对：应是后台“患者页上传设置”里那串 64 位小写字母和数字，现在 '+S.tk.trim().length+' 位');
-if(!(S.up||'').trim()&&!(S.tk||'').trim())er.push('提醒·没有填上传口令：患者打卡和核销记录不会汇总到后台，医院看不到复诊人数');
+/* 新版患者打卡统一走 Worker /api/public/events，用医院发放的患者码鉴权；旧 up/tk 仅作兼容保留，不再强制填写。 */
+if((S.tk||'').trim()&&!/^[a-f0-9]{64}$/.test(S.tk.trim().toLowerCase()))er.push('旧版上传口令格式不对：应为 64 位小写字母和数字；新版可不填');
+if(!(S.key||'').trim())er.push('提醒·没有填医院代号：患者码、七步任务和打卡汇总都依赖医院租户，请向交付人员确认');
 if(S.tel.num.trim()&&!/^[0-9+\-() ]{5,20}$/.test(S.tel.num.trim()))er.push('电话号码格式不对');
 if((o.act||[]).some(a=>a.need)&&!(o.jny||[]).length)er.push('有活动要求整理打卡，但没有填“就诊流程清单”：患者上线后在复诊日期之前一次整理打卡都拿不到，等于活动“上得了线、打不开”。请至少配一个就诊流程清单，或把该活动的“需要整理打卡次数”改为 0');
 (o.act||[]).forEach(a=>{if(a.start&&a.end&&a.start>a.end)er.push('活动“'+a.t+'”的结束日期早于开始日期')});

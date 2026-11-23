@@ -146,6 +146,8 @@ function normalizeService(service, serviceId) {
     else out[key] = text(service[key], `服务${serviceId}${key}`, key === "booking_channel" ? 500 : 300, true);
   }
   if (!["project", "benefit"].includes(out.service_type)) throw catalogError(`服务${serviceId}的service_type必须是project或benefit`);
+  if (service.description != null) out.description = text(service.description, `服务${serviceId}简介`, 300);
+  if (service.tag != null) out.tag = text(service.tag, `服务${serviceId}标签`, 40);
   if (!Array.isArray(service.steps) || service.steps.length !== 7) throw catalogError(`服务${serviceId}必须恰好包含7步`);
   out.steps = service.steps.map(normalizeStep);
   return out;
@@ -326,4 +328,101 @@ export async function proxyFastGptMatch(env, tenantId, optionIds, fetchImpl = fe
   } catch {
     throw new CareHttpError(502, "FastGPT 匹配请求失败", "FASTGPT_UPSTREAM_FAILED");
   }
+}
+
+// 旧版 gen/show/jny/act 模板 → 新版 catalog 草稿。只做结构转换，不伪造医疗内容。
+// 返回 { draft, blockers, warnings, unmapped }；blockers 非空时不得直接发布。
+export function migrateLegacyCatalog(legacy) {
+  if (!plainObject(legacy)) throw new CareHttpError(422, "旧模板必须是 JSON 对象", "INVALID_LEGACY_CATALOG");
+  const blockers = [], warnings = [], unmapped = [];
+  const src = plainObject(legacy.gen) ? legacy.gen : legacy;
+  const list = Array.isArray(src.show) ? src.show : Array.isArray(src.jny) ? src.jny : [];
+  if (!list.length) throw new CareHttpError(422, "没有找到旧的 show/jny 服务列表", "LEGACY_SERVICES_MISSING");
+  const benefitIds = new Set((Array.isArray(src.act) ? src.act : []).map((a) => a && a.service_id).filter(Boolean));
+  const draftServices = {}, draftOptions = {};
+  const asText = (v, max) => String(v == null ? "" : v).trim().slice(0, max);
+  const logoRef = (v, label) => {
+    const raw = asText(v, 300);
+    if (!raw) return "";
+    if (/^data:/i.test(raw)) { blockers.push(label + "是内嵌图片（data URI），请在院方工作台重新上传后再发布"); return ""; }
+    if (careAssetId(raw) || STATIC_IMAGE_RE.test(raw) || /^https:\/\/[^\s"'<>]+$/.test(raw)) return raw;
+    blockers.push(label + "不是可发布的图片地址，请重新上传");
+    return "";
+  };
+  list.forEach((item, index) => {
+    if (!plainObject(item)) { blockers.push(`第${index + 1}项服务格式不正确`); return; }
+    const serviceId = asText(item.service_id || item.id || ("svc-" + (index + 1)), 128);
+    if (!ID_RE.test(serviceId)) { blockers.push(`第${index + 1}项服务 service_id 格式不正确`); return; }
+    if (draftServices[serviceId]) { blockers.push(`服务 ${serviceId} 重复`); return; }
+    const oldSteps = Array.isArray(item.steps) ? item.steps : [];
+    const steps = oldSteps.slice(0, 7).map((step, i) => {
+      const raw = plainObject(step) ? step : { t: step };
+      const out = { step: i + 1, text: asText(raw.t || raw.text || raw.title, 500) };
+      out.materials = Array.isArray(raw.materials) ? raw.materials.map((m) => asText(m, 160)).filter(Boolean).slice(0, 30)
+        : (Array.isArray(raw.d) ? [] : asText(raw.materials, 800));
+      if (!out.materials.length) out.materials = "";
+      out.time = asText(raw.time, 300);
+      out.location = asText(raw.location, 300);
+      out.official_url = asText(raw.official_url, 300);
+      return out;
+    });
+    if (oldSteps.length > 7) {
+      unmapped.push({ service_id: serviceId, extra_steps: oldSteps.slice(7) });
+      warnings.push(`服务 ${serviceId} 原有 ${oldSteps.length} 步，多出的 ${oldSteps.length - 7} 步未删除，请在迁移报告里人工合并`);
+    }
+    while (steps.length < 7) {
+      const n = steps.length + 1;
+      steps.push({ step: n, text: "", materials: "", time: "", location: "", official_url: "" });
+    }
+    const draft = {
+      service_id: serviceId,
+      name: asText(item.name || item.t || item.n, 80),
+      department: asText(item.department || (Array.isArray(src.dept) ? src.dept[0] : ""), 80),
+      price: asText(item.price, 80),
+      clinic_hours: asText(item.clinic_hours, 120),
+      materials: Array.isArray(item.materials) ? item.materials.map((m) => asText(m, 160)).filter(Boolean).slice(0, 30) : asText(item.materials, 800),
+      booking_channel: asText(item.booking_channel || item.note, 500),
+      image_url: logoRef(item.image_url || item.img, `服务 ${serviceId} 配图`),
+      service_type: benefitIds.has(serviceId) || item.service_type === "benefit" ? "benefit" : "project",
+      description: asText(item.description || item.d, 300),
+      tag: asText(item.tag, 40),
+      steps
+    };
+    for (const key of ["name", "department", "price", "clinic_hours", "booking_channel", "image_url"]) {
+      if (!draft[key]) blockers.push(`服务 ${serviceId} 缺少 ${key}`);
+    }
+    for (const step of steps) {
+      if (!step.text) blockers.push(`服务 ${serviceId} 第${step.step}步缺少说明`);
+    }
+    draftServices[serviceId] = draft;
+    const optionId = asText(item.option_id || (Array.isArray(item.option_ids) ? item.option_ids[0] : ""), 128) || ("opt-" + serviceId);
+    if (!ID_RE.test(optionId)) blockers.push(`服务 ${serviceId} 的 option_id 格式不正确`);
+    else draftOptions[optionId] = serviceId;
+  });
+  const draft = {
+    catalog_version: asText(src.catalog_version, 128) || ("migrated-" + Date.now().toString(36)),
+    n: asText(src.n || src.hospital_name, 80),
+    w: asText(src.w || src.welcome, 500),
+    c: /^#[0-9a-fA-F]{6}$/.test(String(src.c || src.theme || "")) ? String(src.c || src.theme) : "#2563eb",
+    l: logoRef(src.l || src.logo, "院徽"),
+    splash: asText(src.splash, 100),
+    dept: Array.isArray(src.dept) ? src.dept.map((d) => asText(d, 40)).filter(Boolean).slice(0, 50) : [],
+    tel: plainObject(src.tel) ? { n: asText(src.tel.n, 40) || "服务电话", num: asText(src.tel.num, 30) } : undefined,
+    book: plainObject(src.book) ? { n: asText(src.book.n, 60) || "医院预约入口", url: asText(src.book.url, 300) } : undefined,
+    vip: Array.isArray(src.vip) ? src.vip : [],
+    ann: Array.isArray(src.ann) ? src.ann : [],
+    pre: Array.isArray(src.pre) ? src.pre : [],
+    campus: Array.isArray(src.campus) ? src.campus : [],
+    sched: Array.isArray(src.sched) ? src.sched : [],
+    dis: Array.isArray(src.dis) ? src.dis : [],
+    rg: plainObject(src.rg) ? src.rg : {},
+    showRef: src.showRef === true,
+    hideRef: src.hideRef !== false,
+    options: draftOptions,
+    services: draftServices,
+    act: Array.isArray(src.act) ? src.act : []
+  };
+  if (!draftServices || !Object.keys(draftServices).length) blockers.push("没有可迁移的服务");
+  if (!draft.n) blockers.push("缺少医院名称");
+  return { draft, blockers: [...new Set(blockers)], warnings: [...new Set(warnings)], unmapped };
 }

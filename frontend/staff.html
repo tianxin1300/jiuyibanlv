@@ -158,6 +158,19 @@ tr:last-child td{border-bottom:0}
     </div>
   </section>
 
+  <section class="card" id="eventsCard" hidden>
+    <h2>复诊打卡与整理事件</h2>
+    <p class="sub">只显示本院最近 300 条匿名 / 实名打卡与流程事件，不含病历、报告、图片、用药或摘要。纸质登记仍是医院核销的正式依据，本页不代替纸登记。</p>
+    <div class="bar">
+      <input id="evMonth" type="month" style="max-width:180px" aria-label="选择月份">
+      <button id="evLoad" class="btn small" type="button">查看月报</button>
+      <button id="evRecent" class="btn ghost small" type="button">最近 300 条</button>
+    </div>
+    <p id="evMsg" class="msg" role="status"></p>
+    <p id="evSummary" class="sub"></p>
+    <div class="tw"><table><thead><tr><th>时间</th><th>类型</th><th>活动</th><th>奖项</th><th>实名</th></tr></thead><tbody id="evRows"></tbody></table></div>
+  </section>
+
   <section class="card" id="membersCard" hidden>
     <h2>本院人员</h2>
     <p class="sub">R3 可查看、分配和停用本院人员；只能分配已在患者页注册的账号，不能接管其他医院账号。</p>
@@ -291,9 +304,10 @@ tr:last-child td{border-bottom:0}
     $('cfgSub').textContent = canEdit ? 'R3 配置本院全部公开资料、项目/惠民服务、七步流程和互动活动；保存并发布后同步到患者端。' : '只读查看本院公开配置。需要修改请联系本院 R3；订阅和系统字段只能由开发者控制台修改。';
     $('cfgEdit').hidden = true; $('cfgJson').hidden = true; $('cfgSave').disabled = true;
     $('membersCard').hidden = !canEdit;
+    $('eventsCard').hidden = false;
     renderRoles(); renderChat();
     if (renewToken && !renewLocated) locateRenewal();
-    else loadTenantData();
+    else { loadTenantData(); loadEvents(); }
   }
 
   function check() {
@@ -359,8 +373,12 @@ tr:last-child td{border-bottom:0}
     if (!c.services || typeof c.services !== 'object' || Array.isArray(c.services)) c.services = {};
     Object.keys(c.services).forEach(function (id) {
       var s = c.services[id], base = newService(id); Object.keys(base).forEach(function (key) { if (s[key] === undefined) s[key] = base[key]; });
-      s.service_id = id; if (!Array.isArray(s.steps) || s.steps.length !== 7) s.steps = emptySteps();
+      s.service_id = id;
+      // 不再静默替换成空白七步：少于七步补空位；多于七步保留原文，保存时由服务端校验拦住，避免丢数据。
+      if (!Array.isArray(s.steps)) s.steps = [];
+      while (s.steps.length < 7) s.steps.push({ step: s.steps.length + 1, text: '', materials: [], time: '', location: '', official_url: '' });
       s.steps.forEach(function (step, i) { step.step = i + 1; ['text', 'time', 'location', 'official_url'].forEach(function (key) { if (step[key] === undefined) step[key] = ''; }); if (step.materials === undefined) step.materials = []; });
+      if (s.steps.length !== 7) setCfgMsg('服务 ' + id + ' 有 ' + s.steps.length + ' 步，必须人工合并为 7 步后才能保存；已保留原内容，不会自动截断。', false);
     });
     c.act.forEach(function (a) { if (!Array.isArray(a.items)) a.items = []; });
     return c;
@@ -881,6 +899,40 @@ tr:last-child td{border-bottom:0}
     var scan = e.target.closest('[data-scan]');
     if (scan) scanRenewal(scan.getAttribute('data-scan') || '', scan);
   });
+
+  function evRow(r) {
+    var when = r.occurred_at ? new Date(r.occurred_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '';
+    var kindMap = { followup: '复诊打卡', journey: '流程完成', redeem: '活动核销' };
+    return '<tr><td>' + esc(when) + '</td><td>' + esc(kindMap[r.kind] || r.kind || '') + '</td><td>' + esc(r.activity || '') + '</td><td>' + esc(r.prize || '') + '</td><td>' + (r.patient_name ? '实名' : '匿名') + '</td></tr>';
+  }
+  function loadEvents(month) {
+    if (!tenant) { setMsg('evMsg', '当前账号还没有所属医院', false); return; }
+    var url = '/api/staff/events?tenant_id=' + encodeURIComponent(tenant);
+    if (month) url += '&month=' + encodeURIComponent(month);
+    setMsg('evMsg', '正在读取…');
+    api(url).then(function (r) {
+      if (!tenant) return;
+      if (r.status === 401) { showLogin('登录已失效，请重新登录'); return; }
+      if (!r.ok || !r.data || !r.data.ok) { setMsg('evMsg', (r.data && r.data.msg) || '读取事件失败', false); $('evRows').innerHTML = ''; return; }
+      if (r.data.report) {
+        var p = r.data.report, acts = p.activities && typeof p.activities === 'object' ? Object.keys(p.activities).map(function (k) { return k + '：' + p.activities[k]; }).join('；') : '';
+        $('evSummary').textContent = p.month + ' 共 ' + p.total + ' 条（实名 ' + p.named + ' / 匿名 ' + p.anonymous + '）' + (acts ? '；活动：' + acts : '');
+        $('evRows').innerHTML = '';
+        setMsg('evMsg', '月报只做汇总，不返回患者明细；纸质登记仍是核销依据。', true);
+        return;
+      }
+      var rows = Array.isArray(r.data.rows) ? r.data.rows : [];
+      $('evRows').innerHTML = rows.map(evRow).join('');
+      $('evSummary').textContent = '最近 ' + rows.length + ' 条（上限 300），不含跨院数据。';
+      setMsg('evMsg', rows.length ? '读取完成。' : '最近没有事件记录。', true);
+    }).catch(function () { if (tenant) setMsg('evMsg', '网络异常，读取事件失败', false); });
+  }
+  $('evLoad').addEventListener('click', function () {
+    var v = String($('evMonth').value || '').trim();
+    if (!/^\d{4}-\d{2}$/.test(v)) { setMsg('evMsg', '请先选择月份', false); return; }
+    loadEvents(v);
+  });
+  $('evRecent').addEventListener('click', function () { loadEvents(''); });
 
   $('loginForm').addEventListener('submit', function (e) {
     e.preventDefault();

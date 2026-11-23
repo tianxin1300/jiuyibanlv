@@ -142,7 +142,7 @@ select:focus{border-color:#9dbcf7;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
       <p class="hint" style="margin:0 0 14px">仅用于患者有效期访问，与医院续费二维码严格分开。价格口径待确认。</p>
       <div class="ledger-form">
         <div><label for="accessTenant">医院（可选择或输入 tenant_id）</label><input id="accessTenant" list="tenantOptions" placeholder="如 hosp-demo-001"></div>
-        <div><label for="accessPlan">有效期方案</label><select id="accessPlan"><option value="trial7">试用7天</option><option value="trial30">试用30天</option><option value="year">年约1年</option></select></div>
+        <div><label for="accessPlan">有效期方案</label><select id="accessPlan"><option value="trial7">试用 7 天</option><option value="quarter">3 个月</option><option value="year">年约 1 年</option></select></div>
         <button id="accessGenerate" class="btn" type="button">生成患者二维码</button>
       </div>
       <p id="accessMsg" class="msg" role="status"></p>
@@ -155,7 +155,7 @@ select:focus{border-color:#9dbcf7;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
       <p class="hint" style="margin:0 0 14px">仅用于医院续期台账，与患者有效期二维码严格分开；不发生真实扣款。价格口径待确认。</p>
       <div class="ledger-form">
         <div><label for="renewalTenant">医院（可选择或输入 tenant_id）</label><input id="renewalTenant" list="tenantOptions" placeholder="如 hosp-demo-001"></div>
-        <div><label for="renewalPlan">续期方案</label><select id="renewalPlan"><option value="trial">试用</option><option value="year">年约</option></select></div>
+        <div><label for="renewalPlan">续期方案</label><select id="renewalPlan"><option value="trial7">续期 7 天</option><option value="quarter">续期 3 个月</option><option value="year">年约 1 年</option></select></div>
         <button id="renewalGenerate" class="btn" type="button">生成续费二维码</button>
       </div>
       <p id="renewalMsg" class="msg" role="status"></p>
@@ -203,7 +203,16 @@ select:focus{border-color:#9dbcf7;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
     </div>
   </section>
   <section class="panel" id="panel-audit" hidden><h2>审计日志</h2><div class="tw"><table><thead><tr><th>时间</th><th>操作</th><th>对象</th><th>IP</th></tr></thead><tbody id="tbAudit"></tbody></table></div><div id="emptyAudit" class="empty" hidden>还没有审计记录</div></section>
-  <section class="panel" id="panel-backups" hidden><h2>备份快照</h2><div class="tw"><table><thead><tr><th>Key</th><th>时间</th><th>范围</th></tr></thead><tbody id="tbBackups"></tbody></table></div><div id="emptyBackups" class="empty" hidden>还没有备份快照</div></section>
+  <section class="panel" id="panel-backups" hidden><h2>备份与恢复</h2>
+    <p class="hint" style="margin:0 0 12px">恢复和清除都会先自动生成清除前/恢复前快照；测试清除只允许在 APP_ENV=test 使用。医院数据只按租户隔离处理。</p>
+    <div class="ledger-form">
+      <div><label for="bkTenant">医院 tenant_id（留空=全部备份；恢复/清除必须填写）</label><input id="bkTenant" list="tenantOptions" placeholder="如 hosp-demo-001"></div>
+      <button id="bkRun" class="btn" type="button">立即备份</button>
+      <button id="bkClearTest" class="btn ghost" type="button">清除测试数据</button>
+      <button id="bkClearTenant" class="btn ghost" type="button" style="color:var(--danger);border-color:var(--danger)">清除该院数据</button>
+    </div>
+    <p id="bkMsg" class="msg" role="status"></p>
+    <div class="tw"><table><thead><tr><th>备份 ID</th><th>时间</th><th>范围</th><th>条目</th><th>大小</th><th>操作</th></tr></thead><tbody id="tbBackups"></tbody></table></div><div id="emptyBackups" class="empty" hidden>还没有备份快照</div></section>
 </main>
 
 <div id="dlg" class="mask" hidden>
@@ -474,10 +483,60 @@ select:focus{border-color:#9dbcf7;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
   }
   function renderBackups(rows) {
     $('tbBackups').innerHTML = rows.map(function (b) {
-      return '<tr><td class="mono">' + esc(b.key) + '</td><td>' + fmt(b.at || b.created || b.time) + '</td><td class="mono">' + esc(b.tenant_id || b.scope || '') + '</td></tr>';
+      return '<tr><td class="mono">' + esc(b.id || b.key) + '</td><td>' + fmt(b.created_at || b.at || b.created) + '</td><td class="mono">' + esc(b.tenant_id || '全部') + '</td><td>' + esc(b.count == null ? '' : b.count) + '</td><td>' + esc(b.bytes == null ? '' : Math.ceil(b.bytes / 1024) + ' KB') + '</td><td><button class="btn ghost small" type="button" data-restore="' + esc(b.id || b.key) + '">按院恢复</button></td></tr>';
     }).join('');
     $('emptyBackups').hidden = rows.length > 0;
   }
+  function setBkMsg(t, ok) {
+    var el = $('bkMsg'); el.textContent = t || '';
+    el.className = 'msg' + (t ? (ok ? ' ok' : ' err') : '');
+  }
+  function bkTenant() {
+    var v = String($('bkTenant').value || '').trim();
+    return /^[A-Za-z0-9][A-Za-z0-9._:-]{1,127}$/.test(v) ? v : '';
+  }
+  $('bkRun').addEventListener('click', function () {
+    var t = bkTenant();
+    setBkMsg('正在生成备份…');
+    api('/api/admin/backups/run', { method: 'POST', body: JSON.stringify(t ? { tenant_id: t } : {}) }).then(function (r) {
+      if (!r.ok || !r.data || !r.data.ok) { setBkMsg((r.data && r.data.msg) || '备份失败', false); return; }
+      setBkMsg('备份已生成：' + r.data.backup.id + '（' + r.data.backup.count + ' 项）', true);
+      loadAll();
+    }).catch(function () { setBkMsg('网络异常，备份失败', false); });
+  });
+  $('bkClearTest').addEventListener('click', function () {
+    if (!confirm('仅测试环境可用：确认清除测试备份、医疗摘要和事件数据？')) return;
+    api('/api/admin/clear-test', { method: 'POST', body: JSON.stringify({ confirm: 'CLEAR-TEST' }) }).then(function (r) {
+      setBkMsg((r.data && r.data.msg) || (r.ok && r.data && r.data.ok ? '已清除 ' + r.data.removed + ' 项' : '清除失败'), !!(r.ok && r.data && r.data.ok));
+      loadAll();
+    }).catch(function () { setBkMsg('网络异常，清除失败', false); });
+  });
+  $('bkClearTenant').addEventListener('click', function () {
+    var t = bkTenant();
+    if (!t) { setBkMsg('请先填写要清除的医院 tenant_id', false); return; }
+    var typed = prompt('这会清除该医院的订阅、患者码、目录、事件和医疗摘要（不可撤回）。\n请输入完整 tenant_id 二次确认：');
+    if (typed == null) return;
+    if (String(typed).trim() !== t) { setBkMsg('输入的 tenant_id 不一致，已取消', false); return; }
+    setBkMsg('正在生成清除前快照并清除…');
+    api('/api/admin/clear-tenant', { method: 'POST', body: JSON.stringify({ tenant_id: t, confirm: t }) }).then(function (r) {
+      setBkMsg((r.data && r.data.msg) || (r.ok && r.data && r.data.ok ? '已清除 ' + r.data.removed + ' 项' : '清除失败'), !!(r.ok && r.data && r.data.ok));
+      loadAll();
+    }).catch(function () { setBkMsg('网络异常，清除失败', false); });
+  });
+  $('panel-backups').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-restore]');
+    if (!b) return;
+    var id = b.getAttribute('data-restore'), t = bkTenant();
+    if (!t) { setBkMsg('按院恢复必须先填写医院 tenant_id', false); return; }
+    var typed = prompt('恢复会用所选备份覆盖该医院当前数据，并先自动保存恢复前快照。\n请输入完整 tenant_id 二次确认：');
+    if (typed == null) return;
+    if (String(typed).trim() !== t) { setBkMsg('输入的 tenant_id 不一致，已取消', false); return; }
+    setBkMsg('正在恢复…');
+    api('/api/admin/backups/restore', { method: 'POST', body: JSON.stringify({ backup_id: id, tenant_id: t, confirm: t }) }).then(function (r) {
+      setBkMsg((r.data && r.data.msg) || (r.ok && r.data && r.data.ok ? '已恢复 ' + r.data.restored + ' 项' : '恢复失败'), !!(r.ok && r.data && r.data.ok));
+      loadAll();
+    }).catch(function () { setBkMsg('网络异常，恢复失败', false); });
+  });
   function renderStaff(rows) {
     $('tbStaff').innerHTML = rows.map(function (s) {
       return '<tr><td class="mono">' + esc(s.username) + '</td><td>' + (s.staff ? '<span class="chip ok">已开通</span>' : '<span class="chip">普通账号</span>') + '</td><td class="mono">' + esc((s.roles || []).join(' ') || '—') + '</td><td class="mono">' + esc((s.tenant_ids || []).join(' ') || '—') + '</td><td><button class="btn ghost small" type="button" data-staff="' + esc(s.username) + '" data-roles="' + esc((s.roles || []).join(',')) + '" data-tenants="' + esc((s.tenant_ids || []).join(',')) + '">编辑</button></td></tr>';
