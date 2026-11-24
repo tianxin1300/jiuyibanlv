@@ -41,8 +41,26 @@
     try { localStorage.setItem("ca_tts", ttsOn ? "1" : "0"); } catch (e) {}
     document.querySelectorAll(".ca-spk").forEach(function (b) { b.classList.toggle("on", ttsOn); b.innerHTML = ttsOn ? ICON_SPK_ON : ICON_SPK_OFF; b.setAttribute("aria-pressed", ttsOn ? "true" : "false"); });
   }
-  function speak(text) {
-    if (!ttsOn || !text) return;
+  /* 到点提醒的提示音：WebAudio 合成「叮咚」，不依赖朗读开关；首次触摸页面时解锁音频（浏览器要求先有用户操作） */
+  var actx = null;
+  function audioCtx() { try { if (!actx) { var AC = window.AudioContext || window.webkitAudioContext; if (AC) actx = new AC(); } } catch (e) {} return actx; }
+  function unlockAudio() { var c = audioCtx(); if (c && c.state === "suspended") { try { c.resume(); } catch (e) {} } }
+  ["pointerdown", "touchstart", "keydown", "click"].forEach(function (ev) { document.addEventListener(ev, unlockAudio, { passive: true }); });
+  function chime() {
+    var c = audioCtx(); if (!c) return;
+    try {
+      if (c.state === "suspended") c.resume();
+      [[880, 0], [1175, .22], [880, .62], [1175, .84]].forEach(function (n) {
+        var o = c.createOscillator(), g = c.createGain(), t0 = c.currentTime + n[1];
+        o.type = "sine"; o.frequency.value = n[0];
+        g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.35, t0 + .03); g.gain.exponentialRampToValueAtTime(0.0001, t0 + .5);
+        o.connect(g); g.connect(c.destination); o.start(t0); o.stop(t0 + .55);
+      });
+    } catch (e) {}
+    try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
+  }
+  function speak(text, force) {
+    if ((!ttsOn && !force) || !text) return;
     try {
       if (!("speechSynthesis" in window)) return;
       window.speechSynthesis.cancel();
@@ -175,7 +193,24 @@
       "#caRemPanel .rm-ok{border:1px solid rgba(150,170,255,.35);background:rgba(255,255,255,.06);color:#dfe6ff}",
       "#caRemPanel .rm-del{border:1px solid rgba(255,120,120,.35);background:rgba(255,90,90,.12);color:#ffb3ab}",
       "#caRemPanel .rm-empty{color:#8f9cd6;font-size:13px;padding:16px 0;text-align:center}",
-      "#caRemPanel .rm-ft{font-size:11px;color:#7f8cc4;margin-top:10px;line-height:1.55}"
+      "#caRemPanel .rm-ft{font-size:11px;color:#7f8cc4;margin-top:10px;line-height:1.55}",
+      "@media (prefers-color-scheme:light){",
+      "#caBell{background:rgba(255,255,255,.9);border-color:rgba(70,95,200,.3);color:#3f59e6}",
+      "#caBell.has{color:#2f46c8;border-color:#5b7cff;box-shadow:0 0 0 3px rgba(91,124,255,.16),0 6px 18px -8px rgba(80,100,255,.6)}",
+      "#caRemPanel{background:#fff;border-color:rgba(70,95,200,.24);box-shadow:0 24px 60px -24px rgba(30,45,140,.45)}",
+      "#caRemPanel .rm-h b,#caRemPanel .rm-t{color:#1b2456}",
+      "#caRemPanel .rm-x{background:rgba(79,107,255,.1);color:#4a5890}",
+      "#caRemPanel input,#caRemPanel textarea{background:#f6f8ff;border-color:rgba(70,95,200,.28);color:#1b2456;-webkit-text-fill-color:#1b2456}",
+      "#caRemPanel input::placeholder,#caRemPanel textarea::placeholder{color:#8a95bf;-webkit-text-fill-color:#8a95bf}",
+      "#caRemPanel .rm-q button{background:#fff;border-color:rgba(70,95,200,.26);color:#2b3677}",
+      "#caRemPanel .rm-hint,#caRemPanel .rm-empty,#caRemPanel .rm-ft,#caRemPanel .rm-d.n{color:#6573a8}",
+      "#caRemPanel .rm-d{color:#3f59e6}",
+      "#caRemPanel .rm-d::before{background:#f0a500;box-shadow:none}",
+      "#caRemPanel .rm-it{border-bottom-color:rgba(70,95,200,.14)}",
+      "#caRemPanel .rm-ok{background:#fff;border-color:rgba(70,95,200,.3);color:#2b3677}",
+      "#caRemPanel .rm-del{background:rgba(230,70,70,.08);border-color:rgba(230,70,70,.35);color:#c23a31}",
+      ".ca-flash{background:#fff!important;color:#1b2456!important;border-color:rgba(70,95,200,.3)!important;box-shadow:0 16px 40px -14px rgba(30,45,140,.5)!important}",
+      "}"
     ].join("\n");
     document.head.appendChild(s);
   }
@@ -258,9 +293,11 @@
   function doneReminder(id) { return api("/api/reminders/done", { method: "POST", body: { id: id } }).then(refreshReminders); }
   function delReminder(id) { return api("/api/reminders/delete", { method: "POST", body: { id: id } }).then(refreshReminders); }
   function notifyReminder(t) {
-    speak("提醒：" + t.text);
+    chime();
+    setTimeout(function () { speak("提醒：" + t.text, true); }, 1500);
     try { if ("Notification" in window && Notification.permission === "granted") new Notification("就医伴侣提醒", { body: t.text + (t.due ? "（原定 " + t.due + "）" : ""), tag: t.id }); } catch (e) {}
     var flash = document.createElement("div");
+    flash.className = "ca-flash";
     flash.style.cssText = "position:fixed;left:50%;top:70px;transform:translateX(-50%);background:linear-gradient(160deg,rgba(24,38,122,.98),rgba(10,16,72,.98));color:#eef1ff;border:1px solid rgba(150,166,255,.35);border-left:4px solid #ffe86b;border-radius:14px;padding:11px 16px;box-shadow:0 16px 40px -14px rgba(0,0,40,.8);z-index:8500;max-width:90vw;font-size:14px";
     flash.innerHTML = "<b>提醒</b><div>" + escHtml(t.text) + "</div>";
     document.body.appendChild(flash);
