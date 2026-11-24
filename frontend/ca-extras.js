@@ -32,7 +32,7 @@
   /* 线条图标（24 格 / 描边 1.8 / 圆角，与页面其它图标同一规格） */
   var ICON_MIC = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3"/></svg>';
   var ICON_SPK_ON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 9.5a4 4 0 0 1 0 5M18.5 7a8 8 0 0 1 0 10"/></svg>';
-  var ICON_SPK_OFF = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9.5 5 5M21 9.5l-5 5"/></svg>';
+  var ICON_SPK_OFF = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/></svg>';
 
   /* ---------- TTS 朗读 ---------- */
   var ttsOn = (function () { try { return localStorage.getItem("ca_tts") === "1"; } catch (e) { return false; } })();
