@@ -13,13 +13,13 @@
   })();
   var token = function () { try { return localStorage.getItem("admin_token") || localStorage.getItem("staff_token") || localStorage.getItem("care_token") || ""; } catch (e) { return ""; } };
   function authHeaders(extra) {
-    var h = { "Content-Type": "application/json" }; var t = token(); if (t) h.Authorization = "Bearer " + t;
+    var h = { "Content-Type": "application/json" };   // 提醒接口按 uid 识别，不需要也不应带院方/管理员令牌
     if (extra) for (var k in extra) h[k] = extra[k]; return h;
   }
   function api(path, opts) {
     opts = opts || {};
     var url = base() + path;
-    var q = opts.query || {}; q.uid = uid; var t = token(); if (t) q.token = t;
+    var q = opts.query || {}; q.uid = uid;   // 只带浏览器标识；不再把院方/管理员令牌拼进 URL（会进日志、历史记录）
     var qs = Object.keys(q).map(function (k) { return encodeURIComponent(k) + "=" + encodeURIComponent(q[k] == null ? "" : q[k]); }).join("&");
     if (qs) url += (url.indexOf("?") >= 0 ? "&" : "?") + qs;
     // 后端 POST 只从请求体取 uid（跨域不放行自定义请求头），所以体里必须带上，不能只拼在 URL 上
@@ -214,8 +214,9 @@
     ].join("\n");
     document.head.appendChild(s);
   }
+  var isBackOffice = /(^|\/)(staff|console)(\.html)?\/?$/.test(location.pathname);   // 院方工作台 / 管理控制台不是患者端，不挂「个人提醒」铃铛
   function ensureBell() {
-    if (document.getElementById("caBell")) return;
+    if (isBackOffice || document.getElementById("caBell")) return;
     injectStyle();
     var b = document.createElement("button"); b.id = "caBell"; b.type = "button"; b.title = "提醒";
     b.setAttribute("aria-label", "提醒");
@@ -356,8 +357,9 @@
     enhanceStaticPanels();
     scanDynamic();
     speakNew();
-    refreshReminders();
     setTimeout(function () { warmedUp = true; }, 2500);
+    if (isBackOffice) return;      // 院方/管理端：只要语音输入/朗读，不拉取、不弹个人提醒，也不申请通知权限
+    refreshReminders();
     setTimeout(pollDue, 6000);
     setInterval(pollDue, 45000);
     // 用户第一次交互时请求通知权限（浏览器策略要求）
