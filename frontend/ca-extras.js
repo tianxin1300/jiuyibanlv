@@ -29,12 +29,17 @@
       .then(function (r) { return r.json().catch(function () { return ({}); }).then(function (j) { return { ok: r.ok, status: r.status, data: j }; }); });
   }
 
+  /* 线条图标（24 格 / 描边 1.8 / 圆角，与页面其它图标同一规格） */
+  var ICON_MIC = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3"/></svg>';
+  var ICON_SPK_ON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 9.5a4 4 0 0 1 0 5M18.5 7a8 8 0 0 1 0 10"/></svg>';
+  var ICON_SPK_OFF = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9.5 5 5M21 9.5l-5 5"/></svg>';
+
   /* ---------- TTS 朗读 ---------- */
   var ttsOn = (function () { try { return localStorage.getItem("ca_tts") === "1"; } catch (e) { return false; } })();
   function setTts(on) {
     ttsOn = !!on;
     try { localStorage.setItem("ca_tts", ttsOn ? "1" : "0"); } catch (e) {}
-    document.querySelectorAll(".ca-spk").forEach(function (b) { b.classList.toggle("on", ttsOn); b.textContent = ttsOn ? "🔊" : "🔈"; });
+    document.querySelectorAll(".ca-spk").forEach(function (b) { b.classList.toggle("on", ttsOn); b.innerHTML = ttsOn ? ICON_SPK_ON : ICON_SPK_OFF; b.setAttribute("aria-pressed", ttsOn ? "true" : "false"); });
   }
   function speak(text) {
     if (!ttsOn || !text) return;
@@ -77,18 +82,19 @@
   }
 
   /* ---------- 给输入条注入 🎤 / 🔊 按钮 ---------- */
-  function vbtn(title, cls, txt, onclick) {
-    var b = document.createElement("button"); b.type = "button"; b.title = title; b.className = cls; b.textContent = txt;
-    b.style.cssText = "border:1px solid rgba(148,163,184,.5);background:#fff;color:#334155;border-radius:10px;padding:6px 10px;font-size:13px;cursor:pointer;line-height:1";
-    b.onclick = onclick; return b;
+  function vbtn(title, cls, icon, onclick) {
+    injectStyle();
+    var b = document.createElement("button"); b.type = "button"; b.title = title; b.className = cls; b.innerHTML = icon;
+    b.setAttribute("aria-label", title); b.onclick = onclick; return b;
   }
   function injectVoiceButtons(bar, getInput) {
     if (!bar || bar.querySelector(".ca-mic, .ca-spk")) return;
-    if (voiceSupported) {
-      var mic = vbtn("语音输入", "ca-mic", "🎤", function () { var ta = getInput(); openVoice(function (t) { if (ta) { ta.value = (ta.value ? ta.value + " " : "") + t; ta.focus(); } }); });
+    var nativeMic = !!bar.querySelector('[data-act="aivoice"]');   // 页面自带「语音」按钮时，不再重复注入麦克风
+    if (voiceSupported && !nativeMic) {
+      var mic = vbtn("语音输入", "ca-mic", ICON_MIC, function () { var ta = getInput(); openVoice(function (t) { if (ta) { ta.value = (ta.value ? ta.value + " " : "") + t; ta.focus(); } }); });
       bar.insertBefore(mic, bar.firstChild);
     }
-    var spk = vbtn("朗读回复", "ca-spk" + (ttsOn ? " on" : ""), ttsOn ? "🔊" : "🔈", function () { setTts(!ttsOn); if (ttsOn) speak("已开启朗读，下次回复会自动读出来。"); });
+    var spk = vbtn("朗读回复", "ca-spk" + (ttsOn ? " on" : ""), ttsOn ? ICON_SPK_ON : ICON_SPK_OFF, function () { setTts(!ttsOn); if (ttsOn) speak("已开启朗读，下次回复会自动读出来。"); });
     bar.insertBefore(spk, bar.firstChild);
   }
   function enhanceStaticPanels() {
@@ -141,9 +147,15 @@
       "#caRemPanel .rm-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}",
       "#caRemPanel .rm-h b{font-size:16px;letter-spacing:.02em;color:#f4f6ff}",
       "#caRemPanel .rm-x{border:0;background:rgba(255,255,255,.08);color:#b7c3f3;width:30px;height:30px;border-radius:50%;font-size:18px;line-height:1;cursor:pointer}",
-      "#caRemPanel input{width:100%;box-sizing:border-box;background:rgba(4,9,50,.6);border:1px solid rgba(150,166,255,.28);color:#eef1ff;-webkit-text-fill-color:#eef1ff;border-radius:11px;padding:10px 12px;font:inherit;font-size:15px;outline:0}",
-      "#caRemPanel input:focus{border-color:#8aa2ff;box-shadow:0 0 0 3px rgba(122,146,255,.25)}",
-      "#caRemPanel input::placeholder{color:#7d8bc6;-webkit-text-fill-color:#7d8bc6}",
+      ".ca-mic,.ca-spk{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;padding:0;border:1px solid rgba(148,163,184,.5);background:#fff;color:#334155;border-radius:10px;cursor:pointer;flex:none}",
+      ".ca-mic svg,.ca-spk svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}",
+      ".ca-spk.on{color:#2563eb;border-color:#2563eb}",
+      "textarea{transition:height .16s ease}",
+      "@media (prefers-reduced-motion:reduce){textarea{transition:none!important}}",
+      "#caRemPanel textarea{display:block;min-height:44px;line-height:1.5;overflow:hidden}",
+      "#caRemPanel input,#caRemPanel textarea{width:100%;box-sizing:border-box;background:rgba(4,9,50,.6);border:1px solid rgba(150,166,255,.28);color:#eef1ff;-webkit-text-fill-color:#eef1ff;border-radius:11px;padding:10px 12px;font:inherit;font-size:15px;outline:0}",
+      "#caRemPanel input:focus,#caRemPanel textarea:focus{border-color:#8aa2ff;box-shadow:0 0 0 3px rgba(122,146,255,.25)}",
+      "#caRemPanel input::placeholder,#caRemPanel textarea::placeholder{color:#7d8bc6;-webkit-text-fill-color:#7d8bc6}",
       "#caRemPanel .rm-q{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}",
       "#caRemPanel .rm-q button{border:1px solid rgba(150,166,255,.28);background:rgba(255,255,255,.06);color:#cdd6ff;border-radius:999px;padding:7px 12px;font:inherit;font-size:12.5px;cursor:pointer}",
       "#caRemPanel .rm-q button:active{background:rgba(123,147,255,.28);color:#fff}",
@@ -213,7 +225,7 @@
         + '</div><button class="rm-ok" data-rm-done="' + escHtml(t.id) + '">完成</button><button class="rm-del" data-rm-del="' + escHtml(t.id) + '">删除</button></div>';
     }).join("");
     p.innerHTML = '<div class="rm-h"><b>提醒</b><button class="rm-x" id="caRemClose" aria-label="关闭">×</button></div>'
-      + '<input id="caRemText" placeholder="提醒内容，例如：就医" maxlength="100">'
+      + '<textarea id="caRemText" rows="1" placeholder="提醒内容，例如：就医" maxlength="200"></textarea>'
       + '<div class="rm-q"><button type="button" data-q="10m">10 分钟后</button><button type="button" data-q="tn">今晚 8 点</button><button type="button" data-q="tm">明早 9 点</button></div>'
       + '<div class="rm-row"><input id="caRemWhen" type="datetime-local" step="60" min="' + bjStr(Date.now()) + '" aria-label="提醒时间（可不选）"><button id="caRemAdd" class="rm-add">添加</button></div>'
       + '<div class="rm-hint">点上面的快捷时间，或自己选；不选时间就只记待办，不提醒（北京时间）。</div>'
@@ -276,6 +288,32 @@
   };
 
   /* ---------- 启动 ---------- */
+  /* ---------- 输入框自适应高度：随输入长高，删字回弹 ---------- */
+  function fitTa(t) {
+    if (!t || t.tagName !== "TEXTAREA" || t.hasAttribute("data-no-grow")) return;
+    if (!t.clientWidth) return;                                   // 隐藏中（折叠/未显示），显示后再算
+    var key = t.value + "|" + t.clientWidth;
+    if (t._caKey === key) return; t._caKey = key;                 // 内容和宽度没变就不重算，避免无谓重排
+    var min = parseFloat(getComputedStyle(t).minHeight) || 0;
+    var max = Math.max(min, Math.round(window.innerHeight * 0.45));
+    var border = t.offsetHeight - t.clientHeight, prev = t.offsetHeight;
+    t.style.transition = "none"; t.style.height = "auto";
+    var need = t.scrollHeight + border;
+    var h = Math.max(min, Math.min(need, max));
+    t.style.height = prev + "px"; void t.offsetHeight;            // 从当前高度出发，才有长高/回弹动画
+    t.style.transition = ""; t.style.height = h + "px";
+    t.style.overflowY = need > max ? "auto" : "hidden";
+  }
+  function fitAllTa() { var l = document.getElementsByTagName("textarea"); for (var i = 0; i < l.length; i++) fitTa(l[i]); }
+  document.addEventListener("input", function (e) { if (e.target && e.target.tagName === "TEXTAREA") fitTa(e.target); }, true);
+  document.addEventListener("focusin", function (e) { if (e.target && e.target.tagName === "TEXTAREA") fitTa(e.target); }, true);
+  document.addEventListener("toggle", function () { requestAnimationFrame(fitAllTa); }, true);
+  window.addEventListener("resize", function () { clearTimeout(fitAllTa._t); fitAllTa._t = setTimeout(fitAllTa, 120); });
+  try {                                                           // 程序里 ta.value = "" 清空（如发送后）也要回弹
+    var vd = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
+    if (vd && vd.set) Object.defineProperty(HTMLTextAreaElement.prototype, "value", { configurable: true, get: vd.get, set: function (v) { vd.set.call(this, v); var el = this; requestAnimationFrame(function () { fitTa(el); }); } });
+  } catch (e) {}
+
   function boot() {
     ensureBell();
     enhanceStaticPanels();
@@ -293,5 +331,5 @@
   else boot();
 
   // 动态渲染的输入条 / 新回复：用观察器兜底（患者端 CARE_UI 每次发消息会重渲染）
-  setInterval(function () { enhanceStaticPanels(); scanDynamic(); speakNew(); }, 800);
+  setInterval(function () { enhanceStaticPanels(); scanDynamic(); speakNew(); fitAllTa(); }, 800);
 })();

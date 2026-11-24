@@ -975,6 +975,33 @@ h1{font-size:20px!important;margin:2px 0 6px!important}
 :root:root:root body:not(.pvmode) .mod{font-size:var(--fs-m)!important}
 :root:root:root body:not(.pvmode) details.card:not([open]){padding-top:8px!important;padding-bottom:8px!important}
 :root:root:root body:not(.pvmode) .ca-mic,:root:root:root body:not(.pvmode) .ca-spk{background:rgba(255,255,255,.06)!important;color:#dfe5ff!important;border:1px solid rgba(160,176,255,.28)!important;border-radius:12px!important;min-height:var(--h-btn)!important;min-width:var(--h-btn)!important;font-size:17px!important;padding:0 12px!important;line-height:1!important}
+:root:root:root{--i-dn:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239db1ff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");--i-up:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239db1ff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 15 6-6 6 6'/%3E%3C/svg%3E");--i-plus:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239db1ff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E");--i-chk:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E")}
+:root:root:root body:not(.pvmode) svg.ci{width:1.2em;height:1.2em;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.22em;margin-right:.45em}
+:root:root:root body:not(.pvmode) svg.ci.on{fill:currentColor}
+:root:root:root body:not(.pvmode) svg.ci.r{margin:0 0 0 .15em;width:1.1em;height:1.1em;vertical-align:-.18em}
+:root:root:root body:not(.pvmode) button svg.ci,:root:root:root body:not(.pvmode) .chip svg.ci{margin-right:0}
+:root:root:root body:not(.pvmode) button svg.ci.r{margin-left:0}
+:root:root:root body:not(.pvmode) .chip{display:inline-flex!important;align-items:center;gap:6px}
+:root:root:root body:not(.pvmode) .airc svg.ci.r{margin:0;width:20px;height:20px}
+:root:root:root body:not(.pvmode) details>summary{list-style:none!important;position:relative;padding-right:30px!important}
+:root:root:root body:not(.pvmode) details>summary::-webkit-details-marker{display:none!important}
+:root:root:root body:not(.pvmode) details>summary::marker{content:""!important}
+:root:root:root body:not(.pvmode) details>summary::before{content:none!important}
+:root:root:root body:not(.pvmode) details>summary::after{content:""!important;position:absolute!important;right:2px;top:50%;width:18px;height:18px;margin:-9px 0 0!important;float:none!important;font-size:0!important;background:var(--i-dn) center/18px no-repeat!important}
+:root:root:root body:not(.pvmode) details[open]>summary::after{background-image:var(--i-up)!important}
+:root:root:root body:not(.pvmode) details.more>summary{padding-right:16px!important}
+:root:root:root body:not(.pvmode) details.more>summary::after{position:static!important;display:inline-block!important;margin:0 0 0 6px!important;width:16px;height:16px;background-size:16px!important}
+:root:root:root body:not(.pvmode) .tip>summary::after,:root:root:root body:not(.pvmode) .pv>summary::after{content:"展开"!important;position:static!important;width:auto!important;height:auto!important;margin:0 0 0 auto!important;padding-right:22px!important;font-size:var(--fs-s)!important;color:#9db1ff!important;font-weight:500!important;background:var(--i-dn) right center/16px no-repeat!important}
+:root:root:root body:not(.pvmode) .tip[open]>summary::after,:root:root:root body:not(.pvmode) .pv[open]>summary::after{content:"收起"!important;background-image:var(--i-up)!important}
+:root:root:root body:not(.pvmode) .tip>summary,:root:root:root body:not(.pvmode) .pv>summary{padding-right:0!important}
+:root:root:root body:not(.pvmode) .home-tools>summary,:root:root:root body:not(.pvmode) .home-more>summary,:root:root:root body:not(.pvmode) .other-visits>summary{padding-right:12px!important;text-align:center}
+:root:root:root body:not(.pvmode) .home-tools>summary::after,:root:root:root body:not(.pvmode) .home-more>summary::after,:root:root:root body:not(.pvmode) .other-visits>summary::after{position:static!important;display:inline-block!important;vertical-align:-4px;margin:0 0 0 6px!important;width:16px;height:16px;background-size:16px!important}
+:root:root:root body:not(.pvmode) .home-tools>summary::before{content:""!important;display:inline-block;width:18px;height:18px;vertical-align:-4px;margin-right:8px;background:var(--i-plus) center/18px no-repeat!important}
+:root:root:root body:not(.pvmode) .opts .opt[aria-pressed=true]::after{content:""!important;font-size:0!important;background:var(--i-chk) center/15px no-repeat,linear-gradient(135deg,#5b7cff,#8a5cff)!important}
+:root:root:root body:not(.pvmode) .ca-spk.on{color:#9db1ff!important;border-color:#8aa2ff!important;background:rgba(123,147,255,.2)!important}
+:root:root:root body:not(.pvmode) textarea{resize:none!important}
+:root:root:root body:not(.pvmode) #caRemPanel textarea{min-height:44px!important}
+:root:root:root body:not(.pvmode) .composer{border:1px solid rgba(146,163,255,.2)!important;border-radius:16px!important;padding:12px 14px!important;margin-top:12px!important}
 @keyframes caTwinkle{from{opacity:.55}to{opacity:1}}
 html:has(body.pvmode){background:#fff!important}
 :root:root:root body.pvmode{--ink:#111!important;--mute:#555!important;--line:#ccc!important;--card:#fff!important;--bg:#fff!important;background:#fff!important;color:#111!important}
@@ -2408,10 +2435,16 @@ function save() {
     return ok;
 }
 const esc = s => String(s !== null && s !== void 0 ? s : '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const SVGI = (d, cls) => `<svg class="ci${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+const I_PLUS = SVGI('<path d="M12 5v14M5 12h14"/>');
+const I_STAR = SVGI('<path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>');
+const I_STAR_ON = SVGI('<path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>', 'on');
+const I_CHECK = SVGI('<path d="m5 12.5 4.5 4.5L19 7.5"/>');
+const I_RIGHT = SVGI('<path d="m9 6 6 6-6 6"/>', 'r');
 const cur = () => S.profiles.find(p => p.id === S.cur);
 const niceMember = s => String(s || '').replace(/^示例（可删除）$/, '林女士').replace(/（可删除）/g, '').trim();
 const label = p => niceMember(p.member) + ' · ' + dn(p) + (p.disease === 'rare' ? (p.age === 'child' ? '(儿童)' : '(成人)') : '');
-function chips() { return `<div class="chips">${S.profiles.map(p => `<button class="chip" aria-pressed="${S.view === 'list' && p.id === S.cur}" data-act="pick" data-id="${p.id}" style="--c:${COL[p.disease]}">${esc(label(p))}</button>`).join('')}<button class="chip add" data-act="new">＋ 新建档案</button></div>`; }
+function chips() { return `<div class="chips">${S.profiles.map(p => `<button class="chip" aria-pressed="${S.view === 'list' && p.id === S.cur}" data-act="pick" data-id="${p.id}" style="--c:${COL[p.disease]}">${esc(label(p))}</button>`).join('')}<button class="chip add" data-act="new">${I_PLUS}新建档案</button></div>`; }
 const secs = p => { const F = D[p.disease].f, lo = S.lo || {}, K1 = ['diag', 'hosp', 'dept', 'dx', 'dnote'], K2 = ['allergy', 'flags', 'hist0'], g = (ks, n) => F.filter(f => n ? !K1.includes(f.k) && !K2.includes(f.k) : ks.includes(f.k)).map(f => field(f, p)).join(''), sec = (k, t, h, open) => h ? `<details class="fl sec" data-fk="${k}"${open ? ' open' : ''}><summary><b>${t}</b></summary>${h}</details>` : ''; return sec('sec_base', '基础信息与诊断', g(K1), !!lo.sec_base) + sec('sec_alg', '过敏与既往史', g(K2), !!lo.sec_alg) + sec('sec_main', '科室专项与记录', g(0, 1), lo.sec_main !== false); };
 function field(f, p) {
     const v = p.data[f.k];
@@ -2430,7 +2463,7 @@ function field(f, p) {
     }
     if (f.t === 'list') {
         const a = v || [];
-        return `<details class="fl" data-fk="${f.k}"${(S.lo || {})[f.k] ? ' open' : ''}><summary><b>${esc(f.l)}</b>（${a.length} 条）</summary>` + a.map((it, i) => `<div class="item"><div class="row">${f.cols.map(c => c.sel ? `<select data-l="${f.k}" data-i="${i}" data-c="${c.k}" aria-label="${c.l}"><option value="">${c.l}</option>${c.sel.map(o => `<option ${it[c.k] === o ? 'selected' : ''}>${o}</option>`).join('')}</select>` : `<input data-l="${f.k}" data-i="${i}" data-c="${c.k}" type="${c.date ? 'date' : 'text'}" aria-label="${c.l}" placeholder="${esc(c.ph || c.l)}" value="${esc(it[c.k])}">`).join('')}</div><button class="ghost" data-act="rm" data-f="${f.k}" data-i="${i}">删除这条</button></div>`).join('') + `<button class="ghost" data-act="addrow" data-f="${f.k}">＋ ${f.add}</button></details>`;
+        return `<details class="fl" data-fk="${f.k}"${(S.lo || {})[f.k] ? ' open' : ''}><summary><b>${esc(f.l)}</b>（${a.length} 条）</summary>` + a.map((it, i) => `<div class="item"><div class="row">${f.cols.map(c => c.sel ? `<select data-l="${f.k}" data-i="${i}" data-c="${c.k}" aria-label="${c.l}"><option value="">${c.l}</option>${c.sel.map(o => `<option ${it[c.k] === o ? 'selected' : ''}>${o}</option>`).join('')}</select>` : `<input data-l="${f.k}" data-i="${i}" data-c="${c.k}" type="${c.date ? 'date' : 'text'}" aria-label="${c.l}" placeholder="${esc(c.ph || c.l)}" value="${esc(it[c.k])}">`).join('')}</div><button class="ghost" data-act="rm" data-f="${f.k}" data-i="${i}">删除这条</button></div>`).join('') + `<button class="ghost" data-act="addrow" data-f="${f.k}">${I_PLUS}${f.add}</button></details>`;
     }
     return '';
 }
@@ -2788,7 +2821,7 @@ const kindList = p => [...new Set([...KINDS, ...(p.tl || []).map(r => r.kind)])]
 const tlFilter = (p, n) => n ? `<div class="row"><input id="tq" type="search" placeholder="搜索内容、医院、日期" value="${esc(S.q || '')}" aria-label="搜索"><select id="tkf" aria-label="按类型筛选"><option value="">全部类型</option>${kindList(p).map(k => `<option ${S.kf === k ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select></div>` : '';
 const editForm = (r, p) => `<div class="card hd"><h2>编辑记录</h2><label>记录类型</label><select id="ek">${kindList(p).map(k => `<option ${k === r.kind ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select><label>日期</label><input id="ed" type="date" value="${esc(r.date)}"><label>具体时间（可不填）</label><input id="eti" type="time" value="${esc(r.time || '')}"><label>医院 / 科室</label><input id="eh" value="${esc(r.hosp || '')}"><label>内容摘要</label><textarea id="et">${esc(r.text || '')}</textarea>${(r.fields || []).map((x, i) => `<label>${esc(x.n)}</label><input data-ef="${i}" value="${esc(x.v)}">`).join('')}${(r.imgs || []).length ? '<p class="sub">图片保持不变；如需更换图片，请删除这条记录后重新添加。</p>' : ''}<div class="bar"><button class="ghost" data-act="tlcancel">取消</button><button class="btn" data-act="tlupd" data-id="${r.id}">保存修改</button></div></div>`;
 function recCard(r, p) { if (S.edit === r.id)
-    return editForm(r, p); return `<div class="card"><div class="tlh"><b>${r.star ? '★ ' : ''}${esc(r.date)}${r.time ? ' ' + esc(r.time) : ''}</b><span class="tag">${esc(r.kind)}${r.tpl ? ' · ' + esc(r.tpl) : ''}</span></div>${r.hosp ? `<div class="sub">${esc(r.hosp)}</div>` : ''}<div class="tlt">${esc(r.text)}</div>${(r.fields || []).map(x => `<div class="tlt"><b>${esc(x.n)}</b>：${esc(x.v)}</div>`).join('')}${(r.imgs || []).length ? `<div class="thumbs">${r.imgs.map(k => `<img data-img="${k}" data-act="zoom" alt="已上传图片">`).join('')}</div>` : ''}<div class="row"><button class="ghost" data-act="tledit" data-id="${r.id}">编辑</button>${more(`<button class="ghost" data-act="tlstar" data-id="${r.id}">${r.star ? '★ 取消重点' : '☆ 设为重点'}</button><button class="ghost del" data-act="tldel" data-id="${r.id}">删除</button>`)}</div></div>`; }
+    return editForm(r, p); return `<div class="card"><div class="tlh"><b>${r.star ? I_STAR_ON : ''}${esc(r.date)}${r.time ? ' ' + esc(r.time) : ''}</b><span class="tag">${esc(r.kind)}${r.tpl ? ' · ' + esc(r.tpl) : ''}</span></div>${r.hosp ? `<div class="sub">${esc(r.hosp)}</div>` : ''}<div class="tlt">${esc(r.text)}</div>${(r.fields || []).map(x => `<div class="tlt"><b>${esc(x.n)}</b>：${esc(x.v)}</div>`).join('')}${(r.imgs || []).length ? `<div class="thumbs">${r.imgs.map(k => `<img data-img="${k}" data-act="zoom" alt="已上传图片">`).join('')}</div>` : ''}<div class="row"><button class="ghost" data-act="tledit" data-id="${r.id}">编辑</button>${more(`<button class="ghost" data-act="tlstar" data-id="${r.id}">${r.star ? I_STAR_ON + '取消重点' : I_STAR + '设为重点'}</button><button class="ghost del" data-act="tldel" data-id="${r.id}">删除</button>`)}</div></div>`; }
 function smData(p, rgo) {
     syncT(p);
     const d = p.data, rg = rgo || S.sr || '3m', days = { '3m': 92, '6m': 183, all: 36500 }[rg], lim = Date.now() - days * 864e5, inr = x => new Date(x).getTime() >= lim, sec = [], M = D[p.disease], B = [];
@@ -3161,7 +3194,7 @@ function visitFlowCard(p, nv) {
     const visitDone = p.data && p.data.visitDoneAt === nv;
     const day = d === 0 ? '今天' : d < 0 ? '已过期 ' + (-d) + ' 天' : d + ' 天后';
     const status = visitDone ? '用户确认已完成' : summaryDone ? '等待复诊' : calendarDone ? '日历文件已下载' : prepared ? '准备中' : '已设置日期';
-    const step = (n, title, desc, done, action, label) => `<div class="flow-step${done ? ' flow-done' : ''}"><span class="flow-num">${done ? '✓' : n}</span><div class="flow-main"><b>${title}</b><small>${done ? '已完成本步骤' : desc}</small></div>${!done && action ? `<button class="${n === 4 ? 'ghost' : 'btn'}" data-act="${action}" data-pid="${p.id}">${label}</button>` : ''}</div>`;
+    const step = (n, title, desc, done, action, label) => `<div class="flow-step${done ? ' flow-done' : ''}"><span class="flow-num">${done ? I_CHECK : n}</span><div class="flow-main"><b>${title}</b><small>${done ? '已完成本步骤' : desc}</small></div>${!done && action ? `<button class="${n === 4 ? 'ghost' : 'btn'}" data-act="${action}" data-pid="${p.id}">${label}</button>` : ''}</div>`;
     const follow = visitDone ? `<details class="pv"${(p.data.visitFollowupText || p.data.visitFollowupDate) ? ' open' : ''}><summary><b>复诊后补记</b><small>可选 · 填下一次复诊日期会自动建立下一轮准备</small></summary><div class="pv-body"><label for="vf_text">医生新交代的内容</label><textarea id="vf_text" placeholder="如：两周后复查血常规；继续按医生交代用药">${esc(p.data.visitFollowupText || '')}</textarea><label for="vf_date">下一次复诊日期（可不填）</label><div class="row"><input id="vf_date" type="date" value="${esc(p.data.visitFollowupDate || '')}" aria-label="下一次复诊日期"><button class="btn" data-act="vfollowup" data-pid="${p.id}">保存记录</button></div><p class="sub">复诊日期当天或之后保存才会计入整理打卡。</p><button class="ghost" data-act="vfollowup" data-pid="${p.id}" data-skip="1">没有新增内容，仅结束本次（不打卡）</button></div></details>` : '';
     return `<div class="card flow"><div class="tlh"><h2 style="margin:0">${visitDone ? '复诊完成，补记下一步' : '复诊准备'}</h2><span class="tag ${d < 0 ? 'bad' : ''}">${esc(status)} · ${day} · ${esc(nv)}</span></div><p class="sub">${esc(label(p))} · 只按你填写的日期提醒，不是预约，也不判断病情。</p>${step(1, '准备个人复诊清单', prepared ? '清单已建立，当前勾选 ' + ckDone + '/' + c.items.length + ' 项' : '选择“复查”模板，系统会建立一份可编辑清单。', prepared, 'vprepare', prepared ? '查看清单' : '去准备')}${step(2, '准备日历提醒文件', calendarDone ? '文件已下载；是否导入系统日历需由你确认。' : '下载文件后，请在系统日历中打开并确认导入。', calendarDone, 'vcalendar', '下载文件')}${step(3, '核对复诊摘要', summaryDone ? '摘要已标记为本次复诊材料。' : '打开摘要，核对范围、未完成事项和想问医生的问题。', summaryDone, 'vsummary', '去核对')}${step(4, '确认本次复诊完成', visitDone ? '你已确认完成；不代表医院系统已完成记录。' : '看完医生后由你确认；不代表医院系统已完成记录。', visitDone, 'vdone', '我已自行确认看完')}${(!visitDone && jnyList().length) ? `<div class="row" style="margin-top:10px"><button class="ghost" data-act="jgo">去做医院就诊流程（可获得整理打卡）</button></div>` : ''}${follow}</div>`;
 }
@@ -3247,7 +3280,7 @@ function hospitalZone() {
 function archiveSection() {
     const cards = S.profiles.map(p => { const n = (p.tl || []).length, od = (p.orders || []).filter(o => !o.done).length, last = (p.tl || []).map(r => r.date).sort().pop(); return `<button class="opt" style="--c:${COL[p.disease]}" data-act="pick" data-id="${p.id}"><b>${esc(label(p))}</b><small>${n} 条记录${od ? ' · 待办 ' + od : ''}${last ? ' · ' + esc(last.slice(5)) : ''}</small></button>`; }).join('');
     const q = S.profiles.slice().sort((a, b) => ((b.tl || []).map(r => r.date).sort().pop() || '').localeCompare((a.tl || []).map(r => r.date).sort().pop() || ''))[0];
-    return `<h2 class="gt">我的档案（${S.profiles.length}）</h2><div class="opts">${cards}</div>` + (q ? `<div class="row hb"><button class="btn" data-act="qadd" data-id="${q.id}">继续记录：${esc(label(q))}</button></div>` : '') + `<div class="row hb" style="margin-top:8px"><button class="ghost" data-act="new">＋ 新建档案</button></div>`;
+    return `<h2 class="gt">我的档案（${S.profiles.length}）</h2><div class="opts">${cards}</div>` + (q ? `<div class="row hb"><button class="btn" data-act="qadd" data-id="${q.id}">继续记录：${esc(label(q))}</button></div>` : '') + `<div class="row hb" style="margin-top:8px"><button class="ghost" data-act="new">${I_PLUS}新建档案</button></div>`;
 }
 const hgreet = () => { const h = new Date().getHours(); return h < 6 ? '夜深了' : h < 11 ? '早上好' : h < 13 ? '中午好' : h < 18 ? '下午好' : '晚上好'; };
 const hdate = d => { const x = new Date(d + 'T00:00:00'); return (x.getMonth() + 1) + '月' + x.getDate() + '日'; };
@@ -3290,12 +3323,12 @@ function hToday(cp) {
     const imgs = (cp.tl || []).reduce((n, r) => n + ((r.imgs || []).length), 0);
     const ck = cp.ck && Array.isArray(cp.ck.items) ? cp.ck.items : null, ckLeft = ck ? ck.filter(x => !x.done).length : 0;
     const nv0 = nextVisit(cp);
-    if (ckLeft && nv0 && daysTo(nv0) <= 14) more.push(`<button class="hlink" data-act="vprepare" data-pid="${cp.id}"><span>准备清单还有 ${ckLeft} 项未勾选</span><span>去准备 ›</span></button>`);
-    if (ask) more.push(`<button class="hlink" data-act="tab" data-t="sm"><span>有 ${ask} 个想问医生的问题</span><span>查看 ›</span></button>`);
-    if (imgs) more.push(`<button class="hlink" data-act="tab" data-t="tl"><span>已保存 ${imgs} 张检查报告图片</span><span>查看 ›</span></button>`);
+    if (ckLeft && nv0 && daysTo(nv0) <= 14) more.push(`<button class="hlink" data-act="vprepare" data-pid="${cp.id}"><span>准备清单还有 ${ckLeft} 项未勾选</span><span>去准备${I_RIGHT}</span></button>`);
+    if (ask) more.push(`<button class="hlink" data-act="tab" data-t="sm"><span>有 ${ask} 个想问医生的问题</span><span>查看${I_RIGHT}</span></button>`);
+    if (imgs) more.push(`<button class="hlink" data-act="tab" data-t="tl"><span>已保存 ${imgs} 张检查报告图片</span><span>查看${I_RIGHT}</span></button>`);
     const over = ALL.length - L.length;
     if (!rows && !more.length && !over) return `<section class="card htoday-empty"><b>今天没有到期的用药或医嘱</b><p class="sub">有新的情况，随时记录到时间线。</p></section>`;
-    const moreHtml = more.slice(0, 3).join('') + (over > 0 ? `<button class="hlink" data-act="tab" data-t="info"><span>另有 ${over} 项待办未展开</span><span>去档案查看 ›</span></button>` : '');
+    const moreHtml = more.slice(0, 3).join('') + (over > 0 ? `<button class="hlink" data-act="tab" data-t="info"><span>另有 ${over} 项待办未展开</span><span>去档案查看${I_RIGHT}</span></button>` : '');
     return `<section class="card htoday">${rows ? `<div class="sech"><b>全家今天</b><span>${ALL.length} 项</span></div>${rows}` : ''}${moreHtml}</section>`;
 }
 function hQuick(cp) {
@@ -3308,16 +3341,16 @@ function hQuick(cp) {
     };
     return `<nav class="qgrid" aria-label="常用操作"><button class="qbtn" data-act="tab" data-t="tl"><span class="qico">${ic.add}</span><b>记录就诊</b><small>${tlN} 条记录</small></button><button class="qbtn" data-act="tab" data-t="tl"><span class="qico">${ic.img}</span><b>报告图片</b><small>${imgN} 张</small></button><button class="qbtn" data-act="tab" data-t="info"><span class="qico">${ic.pill}</span><b>我的用药</b><small>${medN} 种在用</small></button><button class="qbtn" data-act="tab" data-t="mx"><span class="qico">${ic.chart}</span><b>指标趋势</b><small>${mxN} 项</small></button></nav>`;
 }
-const hAI = () => `<button class="airow" data-care="open"><span class="airo">AI</span><span class="airt"><b>AI 陪诊助手</b><small>整理资料 · 复诊准备 · 沟通问题</small></span><span class="airc">›</span></button>`;
+const hAI = () => `<button class="airow" data-care="open"><span class="airo">AI</span><span class="airt"><b>AI 陪诊助手</b><small>整理资料 · 复诊准备 · 沟通问题</small></span><span class="airc">${I_RIGHT}</span></button>`;
 function hOverview(cp) {
     const ms = (cp.mx || []).map(m => ({ m, pt: hlastPt(m) })).filter(x => x.pt).slice(0, 2);
     const body = ms.length ? `<div class="ovrow">${ms.map(({ m, pt }) => { const v = +String(pt.v).match(/^-?\d+(\.\d+)?$/)?.[0], bad = v !== undefined && !isNaN(v) && ((m.lo !== '' && m.lo != null && v < m.lo) || (m.hi !== '' && m.hi != null && v > m.hi)); return `<div class="omet"><span>${esc(m.name)}</span><b>${esc(pt.v)}<small>${esc(m.unit || '')}</small></b><em>${esc(String(pt.date || '').slice(5))}${bad ? ' ▲' : ''}</em></div>`; }).join('')}</div>` : `<p class="hblank">还没有记录指标。复诊前记下血压、血糖或化验数值，沟通会更清楚。</p>`;
-    return `<section class="card hcard"><div class="sech"><b>健康概览</b><button class="hmore-btn" data-act="tab" data-t="mx">指标趋势 ›</button></div>${body}</section>`;
+    return `<section class="card hcard"><div class="sech"><b>健康概览</b><button class="hmore-btn" data-act="tab" data-t="mx">指标趋势${I_RIGHT}</button></div>${body}</section>`;
 }
 function hHistory(cp) {
     const all = (cp.tl || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 2);
     if (!all.length) return `<section class="card hcard"><div class="sech"><b>最近记录</b></div><p class="hblank">还没有记录。点上方“记录就诊”开始。</p></section>`;
-    return `<section class="card hcard"><div class="sech"><b>最近记录</b><button class="hmore-btn" data-act="tab" data-t="tl">全部 ›</button></div>${all.map(r => `<button class="hrec" data-act="tab" data-t="tl"><span class="hrec-d">${esc(String(r.date).slice(5))}</span><span class="hrec-t"><b>${esc(r.kind || '记录')}</b><small>${esc(String(r.text || r.hosp || '').slice(0, 46))}${(r.imgs || []).length ? ' · ' + r.imgs.length + ' 张图' : ''}</small></span></button>`).join('')}</section>`;
+    return `<section class="card hcard"><div class="sech"><b>最近记录</b><button class="hmore-btn" data-act="tab" data-t="tl">全部${I_RIGHT}</button></div>${all.map(r => `<button class="hrec" data-act="tab" data-t="tl"><span class="hrec-d">${esc(String(r.date).slice(5))}</span><span class="hrec-t"><b>${esc(r.kind || '记录')}</b><small>${esc(String(r.text || r.hosp || '').slice(0, 46))}${(r.imgs || []).length ? ' · ' + r.imgs.length + ' 张图' : ''}</small></span></button>`).join('')}</section>`;
 }
 function hMore() {
     const hz = hospitalZone();
@@ -3423,7 +3456,7 @@ function medsToday(p) {
 }
 function tlView(p) {
     const all = (p.tl || []).slice().sort((x, y) => y.date.localeCompare(x.date) || y.id.localeCompare(x.id)), q = (S.q || '').trim().toLowerCase(), a = all.filter(r => (!S.kf || r.kind === S.kf) && (!q || [r.text, r.hosp, r.kind, r.tpl, r.date, ...(r.fields || []).map(x => x.n + x.v)].join(' ').toLowerCase().includes(q)));
-    return medsToday(p) + ordView(p) + `<details class="card hd addrec"${S.addOpen ? ' open' : ''}><summary><b>＋ 添加一条记录</b></summary><label>记录类型</label><select id="tk">${KINDS.map(k => `<option>${k}</option>`).join('')}</select><label>日期</label><input id="td" type="date" value="${today()}"><label>具体时间（可不填，如发热、胸痛发作的时刻）</label><input id="tti" type="time"><label>医院 / 科室</label><input id="th" value="${esc(p.data.hosp || ((p.tl || []).slice().sort((x, y) => y.date.localeCompare(x.date)).find(r => r.hosp) || {}).hosp || '')}">${tplPick(p)}<label>内容摘要</label><textarea id="tt" placeholder="如 主诉、检查结果、药名剂量、反应表现"></textarea><div class="row"><button class="ghost" data-act="txclean">整理文字格式</button><button class="ghost" data-act="txext">查找已有指标的数值</button></div><label>图片（化验单、CT/MRI、基因报告）</label><input id="tlf" type="file" accept="image/*" multiple><div id="tlprev" class="thumbs prev" hidden></div><p class="note2" id="tlhint" hidden>照片只是对照用的，不会自动识别文字。请对着图片在上面填写；点图片可放大。</p><div class="bar"><span class="saved" id="tfn"></span><button class="btn" data-act="tlsave">保存到时间线</button></div></details><details class="card"><summary><b>导出与模板</b></summary><div class="row"><button class="ghost" data-act="csv">导出 CSV</button><button class="ghost" data-act="pdf">导出 PDF</button></div>${tplMgr(p)}</details><h2 class="gt" style="margin-top:14px">病程时间线</h2>${tlFilter(p, all.length)}` + (a.length ? a.map(r => recCard(r, p)).join('') : `<div class="card empty"><p class="sub">${all.length ? '没有符合条件的记录，请换个关键词或类型。' : '点击上方添加第一条记录，开始追踪病程 ↑'}</p></div>`);
+    return medsToday(p) + ordView(p) + `<details class="card hd addrec"${S.addOpen ? ' open' : ''}><summary><b>${I_PLUS}添加一条记录</b></summary><label>记录类型</label><select id="tk">${KINDS.map(k => `<option>${k}</option>`).join('')}</select><label>日期</label><input id="td" type="date" value="${today()}"><label>具体时间（可不填，如发热、胸痛发作的时刻）</label><input id="tti" type="time"><label>医院 / 科室</label><input id="th" value="${esc(p.data.hosp || ((p.tl || []).slice().sort((x, y) => y.date.localeCompare(x.date)).find(r => r.hosp) || {}).hosp || '')}">${tplPick(p)}<label>内容摘要</label><textarea id="tt" placeholder="如 主诉、检查结果、药名剂量、反应表现"></textarea><div class="row"><button class="ghost" data-act="txclean">整理文字格式</button><button class="ghost" data-act="txext">查找已有指标的数值</button></div><label>图片（化验单、CT/MRI、基因报告）</label><input id="tlf" type="file" accept="image/*" multiple><div id="tlprev" class="thumbs prev" hidden></div><p class="note2" id="tlhint" hidden>照片只是对照用的，不会自动识别文字。请对着图片在上面填写；点图片可放大。</p><div class="bar"><span class="saved" id="tfn"></span><button class="btn" data-act="tlsave">保存到时间线</button></div></details><details class="card"><summary><b>导出与模板</b></summary><div class="row"><button class="ghost" data-act="csv">导出 CSV</button><button class="ghost" data-act="pdf">导出 PDF</button></div>${tplMgr(p)}</details><h2 class="gt" style="margin-top:14px">病程时间线</h2>${tlFilter(p, all.length)}` + (a.length ? a.map(r => recCard(r, p)).join('') : `<div class="card empty"><p class="sub">${all.length ? '没有符合条件的记录，请换个关键词或类型。' : '点击上方添加第一条记录，开始追踪病程 ↑'}</p></div>`);
 }
 const pt = s => { s = String(s || ''); const m = s.match(/\d+(\.\d+)?/g); if (!m)
     return ['', '']; const a = m.map(Number); if (a.length >= 2)
@@ -3505,7 +3538,7 @@ function chart(m, pts) {
 function mCard(m) {
     const days = S.range === 'week' ? 7 : S.range === 'month' ? 30 : 1e5, lim = Date.now() - days * 864e5;
     const all = m.pts.slice().sort((a, b) => a.date.localeCompare(b.date)), pts = all.filter(x => new Date(x.date).getTime() >= lim), last = all[all.length - 1];
-    return `<div class="card"><div class="tlh"><h2 style="margin:0">${esc(m.name)}</h2>${last ? `<span class="val ${inRP(m, last) ? '' : 'bad'}">${last.v} <small>${esc(m.unit)}</small></span>` : ''}</div><div class="sub">${m.lo === '' && m.hi === '' ? '未设置范围，不会标红。可在下方填写医生给你的目标' : (m.my ? (SRC[m.rsrc || 'me'] || SRC.me) : m.src === 't' ? '来自档案里的目标' : '通用参考值（因人而异，不是你的诊断或医生定的目标）') + ' ' + (m.lo !== '' ? m.lo : '—') + ' ~ ' + (m.hi !== '' ? m.hi : '—') + (m.my || m.src === 't' ? '，超出标红' : '，仅作对照，不会标红。想要标红提示，请在下方填你自己的范围，或在每次录入时填化验单上的范围')}</div>${m.pts.length ? chart(m, pts) : '<div class="sub">录入第一个数值，开启趋势追踪 ↓</div>'}${all.some(hasL) ? '<div class="sub">图上红点按每次记录自己的化验单参考范围判断；虚线是上面设置的统一范围，两者可能不同。' + (new Set(all.filter(hasL).map(x => x.rl + '~' + x.rh)).size > 1 ? '<b>各次化验单的参考范围并不一致</b>（每次的范围见下方记录列表）。' : '') + '</div>' : ''}<details class="entry" data-mid="${m.id}"${(S.mxo || {})[m.id] ? ' open' : ''}><summary><b>＋ 记一次数值</b></summary><div class="row"><input id="d_${m.id}" type="date" value="${today()}" aria-label="日期"><input id="v_${m.id}" type="number" step="any" inputmode="decimal" placeholder="数值" aria-label="数值"></div><input id="tm_${m.id}" type="time" aria-label="时间（可不填）" style="margin-top:8px"><input id="n_${m.id}" placeholder="备注（可不填，如 早晨、餐后）" aria-label="备注" style="margin-top:8px"><details><summary>化验单上的参考范围、检测机构（可选）</summary><p class="sub">照化验单抄。填了参考范围，这一次是否标红就按化验单的范围判断。</p><div class="row"><input id="rl_${m.id}" type="number" step="any" inputmode="decimal" placeholder="化验单下限" aria-label="化验单参考下限"><input id="rh_${m.id}" type="number" step="any" inputmode="decimal" placeholder="化验单上限" aria-label="化验单参考上限"></div><input id="og_${m.id}" placeholder="检测机构（可不填）" aria-label="检测机构" style="margin-top:8px"></details><div class="bar"><button class="btn" data-act="mxadd" data-id="${m.id}">添加数值</button></div></details><details ${S.mxe && S.mxe.startsWith(m.id + '|') ? 'open' : ''}><summary>修改范围 / 查看记录</summary><div class="row"><input id="lo_${m.id}" type="number" step="any" placeholder="下限" value="${m.lo}" aria-label="下限"><input id="hi_${m.id}" type="number" step="any" placeholder="上限" value="${m.hi}" aria-label="上限"></div><label>这个范围是谁给的</label><select id="rs_${m.id}">${Object.keys(SRC).map(k => `<option value="${k}" ${(m.rsrc || 'me') === k ? 'selected' : ''}>${SRC[k]}</option>`).join('')}</select><div class="bar"><button class="ghost" data-act="mxrange" data-id="${m.id}">保存范围</button></div>${all.slice().reverse().map(x => `${ptRow(m, x)}`).join('')}<div class="bar"><button class="ghost del" data-act="mxrm" data-id="${m.id}">删除该指标</button></div></details></div>`;
+    return `<div class="card"><div class="tlh"><h2 style="margin:0">${esc(m.name)}</h2>${last ? `<span class="val ${inRP(m, last) ? '' : 'bad'}">${last.v} <small>${esc(m.unit)}</small></span>` : ''}</div><div class="sub">${m.lo === '' && m.hi === '' ? '未设置范围，不会标红。可在下方填写医生给你的目标' : (m.my ? (SRC[m.rsrc || 'me'] || SRC.me) : m.src === 't' ? '来自档案里的目标' : '通用参考值（因人而异，不是你的诊断或医生定的目标）') + ' ' + (m.lo !== '' ? m.lo : '—') + ' ~ ' + (m.hi !== '' ? m.hi : '—') + (m.my || m.src === 't' ? '，超出标红' : '，仅作对照，不会标红。想要标红提示，请在下方填你自己的范围，或在每次录入时填化验单上的范围')}</div>${m.pts.length ? chart(m, pts) : '<div class="sub">录入第一个数值，开启趋势追踪 ↓</div>'}${all.some(hasL) ? '<div class="sub">图上红点按每次记录自己的化验单参考范围判断；虚线是上面设置的统一范围，两者可能不同。' + (new Set(all.filter(hasL).map(x => x.rl + '~' + x.rh)).size > 1 ? '<b>各次化验单的参考范围并不一致</b>（每次的范围见下方记录列表）。' : '') + '</div>' : ''}<details class="entry" data-mid="${m.id}"${(S.mxo || {})[m.id] ? ' open' : ''}><summary><b>${I_PLUS}记一次数值</b></summary><div class="row"><input id="d_${m.id}" type="date" value="${today()}" aria-label="日期"><input id="v_${m.id}" type="number" step="any" inputmode="decimal" placeholder="数值" aria-label="数值"></div><input id="tm_${m.id}" type="time" aria-label="时间（可不填）" style="margin-top:8px"><input id="n_${m.id}" placeholder="备注（可不填，如 早晨、餐后）" aria-label="备注" style="margin-top:8px"><details><summary>化验单上的参考范围、检测机构（可选）</summary><p class="sub">照化验单抄。填了参考范围，这一次是否标红就按化验单的范围判断。</p><div class="row"><input id="rl_${m.id}" type="number" step="any" inputmode="decimal" placeholder="化验单下限" aria-label="化验单参考下限"><input id="rh_${m.id}" type="number" step="any" inputmode="decimal" placeholder="化验单上限" aria-label="化验单参考上限"></div><input id="og_${m.id}" placeholder="检测机构（可不填）" aria-label="检测机构" style="margin-top:8px"></details><div class="bar"><button class="btn" data-act="mxadd" data-id="${m.id}">添加数值</button></div></details><details ${S.mxe && S.mxe.startsWith(m.id + '|') ? 'open' : ''}><summary>修改范围 / 查看记录</summary><div class="row"><input id="lo_${m.id}" type="number" step="any" placeholder="下限" value="${m.lo}" aria-label="下限"><input id="hi_${m.id}" type="number" step="any" placeholder="上限" value="${m.hi}" aria-label="上限"></div><label>这个范围是谁给的</label><select id="rs_${m.id}">${Object.keys(SRC).map(k => `<option value="${k}" ${(m.rsrc || 'me') === k ? 'selected' : ''}>${SRC[k]}</option>`).join('')}</select><div class="bar"><button class="ghost" data-act="mxrange" data-id="${m.id}">保存范围</button></div>${all.slice().reverse().map(x => `${ptRow(m, x)}`).join('')}<div class="bar"><button class="ghost del" data-act="mxrm" data-id="${m.id}">删除该指标</button></div></details></div>`;
 }
 
 const bpOK = p => p.disease === 'hyper' || p.disease === 'cardio';
@@ -3517,7 +3550,7 @@ function bpCard(p) {
     if (!bpOK(p))
         return '';
     const a = bpAvg(p), has = a.s.n && a.d.n;
-    return `<details class="card bp"${S.bpOpen ? ' open' : ''}><summary><b>＋ 记一次血压</b>${has ? '（近 7 天平均 ' + Math.round(a.s.a) + '/' + Math.round(a.d.a) + '）' : ''}</summary><div class="row"><input id="bp_d" type="date" value="${today()}" aria-label="日期"><select id="bp_t" aria-label="时段"><option>早上</option><option>晚上</option><option>就诊时</option><option>其他</option></select></div><div class="row" style="margin-top:8px"><input id="bp_s" type="number" inputmode="numeric" placeholder="收缩压（高压）" aria-label="收缩压"><input id="bp_di" type="number" inputmode="numeric" placeholder="舒张压（低压）" aria-label="舒张压"></div><input id="bp_h" type="number" inputmode="numeric" placeholder="心率（可不填）" aria-label="心率" style="margin-top:8px"><div class="bar"><button class="btn" data-act="bpadd">一起保存</button></div><p class="sub">${has ? '近 7 天平均：' + a.s.a.toFixed(0) + '/' + a.d.a.toFixed(0) + ' mmHg，共 ' + Math.max(a.s.n, a.d.n) + ' 次。' : ''}平均值只是把您记的数字平均，不是诊断，请以医生的解读为准。</p></details>`;
+    return `<details class="card bp"${S.bpOpen ? ' open' : ''}><summary><b>${I_PLUS}记一次血压</b>${has ? '（近 7 天平均 ' + Math.round(a.s.a) + '/' + Math.round(a.d.a) + '）' : ''}</summary><div class="row"><input id="bp_d" type="date" value="${today()}" aria-label="日期"><select id="bp_t" aria-label="时段"><option>早上</option><option>晚上</option><option>就诊时</option><option>其他</option></select></div><div class="row" style="margin-top:8px"><input id="bp_s" type="number" inputmode="numeric" placeholder="收缩压（高压）" aria-label="收缩压"><input id="bp_di" type="number" inputmode="numeric" placeholder="舒张压（低压）" aria-label="舒张压"></div><input id="bp_h" type="number" inputmode="numeric" placeholder="心率（可不填）" aria-label="心率" style="margin-top:8px"><div class="bar"><button class="btn" data-act="bpadd">一起保存</button></div><p class="sub">${has ? '近 7 天平均：' + a.s.a.toFixed(0) + '/' + a.d.a.toFixed(0) + ' mmHg，共 ' + Math.max(a.s.n, a.d.n) + ' 次。' : ''}平均值只是把您记的数字平均，不是诊断，请以医生的解读为准。</p></details>`;
 }
 function mxView(p) {
     if (!p.mx) {
@@ -3527,7 +3560,7 @@ function mxView(p) {
     syncT(p);
     let h = `<div class="seg">${[['week', '周'], ['month', '月'], ['all', '全病程']].map(r => `<button class="chip" aria-pressed="${S.range === r[0]}" data-act="range" data-r="${r[0]}">${r[1]}</button>`).join('')}</div>` + '<p class="sub note2">范围线只是提示：超出或在范围内，都不代表病情好坏，请以医生的判断为准。</p>' + bpCard(p) + p.mx.map(mCard).join('');
     const kid = p.disease === 'rare' && p.age === 'child';
-    return h + `<details class="card"><summary><b>＋ ${p.disease === 'rare' ? '添加检验项目 / 评估得分' : '添加自定义指标'}</b></summary>${p.disease === 'rare' && !p.mx.length ? '<p class="sub">罕见病指标因人而异，请按化验单或评估报告自行添加。</p>' : ''}<label>名称</label><input id="nn" placeholder="${kid ? '如 粗大运动得分、语言评估得分' : '如 肌酸激酶'}"><label>单位</label><input id="nu" placeholder="如 U/L、分"><div class="row"><div><label>下限</label><input id="nl" type="number" step="any" inputmode="decimal"></div><div><label>上限</label><input id="nh" type="number" step="any" inputmode="decimal"></div></div><div class="bar"><button class="btn" data-act="mxnew">添加指标</button></div></details>`;
+    return h + `<details class="card"><summary><b>${I_PLUS}${p.disease === 'rare' ? '添加检验项目 / 评估得分' : '添加自定义指标'}</b></summary>${p.disease === 'rare' && !p.mx.length ? '<p class="sub">罕见病指标因人而异，请按化验单或评估报告自行添加。</p>' : ''}<label>名称</label><input id="nn" placeholder="${kid ? '如 粗大运动得分、语言评估得分' : '如 肌酸激酶'}"><label>单位</label><input id="nu" placeholder="如 U/L、分"><div class="row"><div><label>下限</label><input id="nl" type="number" step="any" inputmode="decimal"></div><div><label>上限</label><input id="nh" type="number" step="any" inputmode="decimal"></div></div><div class="bar"><button class="btn" data-act="mxnew">添加指标</button></div></details>`;
 }
 function sensitiveGate(kind, onConfirm) { const o = document.createElement('div'); o.className = 'ov'; o.innerHTML = '<div class="mod"><h2>分享前请确认</h2><p>即将' + kind + '病情资料。请确认接收方可信，并检查摘要中是否包含不必要的个人信息。</p><label class="checkline"><input id="sg_ok" type="checkbox"> <span>我已检查内容，并确认不包含身份证号、手机号、住址、住院号等不必要敏感信息。</span></label><div class="bar"><button class="ghost" id="sg_n">取消</button><button class="btn" id="sg_y" disabled>继续</button></div></div>'; document.body.appendChild(o); const ok=o.querySelector('#sg_ok'), yes=o.querySelector('#sg_y'); ok.onchange=()=>{yes.disabled=!ok.checked}; o.querySelector('#sg_n').onclick=()=>o.remove(); yes.onclick=()=>{o.remove();onConfirm()}; }
 function extra(act, b, p) {
@@ -5412,7 +5445,7 @@ function careTaskStepsHtml(t) {
         const done = t.status === 'completed' || n < cur;
         const isCur = t.status !== 'completed' && n === cur;
         const url = /^https?:\/\//i.test(String(s.official_url || '')) ? String(s.official_url) : '';
-        return '<div class="care-step ' + (done ? 'done' : '') + ' ' + (isCur ? 'cur' : '') + '"><div><span class="n">' + (done ? '✓' : esc(n)) + '</span><b>' + esc(s.text || ('第 ' + n + ' 步')) + '</b></div>' +
+        return '<div class="care-step ' + (done ? 'done' : '') + ' ' + (isCur ? 'cur' : '') + '"><div><span class="n">' + (done ? I_CHECK : esc(n)) + '</span><b>' + esc(s.text || ('第 ' + n + ' 步')) + '</b></div>' +
             (Array.isArray(s.materials) && s.materials.length ? '<small>材料：' + esc(s.materials.join('、')) + '</small>' : '') +
             (s.time ? '<small>时间：' + esc(s.time) + '</small>' : '') +
             (s.location ? '<small>地点：' + esc(s.location) + '</small>' : '') +
@@ -5737,9 +5770,9 @@ document.getElementById('authForm').addEventListener('submit', async function (e
 "【1. 顶部导航】：我的档案（X 个）/ 复诊准备 / 七步任务 / 陪诊协作包 / 病程时间线 / 医院服务与惠民活动",
 "【2. 医院订阅状态横幅】：到期或核验失败时显示「医院服务已到期」或「正在核验医院服务有效期…」",
 "【3. 我的档案卡片】（默认首页）：",
-"   · 按钮：＋ 新建档案、载入试用数据、从备份恢复、清除全部数据、退出登录",
+"   · 按钮：新建档案、载入试用数据、从备份恢复、清除全部数据、退出登录",
 "   · 字段：成员称呼（必填，placeholder=如 妈妈、小宇、我自己）/ 疾病名称（必填）/ 其他情况 / 备份密码（强烈建议设置）/ 再输一次",
-"   · 档案详情内按钮：编辑、删除、☆ 设为重点、保存修改、打印 / 保存为 PDF、导出完整备份",
+"   · 档案详情内按钮：编辑、删除、设为重点、保存修改、打印 / 保存为 PDF、导出完整备份",
 "   · 档案详情子区：医生嘱咐与日程（含待办计数）/ 复诊准备 / 陪诊协作包 / 病程时间线 / 附件：检查图片",
 "【4. 复诊准备卡片】：",
 "   · 按钮：填写复诊日期、去补记、补记这次就诊、开始准备 / 查看准备清单、标记已完成、今天不提醒",
@@ -5758,7 +5791,7 @@ document.getElementById('authForm').addEventListener('submit', async function (e
 "【9. 底部 AI 陪诊助手】：",
 "   · 按钮：发送、清空对话、开始说话",
 "",
-"=== 提醒铃铛（右上角 🔔） ===",
+"=== 提醒铃铛（右上角铃铛图标） ===",
 "· 可以添加提醒（内容 + 时间，如『明天上午9点吃药』），到点浏览器通知（需保持页面打开并允许通知）。",
 "· 也可以直接跟底部 AI 陪诊助手说「提醒我…」让我帮你记。",
 "",
@@ -5774,6 +5807,6 @@ document.getElementById('authForm').addEventListener('submit', async function (e
 "* 没开「允许上传」时，回答一律「默认不上传，你自己决定要不要开」，不要怂恿。",
 "* 七步任务和服务器端医疗摘要**必须有医院给的患者码**才能用，没码时提醒联系医院。",
 "",
-"回答要求：用短句、中文、2–3 段；必须明确引用页面上真实存在的按钮/卡片名；结尾给 1–2 个下一步动作建议（例如「先去『我的档案』点『＋ 新建档案』」）。"
+"回答要求：用短句、中文、2–3 段；必须明确引用页面上真实存在的按钮/卡片名；结尾给 1–2 个下一步动作建议（例如「先去『我的档案』点『新建档案』」）。"
 ].join("\n");</script>
 </body></html>
